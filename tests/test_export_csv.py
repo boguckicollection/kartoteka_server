@@ -1,161 +1,143 @@
 import csv
+import sys
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-import sys
 sys.modules.setdefault("customtkinter", MagicMock())
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-import kartoteka.ui as ui
-import kartoteka.csv_utils as csv_utils
+import kartoteka.ui as ui  # noqa: E402
+import kartoteka.csv_utils as csv_utils  # noqa: E402
 
 
-def test_export_includes_new_fields(tmp_path, monkeypatch):
-    out_path = tmp_path / "out.csv"
-    inv_path = tmp_path / "inv.csv"
-    monkeypatch.setenv("WAREHOUSE_CSV", str(inv_path))
-    monkeypatch.setenv("STORE_EXPORT_CSV", str(out_path))
+def _make_dummy_app(rows):
+    app = SimpleNamespace(output_data=rows)
+    app.back_to_welcome = lambda: None
+    return app
+
+
+def test_export_creates_collection_file(tmp_path, monkeypatch):
+    collection_path = tmp_path / "collection.csv"
+    warehouse_path = tmp_path / "magazyn.csv"
+    monkeypatch.setenv("COLLECTION_EXPORT_CSV", str(collection_path))
+    monkeypatch.setenv("WAREHOUSE_CSV", str(warehouse_path))
     import importlib
     importlib.reload(csv_utils)
     importlib.reload(ui)
 
-    dummy = SimpleNamespace(
-        output_data=[{
-            "nazwa": "Pikachu",
-            "numer": "1",
-            "set": "Base",
-            "era": "Era1",
-            "product_code": 1,
-            "cena": "10",
-            "category": "Karty Pokémon > Era1 > Base",
-            "producer": "Pokemon",
-            "short_description": "s",
-            "description": "d",
-            "image1": "img.jpg",
-        }]
-    )
-    dummy.back_to_welcome = lambda: None
+    row = {
+        "nazwa": "Pikachu",
+        "numer": "001",
+        "set": "Base",
+        "era": "Classic",
+        "język": "ENG",
+        "stan": "NM",
+        "product_code": "PKM-BASE-1",
+        "cena": "12",
+        "warehouse_code": "K1R1P1",
+        "types": {"Common": True, "Holo": False, "Reverse": False},
+    }
 
-    with patch("tkinter.messagebox.showinfo"), \
-         patch("tkinter.messagebox.askyesno", return_value=False):
-        ui.CardEditorApp.export_csv(dummy)
+    with patch("tkinter.messagebox.showinfo"):
+        ui.CardEditorApp.export_csv(_make_dummy_app([row]))
 
-    with open(out_path, newline="", encoding="utf-8") as f:
+    with collection_path.open(encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
-        rows = list(reader)
-        assert reader.fieldnames == csv_utils.STORE_FIELDNAMES
-        row = rows[0]
-        assert row["name"] == "Pikachu"
-        assert row["category"] == "Karty Pokémon > Era1 > Base"
-        assert row["currency"] == "PLN"
-        assert row["producer_code"] == "1"
-        assert row["stock"] == "1"
-        assert row["active"] == "1"
-        assert row["vat"] == "23%"
-        assert row["images 1"] == "img.jpg"
-        assert row["price"] == "10"
-        assert "psa10_price" not in reader.fieldnames
+        assert reader.fieldnames == csv_utils.COLLECTION_FIELDNAMES
+        data = next(reader)
+    assert data["name"] == "Pikachu"
+    assert data["number"] == "1"
+    assert data["variant"] == "Common"
+    assert data["language"] == "ENG"
+    assert data["condition"] == "NM"
+    assert data["estimated_value"] == "12"
+    assert data["warehouse_code"] == "K1R1P1"
+    assert data["tags"] == "Common"
 
 
-def test_merge_by_product_code(tmp_path, monkeypatch):
-    out_path = tmp_path / "out.csv"
-    inv_path = tmp_path / "inv.csv"
-    monkeypatch.setenv("WAREHOUSE_CSV", str(inv_path))
-    monkeypatch.setenv("STORE_EXPORT_CSV", str(out_path))
+def test_export_overwrites_existing_product_code(tmp_path, monkeypatch):
+    collection_path = tmp_path / "collection.csv"
+    warehouse_path = tmp_path / "magazyn.csv"
+    monkeypatch.setenv("COLLECTION_EXPORT_CSV", str(collection_path))
+    monkeypatch.setenv("WAREHOUSE_CSV", str(warehouse_path))
     import importlib
     importlib.reload(csv_utils)
     importlib.reload(ui)
 
-    dummy = SimpleNamespace(
-        output_data=[
+    with collection_path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(
+            f, fieldnames=csv_utils.COLLECTION_FIELDNAMES, delimiter=";"
+        )
+        writer.writeheader()
+        writer.writerow(
             {
-                "nazwa": "Pikachu",
-                "numer": "1",
+                "product_code": "PKM-BASE-1",
+                "name": "Old",
+                "number": "1",
                 "set": "Base",
-                "era": "Era1",
-                "product_code": "PC1",
-                "cena": "10",
-                "category": "Karty Pokémon > Era1 > Base",
-                "producer": "Pokemon",
-                "short_description": "s",
-                "description": "d",
-                "image1": "img.jpg",
-            },
-            {
-                "nazwa": "Charmander",
-                "numer": "2",
-                "set": "Base",
-                "era": "Era2",
-                "product_code": "PC1",
-                "cena": "5",
-                "category": "Karty Pokémon > Era2 > Base",
-                "producer": "Pokemon",
-                "short_description": "s",
-                "description": "d",
-                "image1": "img.jpg",
-            },
-        ]
-    )
-    dummy.back_to_welcome = lambda: None
+                "era": "Classic",
+                "language": "ENG",
+                "condition": "NM",
+                "variant": "Common",
+                "estimated_value": "5",
+                "psa10_price": "",
+                "warehouse_code": "K1R1P1",
+                "tags": "Common",
+                "added_at": "2024-12-30",
+            }
+        )
 
-    with patch("tkinter.messagebox.showinfo"), \
-         patch("tkinter.messagebox.askyesno", return_value=False):
-        ui.CardEditorApp.export_csv(dummy)
+    new_row = {
+        "nazwa": "Pikachu",
+        "numer": "1",
+        "set": "Base",
+        "era": "Classic",
+        "język": "ENG",
+        "stan": "LP",
+        "product_code": "PKM-BASE-1",
+        "cena": "15",
+        "warehouse_code": "K1R1P1",
+    }
 
-    with open(out_path, newline="", encoding="utf-8") as f:
+    with patch("tkinter.messagebox.showinfo"):
+        ui.CardEditorApp.export_csv(_make_dummy_app([new_row]))
+
+    with collection_path.open(encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
-        rows = list(reader)
-        assert reader.fieldnames == csv_utils.STORE_FIELDNAMES
-        assert len(rows) == 1
-        row = rows[0]
-        assert row["product_code"] == "PC1"
-        assert row["stock"] == "2"
+        data = {row["product_code"]: row for row in reader}
+    assert data["PKM-BASE-1"]["estimated_value"] == "15"
+    assert data["PKM-BASE-1"]["condition"] == "LP"
 
 
-def test_export_appends_warehouse(tmp_path, monkeypatch):
-    out_path = tmp_path / "out.csv"
-    inv_path = tmp_path / "inv.csv"
-    monkeypatch.setenv("WAREHOUSE_CSV", str(inv_path))
-    monkeypatch.setenv("STORE_EXPORT_CSV", str(out_path))
+def test_export_updates_warehouse_file(tmp_path, monkeypatch):
+    collection_path = tmp_path / "collection.csv"
+    warehouse_path = tmp_path / "magazyn.csv"
+    monkeypatch.setenv("COLLECTION_EXPORT_CSV", str(collection_path))
+    monkeypatch.setenv("WAREHOUSE_CSV", str(warehouse_path))
     import importlib
     importlib.reload(csv_utils)
     importlib.reload(ui)
 
-    dummy = SimpleNamespace(
-        output_data=[{
-            "nazwa": "Pikachu",
-            "numer": "1",
-            "set": "Base",
-            "era": "Era1",
-            "product_code": 1,
-            "cena": "10",
-            "category": "Karty Pokémon > Era1 > Base",
-            "producer": "Pokemon",
-            "short_description": "s",
-            "description": "d",
-            "image1": "img.jpg",
-            "warehouse_code": "K1R1P1",
-        }]
-    )
-    dummy.back_to_welcome = lambda: None
+    row = {
+        "nazwa": "Eevee",
+        "numer": "2",
+        "set": "Jungle",
+        "era": "Classic",
+        "język": "ENG",
+        "stan": "NM",
+        "product_code": "PKM-JUN-2",
+        "cena": "8",
+        "warehouse_code": "K1R1P2",
+    }
 
-    with patch("tkinter.messagebox.showinfo"), \
-         patch("tkinter.messagebox.askyesno", return_value=False):
-        ui.CardEditorApp.export_csv(dummy)
+    with patch("tkinter.messagebox.showinfo"):
+        ui.CardEditorApp.export_csv(_make_dummy_app([row]))
 
-    with open(inv_path, newline="", encoding="utf-8") as f:
+    with warehouse_path.open(encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
-        rows = list(reader)
-        assert reader.fieldnames == csv_utils.WAREHOUSE_FIELDNAMES
-        row = rows[0]
-        assert row["name"] == "Pikachu"
-        assert row["number"] == "1"
-        assert row["set"] == "Base"
-        assert row["warehouse_code"] == "K1R1P1"
-        assert row["price"] == "10"
-        assert row["image"] == "img.jpg"
-        assert row["variant"] == "common"
-        assert row.get("sold", "") == ""
-        assert "era" not in row
-
-
+        stored = next(reader)
+    assert stored["name"] == "Eevee"
+    assert stored["number"] == "2"
+    assert stored["set"] == "Jungle"
+    assert stored["price"] == "8"
+    assert stored["variant"] == "common"

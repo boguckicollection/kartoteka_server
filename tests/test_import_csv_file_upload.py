@@ -1,37 +1,42 @@
-import pytest
-from shoper_client import ShoperClient
+import csv
+
+import kartoteka.csv_utils as csv_utils
 
 
-def test_import_csv_posts_file(tmp_path, monkeypatch):
-    csv_file = tmp_path / "data.csv"
-    csv_file.write_text("id;name\n1;test\n", encoding="utf-8")
+def test_load_collection_export_by_product_code(tmp_path):
+    path = tmp_path / "collection.csv"
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=csv_utils.COLLECTION_FIELDNAMES, delimiter=";")
+        writer.writeheader()
+        writer.writerow(
+            {
+                "product_code": "PKM-SET-1",
+                "name": "Pikachu",
+                "number": "1",
+                "set": "Base",
+                "era": "Classic",
+                "language": "ENG",
+                "condition": "NM",
+                "variant": "Common",
+                "estimated_value": "10",
+                "psa10_price": "100",
+                "warehouse_code": "K1R1P1",
+                "tags": "Common",
+                "added_at": "2024-12-31",
+            }
+        )
+    data = csv_utils.load_collection_export(str(path))
+    assert data["PKM-SET-1"]["name"] == "Pikachu"
 
-    client = ShoperClient(base_url="https://shop", token="tok")
 
-    def fake_post(endpoint, files=None):
-        assert endpoint == "products/import"
-        assert "file" in files
-        filename, fileobj, content_type = files["file"]
-        assert filename == "data.csv"
-        assert content_type == "text/csv"
-        assert fileobj.read() == b"id;name\n1;test\n"
-        return {}
-
-    monkeypatch.setattr(client, "post", fake_post)
-    result = client.import_csv(str(csv_file))
-    assert result == {}
-
-
-def test_import_csv_raises_when_post_fails(tmp_path, monkeypatch):
-    csv_file = tmp_path / "data.csv"
-    csv_file.write_text("id;name\n1;test\n", encoding="utf-8")
-
-    client = ShoperClient(base_url="https://shop", token="tok")
-
-    def failing_post(endpoint, files=None):
-        raise RuntimeError("post failed")
-
-    monkeypatch.setattr(client, "post", failing_post)
-
-    with pytest.raises(RuntimeError, match="post failed"):
-        client.import_csv(str(csv_file))
+def test_load_collection_export_uses_warehouse_fallback(tmp_path):
+    path = tmp_path / "collection.csv"
+    headers = csv_utils.COLLECTION_FIELDNAMES
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=headers, delimiter=";")
+        writer.writeheader()
+        row = dict.fromkeys(headers, "")
+        row.update({"name": "Charmander", "warehouse_code": "K1R1P2"})
+        writer.writerow(row)
+    data = csv_utils.load_collection_export(str(path))
+    assert data["K1R1P2"]["name"] == "Charmander"

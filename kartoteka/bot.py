@@ -10,7 +10,11 @@ from dotenv import load_dotenv
 from googleapiclient.discovery import build
 from string import Template
 import logging
-from auction_utils import create_auction_product
+try:
+    from auction_utils import create_auction_product
+except ImportError:  # pragma: no cover - legacy dependency removed
+    def create_auction_product(*_args, **_kwargs):
+        raise RuntimeError("Auction integration is no longer available")
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)

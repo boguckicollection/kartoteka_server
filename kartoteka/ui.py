@@ -43,8 +43,6 @@ else:  # pragma: no cover - optional dependency
             completions=SimpleNamespace(create=lambda *a, **k: None)
         )
 
-from shoper_client import ShoperClient
-from webdav_client import WebDAVClient
 from . import csv_utils, storage, stats_utils
 import threading
 from urllib.parse import urlencode, urlparse
@@ -104,11 +102,6 @@ SCANS_DIR = os.getenv("SCANS_DIR", "scans")
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
 
-SHOPER_API_URL = os.getenv("SHOPER_API_URL", "").strip()
-SHOPER_API_TOKEN = os.getenv("SHOPER_API_TOKEN", "").strip()
-WEBDAV_URL = os.getenv("WEBDAV_URL")
-WEBDAV_USER = os.getenv("WEBDAV_USER")
-WEBDAV_PASSWORD = os.getenv("WEBDAV_PASSWORD")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 USE_OPENAI_STUB = not OPENAI_API_KEY or os.getenv("OPENAI_TEST_MODE")
 if OPENAI_API_KEY:
@@ -392,9 +385,7 @@ BORDER_COLOR = "#444444"
 # vivid colors for start menu buttons
 SCAN_BUTTON_COLOR = "#2ECC71"  # green
 PRICE_BUTTON_COLOR = "#3498DB"  # blue
-SHOPER_BUTTON_COLOR = "#E67E22"  # orange
 MAGAZYN_BUTTON_COLOR = "#9B59B6"  # purple
-AUCTION_BUTTON_COLOR = "#E74C3C"  # red
 STATS_BUTTON_COLOR = "#1ABC9C"  # teal
 
 # shared colors for common actions
@@ -827,70 +818,6 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
     )
 
     return result
-def choose_nearest_locations(order_list, output_data):
-    """Assign the nearest warehouse codes to order items.
-
-    The function modifies the provided ``order_list`` in place, attaching a
-    ``warehouse_code`` to each product when possible.  When multiple codes are
-    available for the same ``product_code`` the combination with the smallest
-    total Manhattan distance is chosen.
-    """
-
-    pattern = re.compile(r"K(\d+)R(\d)P(\d+)")
-    available = defaultdict(list)
-
-    # Collect available locations grouped by product_code
-    for row in output_data:
-        if not row:
-            continue
-        prod = str(row.get("product_code", ""))
-        codes = str(row.get("warehouse_code") or "").split(";")
-        for code in codes:
-            code = code.strip()
-            m = pattern.match(code)
-            if not m:
-                continue
-            box, col, pos = map(int, m.groups())
-            available[prod].append(((box, col, pos), code))
-
-    def manhattan(a, b):
-        return abs(a[0] - b[0]) + abs(a[1] - b[1]) + abs(a[2] - b[2])
-
-    def best_codes(options, qty):
-        if qty <= 1:
-            return [options[0][1]]
-
-        best = None
-        best_cost = None
-        for combo in combinations(options, min(qty, len(options))):
-            coords = [c[0] for c in combo]
-            cost = 0
-            for i in range(len(coords)):
-                for j in range(i + 1, len(coords)):
-                    cost += manhattan(coords[i], coords[j])
-            if best_cost is None or cost < best_cost:
-                best_cost = cost
-                best = [c[1] for c in combo]
-        return best or []
-
-    for order in order_list:
-        for item in order.get("products", []):
-            prod = str(item.get("product_code") or item.get("code") or "")
-            qty = int(item.get("quantity", 1))
-            options = available.get(prod)
-            if not options:
-                continue
-            options.sort(key=lambda x: x[1])
-            chosen = best_codes(options, qty)
-            # remove used ones
-            remaining = [o for o in options if o[1] not in chosen]
-            available[prod] = remaining
-            if chosen:
-                item["warehouse_code"] = ";".join(chosen)
-
-    return order_list
-
-
 def extract_cardmarket_price(card):
     """Return an approximate Cardmarket price for a card.
 
@@ -1192,6 +1119,40 @@ def extract_set_code_ocr(
     return list(candidates)
 
 
+def extract_name_number_ocr(path: str, debug: bool = False) -> tuple[str, str, str]:
+    """Attempt to read the card name and number from ``path`` using OCR."""
+
+    try:
+        with Image.open(path) as im:
+            width, height = im.size
+            upper = int(height * 0.25)
+            lower = int(height * 0.75)
+            crop = im.crop((0, upper, width, lower))
+            gray = crop.convert("L")
+            gray = ImageOps.autocontrast(gray)
+            text = pytesseract.image_to_string(gray, config="--psm 6")
+    except (OSError, UnidentifiedImageError, pytesseract.TesseractError):
+        return "", "", ""
+
+    name = ""
+    number = ""
+    total = ""
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if not number:
+            match = re.search(r"(\d{1,3})(?:\s*/\s*(\d{1,3}))?", line)
+            if match:
+                number = match.group(1)
+                total = match.group(2) or ""
+                continue
+        if not name and len(line) >= 3:
+            name = line
+
+    return name, number, total
+
+
 # ZMIANA: Model Pydantic prosi teraz również o `set_name`
 class CardInfo(BaseModel):
     """Structured card data returned by the model."""
@@ -1203,140 +1164,313 @@ class CardInfo(BaseModel):
 
 
 # ZMIANA: Funkcja prosi OpenAI o wszystkie dane naraz, w tym o zestaw
-def extract_card_info_openai(path: str) -> tuple[str, str, str, str, str, str, str]:
-    """Recognize card name, number, set, and its format using OpenAI Vision.
 
-    Returns a tuple ``(name, number, total, era_name, set_name, set_code, set_format)``.
-    The ``set_name`` value is normalised to the canonical display name whenever
-    a matching ``set_code`` can be resolved. ``set_format`` is ``"text"`` or
-    ``"symbol"`` depending on how the set was detected.
-    """
+
+def extract_card_info_openai(
+    path: str, available_sets: Optional[Iterable[str]] = None
+) -> tuple[str, str, str, str, str, str, str]:
+    """Recognize card name, number, set, and format using OpenAI Vision."""
+
     try:
         parsed = urlparse(path)
         if parsed.scheme in ("http", "https"):
             try:
-                r = requests.get(path, timeout=10)
-                r.raise_for_status()
-                mime = r.headers.get("Content-Type") or mimetypes.guess_type(path)[0] or "image/jpeg"
-                encoded = base64.b64encode(r.content).decode("utf-8")
-            except requests.RequestException as e:
-                logger.warning("extract_card_info_openai failed to fetch image: %s", e)
+                response = requests.get(path, timeout=10)
+                response.raise_for_status()
+                mime = (
+                    response.headers.get("Content-Type")
+                    or mimetypes.guess_type(path)[0]
+                    or "image/jpeg"
+                )
+                encoded = base64.b64encode(response.content).decode("utf-8")
+            except requests.RequestException as exc:
+                logger.warning("extract_card_info_openai failed to fetch image: %s", exc)
                 return "", "", "", "", "", "", ""
         else:
             mime = mimetypes.guess_type(path)[0] or "image/jpeg"
             try:
-                with open(path, "rb") as f:
-                    encoded = base64.b64encode(f.read()).decode("utf-8")
-            except OSError as e:
-                logger.warning("extract_card_info_openai failed to read image: %s", e)
+                with open(path, "rb") as fh:
+                    encoded = base64.b64encode(fh.read()).decode("utf-8")
+            except OSError as exc:
+                logger.warning("extract_card_info_openai failed to read image: %s", exc)
                 return "", "", "", "", "", "", ""
         data_url = f"data:{mime};base64,{encoded}"
 
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             return "", "", "", "", "", "", ""
-        client = openai.OpenAI(api_key=api_key)
 
-        PROMPT = (
+        client = openai.OpenAI(api_key=api_key)
+        model = os.getenv("OPENAI_MODEL", "gpt-4o")
+
+        prompt = (
             "You must return a JSON object with the Pokémon card's English name, "
             "card number in the form NNN/NNN, English set name, era name, and whether "
             "the set is written as text or shown as a symbol. The response must strictly "
             'match {"name":"", "number":"", "set_name":"", "era_name":"", "set_format":""}.'
         )
 
+        strict_validation = (
+            os.getenv("STRICT_SET_VALIDATION", "1").lower() not in {"0", "false", "no"}
+        )
+        enum_values: list[str] = []
+        if strict_validation:
+            if available_sets:
+                for value in available_sets:
+                    canonical = get_set_name(value) or value
+                    if canonical:
+                        enum_values.append(str(canonical))
+            else:
+                enum_values = sorted(
+                    {
+                        *(tcg_sets_eng_code_map.values()),
+                        *(tcg_sets_jp_code_map.values()),
+                    }
+                )
+        seen_names: set[str] = set()
+        filtered_enums: list[str] = []
+        for item in enum_values:
+            lowered = item.lower()
+            if lowered not in seen_names:
+                filtered_enums.append(item)
+                seen_names.add(lowered)
+        enum_values = filtered_enums
+
+        base_kwargs = {
+            "model": model,
+            "input": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": prompt},
+                        {"type": "input_image", "image_url": data_url},
+                    ],
+                }
+            ],
+            "max_output_tokens": 200,
+        }
+
+        class ResponseFormatUnsupported(Exception):
+            """Base exception when the response_format parameter fails."""
+
+        class ResponseFormatRejected(ResponseFormatUnsupported):
+            """Raised when the API rejects the response_format parameter entirely."""
+
+        class EnumUnsupported(ResponseFormatUnsupported):
+            pass
+
+        def _schema_response(include_enum: bool) -> dict:
+            properties = {
+                "name": {"type": "string"},
+                "number": {"type": "string"},
+                "set_name": {"type": "string"},
+                "era_name": {"type": "string"},
+                "set_format": {"type": "string"},
+            }
+            if include_enum and enum_values:
+                properties["set_name"]["enum"] = enum_values
+            schema = {
+                "type": "object",
+                "properties": properties,
+                "required": ["name", "number", "set_name"],
+                "additionalProperties": False,
+            }
+            return {"type": "json_schema", "json_schema": {"name": "card_info", "schema": schema}}
+
+        def _safe_create(extra_kwargs: dict) -> object:
+            kwargs = dict(base_kwargs)
+            kwargs.update(extra_kwargs)
+            try:
+                return client.responses.create(**kwargs)
+            except TypeError as exc:
+                raise ResponseFormatRejected(str(exc)) from exc
+            except openai.OpenAIError as exc:
+                message = str(exc).lower()
+                if "enum" in message:
+                    raise EnumUnsupported(str(exc)) from exc
+                if "json_schema" in message:
+                    raise ResponseFormatUnsupported(str(exc)) from exc
+                if "response_format" in message or "unexpected keyword argument" in message:
+                    raise ResponseFormatRejected(str(exc)) from exc
+                raise
+
+        def _extract_raw_text(resp: object) -> str:
+            if resp is None:
+                return ""
+            if isinstance(resp, str):
+                return resp
+            text = getattr(resp, "output_text", None)
+            if text:
+                return str(text)
+            output = getattr(resp, "output", None)
+            if isinstance(output, (list, tuple)) and output:
+                first = output[0]
+                content = getattr(first, "content", None)
+                if isinstance(content, (list, tuple)) and content:
+                    item = content[0]
+                    text = getattr(item, "text", None)
+                    if isinstance(text, dict):
+                        return str(text.get("value", ""))
+                    if hasattr(text, "value"):
+                        return str(text.value)
+                    if text:
+                        return str(text)
+            choices = getattr(resp, "choices", None)
+            if isinstance(choices, (list, tuple)) and choices:
+                first_choice = choices[0]
+                message = getattr(first_choice, "message", None)
+                if message is not None:
+                    content = getattr(message, "content", None)
+                    if isinstance(content, str):
+                        return content
+            if isinstance(resp, dict):
+                if "output_text" in resp:
+                    return str(resp["output_text"])
+                if resp.get("choices"):
+                    message = resp["choices"][0].get("message") or {}
+                    return str(message.get("content", ""))
+                if resp.get("output"):
+                    content = resp["output"][0].get("content") or []
+                    if content:
+                        text = content[0].get("text")
+                        if isinstance(text, dict):
+                            return str(text.get("value", ""))
+                        if text:
+                            return str(text)
+            return ""
+
+        def _repair_json(text: str) -> str:
+            fixed = text
+            opens = fixed.count("{")
+            closes = fixed.count("}")
+            if closes < opens:
+                fixed += "}" * (opens - closes)
+            opens = fixed.count("[")
+            closes = fixed.count("]")
+            if closes < opens:
+                fixed += "]" * (opens - closes)
+            return fixed
+
+        def _parse_payload(resp: object) -> Optional[dict]:
+            raw = _extract_raw_text(resp).strip()
+            if not raw:
+                return None
+            raw = raw.strip("`")
+            if raw.lower().startswith("json"):
+                raw = raw[4:].lstrip()
+            match = re.search(r"{.*}", raw, re.DOTALL)
+            payload = match.group(0) if match else raw
+            try:
+                return json.loads(payload)
+            except json.JSONDecodeError:
+                repaired = _repair_json(payload)
+                if repaired != payload:
+                    try:
+                        return json.loads(repaired)
+                    except json.JSONDecodeError:
+                        return None
+                return None
+
+        def _invoke(extra_kwargs: dict) -> Optional[dict]:
+            for _ in range(2):
+                resp = _safe_create(extra_kwargs)
+                data = _parse_payload(resp)
+                if data is not None:
+                    return data
+            return None
+
+        data: Optional[dict] = None
+        retry_without_enum = False
+        response_format_rejected = False
         try:
-            resp = client.responses.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-                response_format={"type": "json_object"},
-                input=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "input_text", "text": PROMPT},
-                            {"type": "input_image", "image_url": data_url},
-                        ],
-                    }
-                ],
-                max_output_tokens=150,
-            )
-            raw = getattr(resp, "output_text", "")
-            raw = raw.strip().strip("`")
-            if raw.startswith("json"):
-                raw = raw[len("json") :].lstrip()
-            match = re.search(r"{.*}", raw, re.DOTALL)
-            if match:
-                raw = match.group(0)
-            if not raw:
-                logger.error(
-                    "extract_card_info_openai got empty response from OpenAI: %r",
-                    resp,
-                )
-                return "", "", "", "", "", "", ""
-            try:
-                data_dict = json.loads(raw)
-            except json.JSONDecodeError:
-                logger.error("OpenAI returned non-JSON: %r", raw)
-                return "", "", "", "", "", "", ""
-        except TypeError:
-            resp = client.responses.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-                input=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "input_text", "text": PROMPT},
-                            {"type": "input_image", "image_url": data_url},
-                        ],
-                    }
-                ],
-                max_output_tokens=150,
-            )
-            raw = getattr(resp, "output_text", "")
-            raw = raw.strip().strip("`")
-            if raw.startswith("json"):
-                raw = raw[len("json") :].lstrip()
-            match = re.search(r"{.*}", raw, re.DOTALL)
-            if match:
-                raw = match.group(0)
-            if not raw:
-                logger.error(
-                    "extract_card_info_openai got empty response from OpenAI: %r",
-                    resp,
-                )
-                return "", "", "", "", "", "", ""
-            try:
-                data_dict = json.loads(raw)
-            except json.JSONDecodeError:
-                logger.error("OpenAI returned non-JSON: %r", raw)
-                return "", "", "", "", "", "", ""
+            data = _invoke({"response_format": _schema_response(bool(enum_values))})
+        except EnumUnsupported:
+            retry_without_enum = bool(enum_values)
+        except ResponseFormatRejected:
+            response_format_rejected = True
+            if enum_values:
+                retry_without_enum = True
+        except ResponseFormatUnsupported:
+            if enum_values:
+                retry_without_enum = True
+            else:
+                data = None
 
-        data = data_dict
+        if data is None and retry_without_enum:
+            try:
+                data = _invoke({"response_format": _schema_response(False)})
+            except ResponseFormatRejected:
+                response_format_rejected = True
+                data = None
+            except ResponseFormatUnsupported:
+                data = None
 
-        raw_number = data.get("number") or ""
-        number, total = "", ""
-        if isinstance(raw_number, str):
-            m = re.search(r"(\d+)(?:\s*/\s*(\d+))?", raw_number)
-            if m:
-                number, total = m.group(1), m.group(2) or ""
+        if data is None and not response_format_rejected:
+            try:
+                data = _invoke({"response_format": {"type": "json_object"}})
+            except ResponseFormatRejected:
+                response_format_rejected = True
+                data = None
+            except ResponseFormatUnsupported:
+                data = None
+
+        if data is None:
+            data = _invoke({})
+
+        if not data:
+            return "", "", "", "", "", "", ""
+
+        raw_number = str(data.get("number") or "")
+        number = ""
+        total = ""
+        if raw_number:
+            match = re.search(r"(\d+)(?:\s*/\s*(\d+))?", raw_number)
+            if match:
+                number = match.group(1)
+                total = match.group(2) or ""
             else:
                 number = re.sub(r"\D+", "", raw_number)
 
-        name = data.get("name") or ""
-        set_name = data.get("set_name") or ""
-        set_format = data.get("set_format") or ""
-        set_code = ""
-        if set_name:
-            set_code = get_set_code(set_name)
-            mapped = get_set_name(set_code)
-            if mapped:
-                set_name = mapped
-        era_name = data.get("era_name") or ""
-        return name, number, total, era_name, set_name, set_code, set_format
-    except Exception as e:
-        logger.warning("extract_card_info_openai failed: %s", e)
-        return "", "", "", "", "", "", ""
+        name = str(data.get("name") or "").strip()
+        raw_set = str(data.get("set_name") or "").strip()
+        raw_era = str(data.get("era_name") or "").strip()
+        set_format = str(data.get("set_format") or "").strip().lower()
+        if set_format not in {"text", "symbol"}:
+            set_format = ""
 
-# ZMIANA: Całkowicie nowa, hierarchiczna logika analizy obrazu
+        known_codes = {
+            *(code.lower() for code in tcg_sets_eng_code_map),
+            *(code.lower() for code in tcg_sets_jp_code_map),
+        }
+
+        def _resolve_set(value: str) -> tuple[str, str]:
+            if not value:
+                return "", ""
+            candidates = [value]
+            alt = get_set_name(value)
+            if alt and alt.lower() != value.lower():
+                candidates.append(alt)
+            for candidate in candidates:
+                code_candidate = get_set_code(candidate)
+                if code_candidate and code_candidate.lower() in known_codes:
+                    name_candidate = get_set_name(code_candidate) or candidate
+                    return name_candidate, code_candidate
+            code_candidate = get_set_code(value)
+            if code_candidate and code_candidate.lower() in known_codes:
+                name_candidate = get_set_name(code_candidate) or value
+                return name_candidate, code_candidate
+            return candidates[-1], ""
+
+        set_name, set_code = _resolve_set(raw_set)
+        if not set_name and raw_set:
+            set_name = raw_set
+
+        era_name = get_set_era(set_code) or get_set_era(set_name) or raw_era
+
+        return name, number, total, era_name, set_name, set_code, set_format
+    except Exception as exc:
+        logger.warning("extract_card_info_openai failed: %s", exc)
+        return "", "", "", "", "", "", ""
 def analyze_card_image(
     path: str,
     translate_name: bool = False,
@@ -1439,7 +1573,7 @@ def analyze_card_image(
                     print(
                         f"[SUCCESS] OpenAI found all data: {name}, {number}, {set_name}"
                     )
-                    era = era_name or get_set_era(set_code) or get_set_era(set_name)
+                    era = get_set_era(set_code) or get_set_era(set_name) or era_name
                     result = {
                         "name": name,
                         "number": number,
@@ -1465,9 +1599,65 @@ def analyze_card_image(
         else:
             print("[WARN] No OpenAI API key. Skipping to OCR.")
 
-        # --- PRIORITY 3: TCGGO API Lookup (if name and number are known) ---
+        # --- PRIORITY 3: OCR fallback ---
+        ocr_logged = False
+        if local_path and (not name or not number):
+            print("[INFO] Step 3: Performing OCR fallback...")
+            ocr_logged = True
+            ocr_name, ocr_number, ocr_total = extract_name_number_ocr(local_path, debug)
+            if ocr_name and not name:
+                name = ocr_name
+            if ocr_number and not number:
+                number = ocr_number
+            if ocr_total and not total:
+                total = ocr_total
+
+        if local_path and not set_name:
+            if not ocr_logged:
+                print("[INFO] Step 3: Performing OCR fallback...")
+                ocr_logged = True
+            try:
+                if not rects:
+                    rects = [(0, 0, 0, 0)]
+                if rect is None and rects:
+                    rect = rects[0]
+
+                for candidate in rects:
+                    if preview_cb and preview_image is not None:
+                        try:
+                            preview_cb(candidate, preview_image)
+                        except Exception as exc:
+                            logger.exception("preview callback failed")
+                    ocr_codes = extract_set_code_ocr(local_path, candidate, debug)
+                    for code in ocr_codes:
+                        name_lookup = get_set_name(code)
+                        if name_lookup and name_lookup != code:
+                            rect = candidate
+                            set_code = code
+                            set_name = name_lookup
+                            print(f"[SUCCESS] OCR recognized set code: {name_lookup}")
+                            era = get_set_era(set_code) or get_set_era(set_name)
+                            result = {
+                                "name": name,
+                                "number": number,
+                                "total": total,
+                                "set": set_name,
+                                "set_code": set_code,
+                                "orientation": orientation,
+                                "set_format": set_format,
+                                "era": era,
+                            }
+                            if debug and rect:
+                                result["rect"] = rect
+                            return result
+                        else:
+                            print(f"[WARN] OCR produced unknown set code: {code}")
+            except Exception:
+                logger.exception("OCR analysis failed")
+
+        # --- PRIORITY 4: TCGGO API Lookup (if name and number are known) ---
         if name and number:
-            print("[INFO] Step 3: Looking up sets via TCGGO API...")
+            print("[INFO] Step 4: Looking up sets via TCGGO API...")
             try:
                 api_sets = lookup_sets_from_api(name, number, total or None)
                 if len(api_sets) == 1:
@@ -1514,51 +1704,9 @@ def analyze_card_image(
             except (requests.RequestException, ValueError) as e:
                 logger.warning("TCGGO API lookup failed: %s", e)
 
-        # --- PRIORITY 4: OCR fallback ---
-        if local_path:
-            print("[INFO] Step 4: Performing OCR fallback...")
-            try:
-                if not rects:
-                    rects = [(0, 0, 0, 0)]
-                if rect is None and rects:
-                    rect = rects[0]
-
-                for candidate in rects:
-                    if preview_cb and preview_image is not None:
-                        try:
-                            preview_cb(candidate, preview_image)
-                        except Exception as exc:
-                            logger.exception("preview callback failed")
-                    ocr_codes = extract_set_code_ocr(local_path, candidate, debug)
-                    for code in ocr_codes:
-                        name_lookup = get_set_name(code)
-                        if name_lookup and name_lookup != code:
-                            rect = candidate
-                            set_code = code
-                            set_name = name_lookup
-                            print(f"[SUCCESS] OCR recognized set code: {name_lookup}")
-                            era = get_set_era(set_code) or get_set_era(set_name)
-                            result = {
-                                "name": name,
-                                "number": number,
-                                "total": total,
-                                "set": set_name,
-                                "set_code": set_code,
-                                "orientation": orientation,
-                                "set_format": set_format,
-                                "era": era,
-                            }
-                            if debug and rect:
-                                result["rect"] = rect
-                            return result
-                        else:
-                            print(f"[WARN] OCR produced unknown set code: {code}")
-            except Exception:
-                logger.exception("OCR analysis failed")
-
         # If all methods fail, return any partial data we might have
         print("[FAIL] All analysis methods failed to find a definitive set.")
-        era = era_name or get_set_era(set_code) or get_set_era(set_name)
+        era = get_set_era(set_code) or get_set_era(set_name) or era_name
         result = {
             "name": name,
             "number": number,
@@ -1598,7 +1746,7 @@ class CardEditorApp:
         self.card_cache = {}
         self.file_to_key = {}
         self.product_code_map = {}
-        self.store_data = csv_utils.load_store_export()
+        self.collection_data = csv_utils.load_collection_export()
         try:
             if HashDB and HASH_DB_FILE:
                 db_path = Path(HASH_DB_FILE)
@@ -1624,11 +1772,10 @@ class CardEditorApp:
         self.scan_folder_var = tk.StringVar()
         self.starting_idx = 0
         self.start_frame = None
-        self.shoper_frame = None
         self.pricing_frame = None
         self.magazyn_frame = None
         self.location_frame = None
-        self.auction_frame = None
+        self.history_frame = None
         self.mag_progressbars: dict[tuple[int, int], ctk.CTkProgressBar] = {}
         self.mag_percent_labels: dict[tuple[int, int], ctk.CTkLabel] = {}
         self.mag_labels: list[ctk.CTkLabel] = []
@@ -1640,7 +1787,6 @@ class CardEditorApp:
         self.loading_label = None
         self.price_pool_total = 0.0
         self.pool_total_label = None
-        self.auction_queue = []
         self.in_scan = False
         self.current_image_path = ""
         self.current_analysis_thread = None
@@ -1706,7 +1852,8 @@ class CardEditorApp:
         desc = ctk.CTkLabel(
             main_frame,
             text=(
-                "Aplikacja KARTOTEKA.SHOP pomaga przygotować skany do sprzedaży."
+                "KARTOTEKA pomaga katalogować kolekcję kart, prowadzić prywatne "
+                "wyceny i kontrolować stan magazynu."
             ),
             wraplength=1400,
             justify="center",
@@ -1735,23 +1882,23 @@ class CardEditorApp:
         ).pack(padx=10, pady=5, fill="x")
         self.create_button(
             menu_frame,
-            text="\U0001f5c3\ufe0f Shoper",
-            command=self.open_shoper_window,
-            fg_color=SHOPER_BUTTON_COLOR,
+            text="\U0001f58a\ufe0f Edytor kart",
+            command=self.open_card_editor,
+            fg_color=ACCENT_COLOR,
             width=100,
         ).pack(padx=10, pady=5, fill="x")
         self.create_button(
             menu_frame,
-            text="\U0001f4e6 Magazyn",
-            command=self.show_magazyn_view,
+            text="\U0001f4e6 Kolekcja",
+            command=self.open_collection_overview,
             fg_color=MAGAZYN_BUTTON_COLOR,
             width=100,
         ).pack(padx=10, pady=5, fill="x")
         self.create_button(
             menu_frame,
-            text="\U0001f528 Licytacje",
-            command=self.open_auctions_window,
-            fg_color=AUCTION_BUTTON_COLOR,
+            text="\U0001f4dc Historia wycen",
+            command=self.open_valuation_history,
+            fg_color=FETCH_BUTTON_COLOR,
             width=100,
         ).pack(padx=10, pady=5, fill="x")
 
@@ -1862,8 +2009,8 @@ class CardEditorApp:
 
         config_btn = self.create_button(
             menu_frame,
-            text="\u2699\ufe0f Konfiguracja",
-            command=self.open_config_dialog,
+            text="\u2699\ufe0f Ustawienia kolekcji",
+            command=self.open_collection_settings,
             fg_color="#404040",
             width=100,
         )
@@ -1878,6 +2025,215 @@ class CardEditorApp:
             text_color="#CCCCCC",
         )
         author.pack(side="bottom", pady=5)
+
+    def open_card_editor(self):
+        """Open the card editor without starting a scan session."""
+
+        if getattr(self, "start_frame", None):
+            self.start_frame.destroy()
+            self.start_frame = None
+        for attr in (
+            "pricing_frame",
+            "frame",
+            "magazyn_frame",
+            "location_frame",
+            "history_frame",
+        ):
+            widget = getattr(self, attr, None)
+            if widget is not None:
+                widget.destroy()
+                setattr(self, attr, None)
+        self.in_scan = False
+        self.setup_editor_ui()
+
+    def open_collection_overview(self):
+        """Show the warehouse view as a quick collection overview."""
+
+        if getattr(self, "start_frame", None):
+            self.start_frame.destroy()
+            self.start_frame = None
+        if getattr(self, "history_frame", None):
+            self.history_frame.destroy()
+            self.history_frame = None
+        self.in_scan = False
+        self.show_magazyn_view()
+
+    def open_valuation_history(self):
+        """Display aggregated valuation history of the collection."""
+
+        if getattr(self, "start_frame", None):
+            self.start_frame.destroy()
+            self.start_frame = None
+        for attr in (
+            "pricing_frame",
+            "frame",
+            "magazyn_frame",
+            "location_frame",
+            "history_frame",
+        ):
+            widget = getattr(self, attr, None)
+            if widget is not None:
+                widget.destroy()
+                setattr(self, attr, None)
+
+        self.root.minsize(1200, 800)
+        frame = ctk.CTkFrame(self.root, fg_color=BG_COLOR)
+        frame.pack(expand=True, fill="both", padx=10, pady=10)
+        self.history_frame = frame
+
+        ctk.CTkLabel(
+            frame,
+            text="Historia wycen kolekcji",
+            font=("Segoe UI", 24, "bold"),
+            text_color=TEXT_COLOR,
+        ).pack(pady=(0, 10))
+
+        tree = ttk.Treeview(
+            frame,
+            columns=("date", "count", "total", "average"),
+            show="headings",
+        )
+        tree.heading("date", text="Data")
+        tree.heading("count", text="Karty")
+        tree.heading("total", text="Suma [PLN]")
+        tree.heading("average", text="Średnia [PLN]")
+        tree.column("date", width=140, anchor="center")
+        tree.column("count", width=80, anchor="center")
+        tree.column("total", width=140, anchor="e")
+        tree.column("average", width=140, anchor="e")
+        tree.pack(expand=True, fill="both", padx=5, pady=5)
+        self.history_tree = tree
+
+        def refresh_history():
+            empty_label = getattr(self, "history_empty_label", None)
+            if empty_label is not None:
+                empty_label.destroy()
+                self.history_empty_label = None
+            for row_id in tree.get_children():
+                tree.delete(row_id)
+            history = csv_utils.get_valuation_history()
+            for entry in history:
+                tree.insert(
+                    "",
+                    "end",
+                    values=(
+                        entry.get("date", ""),
+                        entry.get("count", 0),
+                        f"{float(entry.get('total', 0.0)):.2f}",
+                        f"{float(entry.get('average', 0.0)):.2f}",
+                    ),
+                )
+            if not history:
+                message = ctk.CTkLabel(
+                    frame,
+                    text="Brak zapisanych wycen. Dodaj karty do kolekcji, aby zobaczyć historię.",
+                    text_color="#BBBBBB",
+                    wraplength=800,
+                )
+                message.pack(pady=10)
+                frame.after(100, message.lift)
+                self.history_empty_label = message
+
+        refresh_history()
+        self.refresh_history_view = refresh_history
+
+        btn_frame = ctk.CTkFrame(frame, fg_color=BG_COLOR)
+        btn_frame.pack(fill="x", pady=(10, 0))
+        self.create_button(
+            btn_frame,
+            text="Odśwież",
+            command=refresh_history,
+            fg_color=FETCH_BUTTON_COLOR,
+            width=140,
+        ).pack(side="left", padx=5)
+        back_cmd = getattr(self, "back_to_welcome", lambda: None)
+        self.create_button(
+            btn_frame,
+            text="Powrót",
+            command=back_cmd,
+            fg_color=NAV_BUTTON_COLOR,
+            width=140,
+        ).pack(side="right", padx=5)
+
+    def open_collection_settings(self):
+        """Allow editing of collection file locations stored in ``.env``."""
+
+        export_path = os.getenv(
+            "COLLECTION_EXPORT_CSV", csv_utils.COLLECTION_EXPORT_CSV
+        )
+        warehouse_path = os.getenv("WAREHOUSE_CSV", csv_utils.WAREHOUSE_CSV)
+
+        top = ctk.CTkToplevel(self.root)
+        top.title("Ustawienia kolekcji")
+        top.grab_set()
+
+        collection_var = tk.StringVar(value=export_path)
+        warehouse_var = tk.StringVar(value=warehouse_path)
+
+        ctk.CTkLabel(top, text="Plik kolekcji:", text_color=TEXT_COLOR).grid(
+            row=0, column=0, padx=10, pady=5, sticky="e"
+        )
+        ctk.CTkEntry(top, textvariable=collection_var, width=420).grid(
+            row=0, column=1, padx=10, pady=5
+        )
+
+        ctk.CTkLabel(top, text="Plik magazynu:", text_color=TEXT_COLOR).grid(
+            row=1, column=0, padx=10, pady=5, sticky="e"
+        )
+        ctk.CTkEntry(top, textvariable=warehouse_var, width=420).grid(
+            row=1, column=1, padx=10, pady=5
+        )
+
+        def browse_var(var: tk.StringVar):
+            path = filedialog.asksaveasfilename(
+                defaultextension=".csv", filetypes=[("CSV", "*.csv")]
+            )
+            if path:
+                var.set(path)
+
+        browse_btn = self.create_button(
+            top,
+            text="Wybierz plik kolekcji",
+            command=lambda: browse_var(collection_var),
+            fg_color=FETCH_BUTTON_COLOR,
+            width=180,
+        )
+        browse_btn.grid(row=0, column=2, padx=5, pady=5)
+
+        browse_warehouse_btn = self.create_button(
+            top,
+            text="Wybierz magazyn",
+            command=lambda: browse_var(warehouse_var),
+            fg_color=FETCH_BUTTON_COLOR,
+            width=180,
+        )
+        browse_warehouse_btn.grid(row=1, column=2, padx=5, pady=5)
+
+        def save_settings():
+            collection_path = collection_var.get().strip()
+            warehouse = warehouse_var.get().strip()
+            if collection_path:
+                set_key(ENV_FILE, "COLLECTION_EXPORT_CSV", collection_path)
+                os.environ["COLLECTION_EXPORT_CSV"] = collection_path
+                csv_utils.COLLECTION_EXPORT_CSV = collection_path
+            if warehouse:
+                set_key(ENV_FILE, "WAREHOUSE_CSV", warehouse)
+                os.environ["WAREHOUSE_CSV"] = warehouse
+                csv_utils.WAREHOUSE_CSV = warehouse
+            self.collection_data = csv_utils.load_collection_export()
+            messagebox.showinfo("Sukces", "Zapisano ustawienia kolekcji.")
+            top.destroy()
+
+        save_btn = self.create_button(
+            top,
+            text="Zapisz",
+            command=save_settings,
+            fg_color=SAVE_BUTTON_COLOR,
+            width=140,
+        )
+        save_btn.grid(row=2, column=0, columnspan=3, pady=10)
+        top.grid_columnconfigure(1, weight=1)
+        self.root.wait_window(top)
 
     def update_inventory_stats(self, force: bool = False):
         """Refresh labels showing total item count and value in the UI.
@@ -2027,9 +2383,6 @@ class CardEditorApp:
             self.location_frame.destroy()
             self.location_frame = None
             self.pricing_frame = None
-        if getattr(self, "shoper_frame", None):
-            self.shoper_frame.destroy()
-            self.shoper_frame = None
         if getattr(self, "magazyn_frame", None):
             self.magazyn_frame.destroy()
             self.magazyn_frame = None
@@ -2149,156 +2502,6 @@ class CardEditorApp:
             **kwargs,
         )
 
-    def open_shoper_window(self):
-        if not self.shoper_client:
-            messagebox.showerror("Błąd", "Brak konfiguracji Shoper API")
-            return
-        # Quick connection test to provide clearer error messages
-        try:
-            # use a known endpoint to verify the connection
-            resp = self.shoper_client.get_inventory()
-            if not resp:
-                raise RuntimeError("404")
-        except (requests.RequestException, RuntimeError) as exc:
-            msg = str(exc)
-            if "404" in msg:
-                messagebox.showerror(
-                    "Błąd",
-                    "Nie znaleziono endpointu Shoper API ('products'). Czy adres zawiera '/webapi/rest'?",
-                )
-            else:
-                messagebox.showerror(
-                    "Błąd", f"Połączenie z Shoper API nie powiodło się: {msg}"
-                )
-            return
-        if self.start_frame is not None:
-            self.start_frame.destroy()
-            self.start_frame = None
-        if getattr(self, "shoper_frame", None):
-            self.shoper_frame.destroy()
-            self.shoper_frame = None
-        if getattr(self, "location_frame", None):
-            self.location_frame.destroy()
-            self.location_frame = None
-        if getattr(self, "statistics_frame", None):
-            self.statistics_frame.destroy()
-            self.statistics_frame = None
-        # Ensure the window has a reasonable minimum size
-        self.root.minsize(1200, 800)
-
-        self.shoper_frame = tk.Frame(
-            self.root, bg=self.root.cget("background")
-        )
-        self.shoper_frame.pack(expand=True, fill="both", padx=10, pady=10)
-        self.shoper_frame.columnconfigure(0, weight=1)
-        self.shoper_frame.rowconfigure(1, weight=1)
-
-        logo_path = os.path.join(os.path.dirname(__file__), "banner22.png")
-        if os.path.exists(logo_path):
-            logo_img = load_rgba_image(logo_path)
-            if logo_img:
-                logo_img.thumbnail((200, 80))
-                self.shoper_logo_photo = _create_image(logo_img)
-                ctk.CTkLabel(
-                    self.shoper_frame,
-                    image=self.shoper_logo_photo,
-                    text="",
-                ).grid(row=0, column=0, pady=(0, 10))
-
-        self.shoper_tabs = ctk.CTkTabview(self.shoper_frame)
-        self.shoper_tabs.grid(row=1, column=0, sticky="nsew", pady=5)
-        self.shoper_tabs.add("Zamówienia")
-        orders_tab = self.shoper_tabs.tab("Zamówienia")
-
-        orders_tab.columnconfigure(0, weight=1)
-        orders_tab.rowconfigure(0, weight=1)
-
-        orders_output = tk.Text(
-            orders_tab,
-            height=10,
-            bg=self.root.cget("background"),
-            fg="white",
-        )
-        orders_output.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
-        self.orders_output = orders_output
-
-        self.create_button(
-            orders_tab,
-            text="Zamówienia",
-            command=self.show_orders,
-            fg_color=FETCH_BUTTON_COLOR,
-        ).grid(row=1, column=0, pady=5)
-
-        self.create_button(
-            orders_tab,
-            text="Potwierdź zamówienie",
-            command=self.confirm_order,
-            fg_color=SAVE_BUTTON_COLOR,
-        ).grid(row=2, column=0, pady=5)
-
-        self.create_button(
-            self.shoper_frame,
-            text="Powrót",
-            command=self.back_to_welcome,
-            fg_color=NAV_BUTTON_COLOR,
-        ).grid(row=2, column=0, pady=5)
-
-    def push_product(self, widget):
-        """Send the currently selected card to Shoper."""
-        try:
-            card = None
-            if getattr(self, "output_data", None):
-                try:
-                    self.save_current_data()
-                except Exception as exc:
-                    logger.exception("Failed to save current data")
-                if 0 <= getattr(self, "index", 0) < len(self.output_data):
-                    card = self.output_data[self.index]
-                else:
-                    card = next((r for r in self.output_data if r), None)
-            if not card:
-                messagebox.showerror("Błąd", "Brak danych karty do wysłania")
-                return
-
-            payload = self._build_shoper_payload(card)
-            data = self.shoper_client.add_product(payload)
-            product_id = data.get("product_id") or data.get("id")
-            try:
-                attr_values = [
-                    name
-                    for name, var in self.type_vars.items()
-                    if getattr(var, "get", lambda: False)()
-                ]
-                if product_id and attr_values:
-                    cache = getattr(self, "_attribute_cache", {})
-                    attr_id = cache.get("Typ")
-                    if attr_id is None:
-                        attrs = self.shoper_client.get_attributes()
-                        for a in attrs.get("list", attrs):
-                            name = a.get("name")
-                            aid = a.get("attribute_id")
-                            if name and aid is not None:
-                                cache[name] = aid
-                        attr_id = cache.get("Typ")
-                        self._attribute_cache = cache
-                    if attr_id is not None:
-                        self.shoper_client.add_product_attribute(
-                            product_id, attr_id, attr_values
-                        )
-            except Exception as exc:
-                logger.exception("Failed to set product attributes")
-            if isinstance(widget, tk.Text):
-                widget.delete("1.0", tk.END)
-                widget.insert(tk.END, json.dumps(data, indent=2, ensure_ascii=False))
-            else:
-                messagebox.showinfo(
-                    "Wysłano",
-                    json.dumps(data, indent=2, ensure_ascii=False),
-                )
-        except requests.RequestException as e:
-            logger.exception("Failed to push product")
-            messagebox.showerror("Błąd", str(e))
-
     def open_auctions_window(self):
         """Open a queue editor for Discord auctions and save to ``aukcje.csv``."""
         if self.start_frame is not None:
@@ -2307,9 +2510,6 @@ class CardEditorApp:
         if getattr(self, "pricing_frame", None):
             self.pricing_frame.destroy()
             self.pricing_frame = None
-        if getattr(self, "shoper_frame", None):
-            self.shoper_frame.destroy()
-            self.shoper_frame = None
         if getattr(self, "frame", None):
             self.frame.destroy()
             self.frame = None
@@ -2373,7 +2573,6 @@ class CardEditorApp:
             self.start_frame = None
         for attr in (
             "pricing_frame",
-            "shoper_frame",
             "frame",
             "magazyn_frame",
             "location_frame",
@@ -3049,140 +3248,6 @@ class CardEditorApp:
         if self.auction_frame and self.auction_frame.winfo_exists():
             self.auction_frame.after(1000, self._update_auction_status)
 
-    def _build_shoper_payload(self, card: dict) -> dict:
-        """Map internal card data to the structure expected by the API."""
-        name_parts = [card.get("nazwa", "")]
-        if card.get("numer"):
-            name_parts.append(card["numer"])
-        name = " ".join(part for part in name_parts if part)
-
-        payload = {
-            "product_code": card.get("product_code"),
-            "active": card.get("active", 1),
-            "name": name,
-            "price": card.get("cena", 0),
-            "vat": card.get("vat", "23%"),
-            "unit": card.get("unit", "szt."),
-            "category": card.get("category"),
-            "producer": card.get("producer"),
-            "other_price": card.get("other_price", ""),
-            "pkwiu": card.get("pkwiu", ""),
-            "weight": card.get("weight", 0.01),
-            "priority": card.get("priority", 0),
-            "short_description": card.get("short_description", ""),
-            "description": card.get("description", ""),
-            "stock": card.get("ilość", 1),
-            "stock_warnlevel": card.get("stock_warnlevel", 0),
-            "availability": card.get("availability", 1),
-            "delivery": card.get("delivery"),
-            "views": card.get("views", ""),
-            "rank": card.get("rank", ""),
-            "rank_votes": card.get("rank_votes", ""),
-            "warehouse_code": card.get("warehouse_code", ""),
-        }
-        if card.get("image1"):
-            payload["images"] = card["image1"]
-        return payload
-
-    def show_orders(self, widget=None):
-        """Display new orders with storage location hints."""
-        try:
-            if widget is None:
-                widget = getattr(self, "orders_output", None)
-            if widget is None:
-                return
-            orders = self.shoper_client.list_orders({"filters[status]": "new"})
-            orders_list = orders.get("list", orders)
-            self.pending_orders = orders_list
-            choose_nearest_locations(orders_list, self.output_data)
-            widget.delete("1.0", tk.END)
-            lines = []
-            for order in orders_list:
-                oid = order.get("order_id") or order.get("id")
-                lines.append(f"Zamówienie #{oid}")
-                for item in order.get("products", []):
-                    code = (
-                        item.get("warehouse_code")
-                        or item.get("product_code")
-                        or item.get("code", "")
-                    )
-                    locations = [
-                        self.location_from_code(c.strip())
-                        for c in str(code).split(";")
-                        if c.strip()
-                    ]
-                    location = "; ".join(l for l in locations if l)
-                    lines.append(
-                        f" - {item.get('name')} x{item.get('quantity')} [{code}] {location}"
-                    )
-            widget.insert(tk.END, "\n".join(lines))
-        except requests.RequestException as e:
-            logger.exception("Failed to list orders")
-            messagebox.showerror("Błąd", str(e))
-
-    def complete_order(self, order: dict):
-        """Mark warehouse codes from ``order`` as sold.
-
-        After updating the CSV the inventory statistics are recalculated and
-        the warehouse view is refreshed.
-        """
-
-        csv_path = getattr(csv_utils, "WAREHOUSE_CSV", "magazyn.csv")
-        try:
-            with open(csv_path, newline="", encoding="utf-8") as f:
-                reader = csv.DictReader(f, delimiter=";")
-                rows = list(reader)
-                fieldnames = reader.fieldnames or []
-        except FileNotFoundError:
-            return
-
-        if "sold" not in fieldnames:
-            fieldnames.append("sold")
-
-        codes_to_mark = {
-            c.strip()
-            for item in order.get("products", [])
-            for c in str(
-                item.get("warehouse_code")
-                or item.get("product_code")
-                or item.get("code", "")
-            ).split(";")
-            if c.strip()
-        }
-
-        if not codes_to_mark:
-            return
-
-        for r in rows:
-            if r.get("warehouse_code") in codes_to_mark:
-                r["sold"] = "1"
-
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
-            writer.writeheader()
-            writer.writerows(rows)
-
-        if hasattr(self, "update_inventory_stats"):
-            try:
-                self.update_inventory_stats()
-            except Exception:
-                logger.exception("Failed to update inventory stats")
-
-        if hasattr(self, "show_magazyn_view"):
-            try:
-                self.show_magazyn_view()
-            except Exception:
-                logger.exception("Failed to refresh magazyn window")
-
-    def confirm_order(self):
-        """Confirm the first pending order and mark codes as sold."""
-
-        orders = getattr(self, "pending_orders", [])
-        if not orders:
-            return
-        order = orders.pop(0)
-        self.complete_order(order)
-
     @staticmethod
     def location_from_code(code: str) -> str:
         return storage.location_from_code(code)
@@ -3511,9 +3576,6 @@ class CardEditorApp:
         if getattr(self, "pricing_frame", None):
             self.pricing_frame.destroy()
             self.pricing_frame = None
-        if getattr(self, "shoper_frame", None):
-            self.shoper_frame.destroy()
-            self.shoper_frame = None
         if getattr(self, "frame", None):
             self.frame.destroy()
             self.frame = None
@@ -3542,6 +3604,12 @@ class CardEditorApp:
         self.mag_percent_labels = {}
         self.mag_labels = []
         self.mag_box_order = []
+        self.mag_page = 0
+        self._mag_page_size = 20
+        self._mag_total_pages = 1
+        self.mag_page_label = None
+        self.mag_prev_button = None
+        self.mag_next_button = None
 
         control_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         control_frame.pack(fill="x", padx=10, pady=(10, 0))
@@ -3629,7 +3697,7 @@ class CardEditorApp:
                     width_fn = getattr(self.magazyn_frame, "winfo_width", lambda: 0)
                     width = width_fn()
                 if width <= 1:
-                    return
+                    width = MAX_CARD_THUMB_SIZE * 2 + MAG_CARD_GAP * 4
                 max_thumb = MAX_CARD_THUMB_SIZE
                 cols = max(1, width // (max_thumb + MAG_CARD_GAP * 2))
                 thumb = max(
@@ -3792,6 +3860,42 @@ class CardEditorApp:
 
                 indices.sort(key=_quantity, reverse=True)
 
+            page_size = max(1, int(getattr(self, "_mag_page_size", 20) or 20))
+            total_items = len(indices)
+            total_pages = max(1, (total_items + page_size - 1) // page_size)
+            current_page = getattr(self, "mag_page", 0)
+            if current_page >= total_pages:
+                current_page = total_pages - 1
+            if current_page < 0:
+                current_page = 0
+            self.mag_page = current_page
+            start = current_page * page_size
+            end = start + page_size
+            page_indices = indices[start:end]
+            self._mag_total_pages = total_pages
+
+            label = getattr(self, "mag_page_label", None)
+            if label is not None:
+                try:
+                    label.configure(text=f"Strona {current_page + 1} / {total_pages}")
+                except Exception:
+                    setattr(label, "text", f"Strona {current_page + 1} / {total_pages}")
+
+            prev_btn = getattr(self, "mag_prev_button", None)
+            next_btn = getattr(self, "mag_next_button", None)
+            prev_state = "disabled" if current_page <= 0 else "normal"
+            next_state = "disabled" if current_page >= total_pages - 1 else "normal"
+            for btn, state in ((prev_btn, prev_state), (next_btn, next_state)):
+                if btn is None:
+                    continue
+                try:
+                    btn.configure(state=state)
+                except Exception:
+                    try:
+                        btn.state = state
+                    except Exception:
+                        pass
+
             unbind = getattr(self.mag_list_frame, "unbind", None)
             if callable(unbind) and getattr(self, "_mag_bind_id", None):
                 unbind("<Configure>", self._mag_bind_id)
@@ -3813,9 +3917,9 @@ class CardEditorApp:
                 labels[i] = None
             self.mag_card_labels = []
             self.mag_sold_labels = []
-            displayed = set(indices)
+            displayed = set(page_indices)
 
-            for idx in indices:
+            for idx in page_indices:
                 row = self.mag_card_rows[idx]
                 photo = self.mag_card_images[idx]
                 frame = ctk.CTkFrame(list_frame, fg_color=BG_COLOR)
@@ -3924,22 +4028,75 @@ class CardEditorApp:
                 self._root_mag_bind_id = root_bind("<Configure>", _relayout_mag_cards)
 
         self._update_mag_list = _update_mag_list
+
+        def _reset_page_and_update(*_args):
+            self.mag_page = 0
+            _update_mag_list()
+
         if hasattr(search_entry, "bind"):
-            search_entry.bind("<Return>", lambda _e: _update_mag_list())
+            search_entry.bind("<Return>", lambda _e: _reset_page_and_update())
         if hasattr(search_button, "configure"):
-            search_button.configure(command=_update_mag_list)
+            search_button.configure(command=_reset_page_and_update)
         else:
-            search_button.command = _update_mag_list
-        self.mag_sold_filter_var.trace_add("write", _update_mag_list)
+            search_button.command = _reset_page_and_update
+        self.mag_sold_filter_var.trace_add("write", lambda *_: _reset_page_and_update())
         if hasattr(sort_menu, "configure"):
-            sort_menu.configure(command=lambda _: _update_mag_list())
+            sort_menu.configure(command=lambda *_: _reset_page_and_update())
         else:
-            sort_menu.command = lambda _: _update_mag_list()
+            sort_menu.command = lambda *_: _reset_page_and_update()
         if hasattr(sold_filter_menu, "configure"):
-            sold_filter_menu.configure(command=lambda _: _update_mag_list())
+            sold_filter_menu.configure(command=lambda *_: _reset_page_and_update())
         else:
-            sold_filter_menu.command = lambda _: _update_mag_list()
-        _update_mag_list()
+            sold_filter_menu.command = lambda *_: _reset_page_and_update()
+
+        pagination_frame = ctk.CTkFrame(control_frame, fg_color=BG_COLOR)
+        pagination_frame.pack(side="right", padx=5, pady=5)
+
+        def _go_prev():
+            if getattr(self, "mag_page", 0) <= 0:
+                return
+            self.mag_page -= 1
+            _update_mag_list()
+
+        def _go_next():
+            total_pages = getattr(self, "_mag_total_pages", 1)
+            if getattr(self, "mag_page", 0) + 1 >= total_pages:
+                return
+            self.mag_page += 1
+            _update_mag_list()
+
+        self.mag_prev_button = self.create_button(
+            pagination_frame,
+            text="\u25C0",
+            command=_go_prev,
+            fg_color=NAV_BUTTON_COLOR,
+            width=80,
+            height=40,
+        )
+        if hasattr(self.mag_prev_button, "pack"):
+            self.mag_prev_button.pack(side="left", padx=5, pady=5)
+
+        self.mag_page_label = ctk.CTkLabel(
+            pagination_frame,
+            text="Strona 1 / 1",
+            text_color=TEXT_COLOR,
+            font=("Segoe UI", 16, "bold"),
+        )
+        if hasattr(self.mag_page_label, "pack"):
+            self.mag_page_label.pack(side="left", padx=5, pady=5)
+
+        self.mag_next_button = self.create_button(
+            pagination_frame,
+            text="\u25B6",
+            command=_go_next,
+            fg_color=NAV_BUTTON_COLOR,
+            width=80,
+            height=40,
+        )
+        if hasattr(self.mag_next_button, "pack"):
+            self.mag_next_button.pack(side="left", padx=5, pady=5)
+
+        _reset_page_and_update()
 
         btn_frame = ctk.CTkFrame(self.magazyn_frame, fg_color=BG_COLOR)
         btn_frame.pack(pady=5)
@@ -4105,7 +4262,11 @@ class CardEditorApp:
             total_capacity = storage.BOX_CAPACITY.get(
                 box, columns * storage.BOX_COLUMN_CAPACITY
             )
-            col_capacity = total_capacity / columns if columns else storage.BOX_COLUMN_CAPACITY
+            if columns:
+                col_capacity = total_capacity / columns
+            else:
+                col_capacity = storage.BOX_COLUMN_CAPACITY
+            col_capacity = max(1, min(col_capacity, storage.BOX_COLUMN_CAPACITY))
             value = filled / col_capacity if col_capacity else 0
             bar.set(value)
             lbl = self.mag_percent_labels.get((box, col))
@@ -4660,9 +4821,6 @@ class CardEditorApp:
         if getattr(self, "pricing_frame", None):
             self.pricing_frame.destroy()
             self.pricing_frame = None
-        if getattr(self, "shoper_frame", None):
-            self.shoper_frame.destroy()
-            self.shoper_frame = None
         if getattr(self, "frame", None):
             self.frame.destroy()
             self.frame = None
@@ -5214,7 +5372,7 @@ class CardEditorApp:
             self.session_csv_path = csv_path
             with open(csv_path, "w", encoding="utf-8", newline="") as f:
                 writer = csv.DictWriter(
-                    f, fieldnames=csv_utils.STORE_FIELDNAMES, delimiter=";"
+                    f, fieldnames=csv_utils.COLLECTION_FIELDNAMES, delimiter=";"
                 )
                 writer.writeheader()
         self.in_scan = True
@@ -5501,6 +5659,11 @@ class CardEditorApp:
                     except Exception:
                         pass
             thread.start()
+            root_after = getattr(getattr(self, "root", None), "after", None)
+            if not callable(root_after):
+                join = getattr(thread, "join", None)
+                if callable(join):
+                    join()
 
         if getattr(self, "current_analysis_thread", None) is None:
             for btn_name in ("save_button", "next_button"):
@@ -5732,13 +5895,14 @@ class CardEditorApp:
             result.get("variant"),
         )
         result["product_code"] = product_code
-        store_row = getattr(self, "store_data", {}).get(product_code)
-        if store_row:
-            result.update(store_row)
-            cat = store_row.get("category", "")
-            parts = [p.strip() for p in cat.split(">")]
-            if len(parts) >= 2:
-                result["era"] = parts[1]
+        collection_row = getattr(self, "collection_data", {}).get(product_code)
+        if collection_row:
+            result.update(collection_row)
+            result.setdefault("era", collection_row.get("era", ""))
+            result.setdefault("variant", collection_row.get("variant"))
+            result.setdefault("warehouse_code", collection_row.get("warehouse_code", ""))
+            if collection_row.get("estimated_value"):
+                result.setdefault("price", collection_row.get("estimated_value"))
         if update_progress:
             self.root.after(0, lambda: update_progress(1.0))
 
@@ -5749,7 +5913,7 @@ class CardEditorApp:
             return
         progress_cb = getattr(self, "_update_card_progress", None)
         if progress_cb:
-            progress_cb(1.0)
+            progress_cb(0, hide=True)
         if result:
             name = result.get("name", "")
             number = result.get("number", "")
@@ -5797,7 +5961,7 @@ class CardEditorApp:
                         "Skipping duplicate card %s #%s in set %s", name, number, set_name
                     )
                     if progress_cb:
-                        progress_cb(1.0)
+                        progress_cb(1.0, hide=True)
                     self.current_analysis_thread = None
                     return
                 self.current_location = self.next_free_location()
@@ -5822,6 +5986,46 @@ class CardEditorApp:
                     pass
         self.current_analysis_thread = None
         return
+
+    def confirm_order(self):
+        """Mark items from pending orders as sold in the local CSV."""
+
+        orders = list(getattr(self, "pending_orders", []) or [])
+        if not orders:
+            return
+
+        for order in orders:
+            self.complete_order(order)
+
+        self.pending_orders = []
+
+        if hasattr(self, "update_inventory_stats"):
+            try:
+                self.update_inventory_stats(force=True)
+            except TypeError:
+                self.update_inventory_stats()
+        if hasattr(self, "show_magazyn_view"):
+            try:
+                self.show_magazyn_view()
+            except Exception:
+                pass
+
+    def complete_order(self, order: dict) -> int:
+        """Mark warehouse codes from ``order`` as sold."""
+
+        products = order.get("products") or []
+        codes: list[str] = []
+        for item in products:
+            raw_codes = str(item.get("warehouse_code") or "")
+            for code in raw_codes.split(";"):
+                code = code.strip()
+                if code:
+                    codes.append(code)
+
+        if not codes:
+            return 0
+
+        return csv_utils.mark_codes_as_sold(codes)
 
     def generate_location(self, idx):
         return storage.generate_location(idx)
@@ -5939,38 +6143,9 @@ class CardEditorApp:
         """Finalize initialization after background tasks complete."""
         if self.loading_frame is not None:
             self.loading_frame.destroy()
-        self.shoper_client = None
-        self.ensure_shoper_client()
         # The warehouse CSV is now bundled with the application, so no
         # network download is required during startup.
         self.setup_welcome_screen()
-
-    def ensure_shoper_client(self):
-        """Initialize ``ShoperClient`` using stored configuration.
-
-        If configuration is missing or authentication fails, a configuration
-        dialog is shown to the user.
-        """
-        global SHOPER_API_URL, SHOPER_API_TOKEN
-        url = os.getenv("SHOPER_API_URL", "").strip()
-        token = os.getenv("SHOPER_API_TOKEN", "").strip()
-        if not url or not token:
-            self.open_config_dialog()
-            return
-        try:
-            client = ShoperClient(url, token)
-            try:
-                # perform a simple request to verify credentials
-                client.get("products", params={"page": 1, "per-page": 1})
-            except RuntimeError as exc:
-                messagebox.showerror("Błąd", f"Autoryzacja nieudana: {exc}")
-                self.open_config_dialog()
-                return
-            self.shoper_client = client
-            SHOPER_API_URL, SHOPER_API_TOKEN = url, token
-        except requests.RequestException as exc:
-            messagebox.showerror("Błąd", f"Nie można połączyć się z API Shoper: {exc}")
-            self.open_config_dialog()
 
     def download_set_symbols(self, sets):
         """Download logos for the provided set definitions."""
@@ -6777,14 +6952,20 @@ class CardEditorApp:
                     data["cena"] = ""
 
         self.output_data[self.index] = data
+        formatted_entry = csv_utils.format_collection_row(data)
+        key = formatted_entry["product_code"] or formatted_entry["warehouse_code"]
+        if not hasattr(self, "collection_data") or not isinstance(self.collection_data, dict):
+            self.collection_data = {}
+        if key:
+            self.collection_data[key] = formatted_entry
         if getattr(self, "session_csv_path", None):
             with open(self.session_csv_path, "a", encoding="utf-8", newline="") as f:
                 writer = csv.DictWriter(
                     f,
-                    fieldnames=csv_utils.STORE_FIELDNAMES,
+                    fieldnames=csv_utils.COLLECTION_FIELDNAMES,
                     delimiter=";",
                 )
-                writer.writerow(csv_utils.format_store_row(data))
+                writer.writerow(formatted_entry)
         if hasattr(self, "current_location"):
             self.current_location = ""
 
@@ -6860,64 +7041,5 @@ class CardEditorApp:
 
     def export_csv(self):
         self.in_scan = False
-        csv_utils.export_csv(self, csv_utils.STORE_EXPORT_CSV)
-
-    def open_config_dialog(self):
-        """Display a dialog for editing Shoper API configuration."""
-        url_var = tk.StringVar(value=os.getenv("SHOPER_API_URL", ""))
-        token_var = tk.StringVar(value=os.getenv("SHOPER_API_TOKEN", ""))
-
-        top = ctk.CTkToplevel(self.root)
-        top.title("Konfiguracja Shoper API")
-        top.grab_set()
-
-        ctk.CTkLabel(top, text="URL API:", text_color=TEXT_COLOR).grid(
-            row=0, column=0, padx=10, pady=(10, 5), sticky="e"
-        )
-        url_entry = ctk.CTkEntry(top, textvariable=url_var, width=400)
-        url_entry.grid(row=0, column=1, padx=10, pady=(10, 5))
-
-        ctk.CTkLabel(top, text="Token API:", text_color=TEXT_COLOR).grid(
-            row=1, column=0, padx=10, pady=5, sticky="e"
-        )
-        token_entry = ctk.CTkEntry(top, textvariable=token_var, width=400)
-        token_entry.grid(row=1, column=1, padx=10, pady=5)
-
-        def save():
-            url = url_var.get().strip()
-            token = token_var.get().strip()
-            if not url or not token:
-                messagebox.showerror("Błąd", "Podaj URL i token API")
-                return
-            set_key(ENV_FILE, "SHOPER_API_URL", url)
-            set_key(ENV_FILE, "SHOPER_API_TOKEN", token)
-            os.environ["SHOPER_API_URL"] = url
-            os.environ["SHOPER_API_TOKEN"] = token
-            try:
-                client = ShoperClient(url, token)
-                try:
-                    client.get("products", params={"page": 1, "per-page": 1})
-                except RuntimeError as exc:
-                    messagebox.showerror("Błąd", f"Autoryzacja nieudana: {exc}")
-                    return
-                self.shoper_client = client
-                global SHOPER_API_URL, SHOPER_API_TOKEN
-                SHOPER_API_URL, SHOPER_API_TOKEN = url, token
-                messagebox.showinfo("Sukces", "Zapisano konfigurację Shoper API")
-                top.destroy()
-            except requests.RequestException as exc:
-                messagebox.showerror(
-                    "Błąd", f"Nie można połączyć się z API Shoper: {exc}"
-                )
-
-        save_btn = ctk.CTkButton(
-            top, text="Zapisz", command=save, fg_color=SAVE_BUTTON_COLOR
-        )
-        save_btn.grid(row=2, column=0, columnspan=2, pady=10)
-        top.grid_columnconfigure(1, weight=1)
-        self.root.wait_window(top)
-
-    def send_csv_to_shoper(self, file_path: str):
-        """Send a CSV file using the Shoper API or WebDAV fallback."""
-        csv_utils.send_csv_to_shoper(self, file_path)
+        csv_utils.export_csv(self, csv_utils.COLLECTION_EXPORT_CSV)
 

@@ -66,12 +66,12 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
             root=dummy_root,
             create_button=lambda master, **kwargs: TrackingButton(master, **kwargs),
             refresh_magazyn=lambda: None,
-            open_config_dialog=lambda: None,
+            open_collection_settings=lambda: None,
             show_location_frame=lambda: None,
             setup_pricing_ui=lambda: None,
-            open_shoper_window=lambda: None,
-            show_magazyn_view=lambda: None,
-            open_auctions_window=lambda: None,
+            open_card_editor=lambda: None,
+            open_collection_overview=lambda: None,
+            open_valuation_history=lambda: None,
             open_statistics_window=lambda: None,
         )
         app.refresh_home_preview = lambda: ui.CardEditorApp.refresh_home_preview(app)
@@ -111,15 +111,15 @@ def test_welcome_screen_shows_box_preview(monkeypatch):
     assert texts[:6] == [
         "\U0001f50d Skanuj",
         "\U0001f4b0 Wyceniaj",
-        "\U0001f5c3\ufe0f Shoper",
-        "\U0001f4e6 Magazyn",
-        "\U0001f528 Licytacje",
+        "\U0001f58a\ufe0f Edytor kart",
+        "\U0001f4e6 Kolekcja",
+        "\U0001f4dc Historia wycen",
         "\U0001F4C8 Statystyki",
     ]
     for b in created_buttons[:6]:
         assert b.pack_params.get("side") in (None, "top")
 
-    assert created_buttons[-1].kwargs["text"] == "\u2699\ufe0f Konfiguracja"
+    assert created_buttons[-1].kwargs["text"] == "\u2699\ufe0f Ustawienia kolekcji"
     assert created_buttons[-1].pack_params.get("side") == "bottom"
 
     author_labels = [l for l in created_labels if l.text == "Twórca: BOGUCKI 2025"]

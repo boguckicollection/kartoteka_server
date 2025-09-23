@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.append(str(Path(__file__).resolve().parent))
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 from ctk_mocks import (  # noqa: E402
     DummyCTkButton,
     DummyCTkEntry,

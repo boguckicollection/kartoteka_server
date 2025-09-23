@@ -32,43 +32,43 @@ class DummyVar:
         self.value = value
 
 
-def _create_store_csv(path):
+def _create_collection_csv(path):
     with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=csv_utils.STORE_FIELDNAMES, delimiter=";")
+        writer = csv.DictWriter(
+            f, fieldnames=csv_utils.COLLECTION_FIELDNAMES, delimiter=";"
+        )
         writer.writeheader()
-        writer.writerow({
-            "product_code": "PKM-PAL-1",
-            "name": "Pikachu",
-            "producer_code": "1",
-            "category": "Karty Pokémon > EraX > Paldea Evolved",
-            "producer": "",
-            "short_description": "",
-            "description": "",
-            "price": "99",
-            "currency": "PLN",
-            "availability": "1",
-            "unit": "szt.",
-            "delivery": "",
-            "stock": "1",
-            "active": "1",
-            "seo_title": "",
-            "vat": "23%",
-            "images 1": "",
-        })
+        writer.writerow(
+            {
+                "product_code": "PKM-PAL-1",
+                "name": "Pikachu",
+                "number": "1",
+                "set": "Paldea Evolved",
+                "era": "EraX",
+                "language": "ENG",
+                "condition": "NM",
+                "variant": "Common",
+                "estimated_value": "99",
+                "psa10_price": "",
+                "warehouse_code": "K1R1P1",
+                "tags": "Common",
+                "added_at": "2024-12-31",
+            }
+        )
 
 
-def test_load_store_export(tmp_path):
-    csv_path = tmp_path / "store_export.csv"
-    _create_store_csv(csv_path)
-    data = csv_utils.load_store_export(str(csv_path))
+def test_load_collection_export(tmp_path):
+    csv_path = tmp_path / "collection.csv"
+    _create_collection_csv(csv_path)
+    data = csv_utils.load_collection_export(str(csv_path))
     assert "PKM-PAL-1" in data
-    assert data["PKM-PAL-1"]["price"] == "99"
+    assert data["PKM-PAL-1"]["estimated_value"] == "99"
 
 
-def test_analyze_and_fill_uses_store_export(monkeypatch, tmp_path):
-    csv_path = tmp_path / "store_export.csv"
-    _create_store_csv(csv_path)
-    store_data = csv_utils.load_store_export(str(csv_path))
+def test_analyze_and_fill_uses_collection_export(monkeypatch, tmp_path):
+    csv_path = tmp_path / "collection.csv"
+    _create_collection_csv(csv_path)
+    collection_data = csv_utils.load_collection_export(str(csv_path))
 
     name_entry = MagicMock()
     num_entry = MagicMock()
@@ -91,7 +91,7 @@ def test_analyze_and_fill_uses_store_export(monkeypatch, tmp_path):
         index=0,
         update_set_options=lambda: None,
         update_set_area_preview=lambda *a, **k: None,
-        store_data=store_data,
+        collection_data=collection_data,
         hash_db=None,
         auto_lookup=False,
     )
