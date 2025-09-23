@@ -16,7 +16,6 @@ import datetime
 import time
 from collections import defaultdict
 from dotenv import load_dotenv, set_key
-import unicodedata
 from itertools import combinations
 import html
 import difflib
@@ -44,6 +43,16 @@ else:  # pragma: no cover - optional dependency
         )
 
 from . import csv_utils, storage, stats_utils
+from .pricing import (
+    PRICE_MULTIPLIER,
+    HOLO_REVERSE_MULTIPLIER,
+    RAPIDAPI_HOST,
+    RAPIDAPI_KEY,
+    extract_cardmarket_price,
+    fetch_card_price as shared_fetch_card_price,
+    get_exchange_rate as pricing_get_exchange_rate,
+    normalize,
+)
 import threading
 from urllib.parse import urlencode, urlparse
 import io
@@ -99,9 +108,6 @@ logger = logging.getLogger(__name__)
 BASE_IMAGE_URL = os.getenv("BASE_IMAGE_URL", "https://sklep839679.shoparena.pl/upload/images")
 SCANS_DIR = os.getenv("SCANS_DIR", "scans")
 
-RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
-RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
-
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 USE_OPENAI_STUB = not OPENAI_API_KEY or os.getenv("OPENAI_TEST_MODE")
 if OPENAI_API_KEY:
@@ -110,8 +116,6 @@ if USE_OPENAI_STUB:
     openai.OpenAI = lambda *a, **k: SimpleNamespace()
 
 PRICE_DB_PATH = "card_prices.csv"
-PRICE_MULTIPLIER = 1.23
-HOLO_REVERSE_MULTIPLIER = 3.5
 SET_LOGO_DIR = "set_logos"
 HASH_DIFF_THRESHOLD = 20  # hash difference threshold for accepting matches
 HASH_MATCH_THRESHOLD = 5  # maximum allowed fingerprint distance
@@ -423,27 +427,6 @@ def _occupancy_color(value: float) -> str:
     if value < 0.8:
         return "#ffeb3b"  # yellow
     return "#f44336"  # red
-
-
-
-def normalize(text: str, keep_spaces: bool = False) -> str:
-    """Normalize text for comparisons and API queries."""
-    if not text:
-        return ""
-    text = unicodedata.normalize("NFKD", text)
-    text = "".join(c for c in text if not unicodedata.combining(c))
-    text = text.lower()
-    for suffix in [
-        " shiny",
-        " promo",
-    ]:
-        text = text.replace(suffix, "")
-    text = text.replace("-", "")
-    if not keep_spaces:
-        text = text.replace(" ", "")
-    return text.strip()
-
-
 def norm_header(name: str) -> str:
     """Return a normalized column name."""
     if name is None:
@@ -818,52 +801,6 @@ def lookup_sets_from_api(name: str, number: str, total: Optional[str] = None):
     )
 
     return result
-def extract_cardmarket_price(card):
-    """Return an approximate Cardmarket price for a card.
-
-    The function prefers the arithmetic mean of ``30d_average`` and
-    ``trendPrice`` when both metrics are present and greater than zero.  If
-    only one of them is available the respective value is returned.  When
-    neither metric is usable the function falls back to ``lowest_near_mint``.
-    ``None`` is returned when no positive price can be determined.
-    """
-
-    prices = (card or {}).get("prices") or {}
-    cardmarket = prices.get("cardmarket") or {}
-
-    def _get_float(key: str) -> float:
-        try:
-            return float(cardmarket.get(key, 0) or 0)
-        except (TypeError, ValueError):
-            return 0.0
-
-    avg_30d = _get_float("30d_average")
-    trend = _get_float("trendPrice") or _get_float("trend_price")
-
-    values = [v for v in (avg_30d, trend) if v > 0]
-    if len(values) == 2:
-        value = sum(values) / 2
-        print(
-            f"[DEBUG] Using mean of Cardmarket fields '30d_average' ({avg_30d}) and "
-            f"'trendPrice' ({trend}) -> {value}"
-        )
-        return value
-    if len(values) == 1:
-        value = values[0]
-        field = "30d_average" if avg_30d > 0 else "trendPrice"
-        print(f"[DEBUG] Using Cardmarket field '{field}' with value {value}")
-        return value
-
-    lowest = _get_float("lowest_near_mint")
-    if lowest > 0:
-        print(
-            f"[DEBUG] Using Cardmarket field 'lowest_near_mint' with value {lowest}"
-        )
-        return lowest
-
-    return None
-
-
 def translate_to_english(text: str) -> str:
     """Return an English translation of ``text`` using OpenAI."""
     api_key = os.getenv("OPENAI_API_KEY")
@@ -6282,9 +6219,6 @@ class CardEditorApp:
         return None
 
     def fetch_card_price(self, name, number, set_name, is_reverse=False, is_holo=False):
-        name_api = normalize(name, keep_spaces=True)
-        name_input = normalize(name)
-        number_input = number.strip().lower()
         set_input = set_name.strip().lower()
         if set_input == "prismatic evolutions: additionals":
             set_code = "xpre"
@@ -6297,83 +6231,16 @@ class CardEditorApp:
             except tk.TclError:
                 pass
 
-        try:
-            headers = {}
-            if RAPIDAPI_KEY and RAPIDAPI_HOST:
-                url = f"https://{RAPIDAPI_HOST}/cards/search"
-                params = {"search": name_api}
-                headers = {
-                    "X-RapidAPI-Key": RAPIDAPI_KEY,
-                    "X-RapidAPI-Host": RAPIDAPI_HOST,
-                }
-            else:
-                url = "https://www.tcggo.com/api/cards/"
-                params = {
-                    "name": name_api,
-                    "number": number_input,
-                    "set": set_code,
-                }
-            response = requests.get(url, params=params, headers=headers, timeout=10)
-            if response.status_code != 200:
-                logger.warning("API error: %s", response.status_code)
-                return None
-
-            cards = response.json()
-            if isinstance(cards, dict):
-                if "cards" in cards:
-                    cards = cards["cards"]
-                elif "data" in cards:
-                    cards = cards["data"]
-                else:
-                    cards = []
-            candidates = []
-
-            for card in cards:
-                card_name = normalize(card.get("name", ""))
-                card_number = str(card.get("card_number", "")).lower()
-                card_set = str(card.get("episode", {}).get("name", "")).lower()
-
-                name_match = name_input in card_name
-                number_match = number_input == card_number
-                set_match = set_input in card_set or card_set.startswith(set_input)
-
-                if name_match and number_match and set_match:
-                    candidates.append(card)
-
-            if candidates:
-                best = candidates[0]
-                price_eur = extract_cardmarket_price(best)
-                if price_eur is not None:
-                    eur_pln = self.get_exchange_rate()
-                    price_pln = round(float(price_eur) * eur_pln * PRICE_MULTIPLIER, 2)
-                    logger.info(
-                        "Cena %s (%s, %s) = %s PLN",
-                        best.get('name'),
-                        number_input,
-                        set_input,
-                        price_pln,
-                    )
-                    return price_pln
-
-            logger.debug("Nie znaleziono dokładnej karty. Zbliżone:")
-            for card in cards:
-                card_number = str(card.get("card_number", "")).lower()
-                card_set = str(card.get("episode", {}).get("name", "")).lower()
-                if number_input == card_number and set_input in card_set:
-                    logger.debug(
-                        "%s | %s | %s",
-                        card.get('name'),
-                        card_number,
-                        card.get('episode', {}).get('name'),
-                    )
-
-        except requests.Timeout:
-            logger.warning("Request timed out")
-        except requests.RequestException as e:
-            logger.warning("Fetching price from TCGGO failed: %s", e)
-        except ValueError as e:
-            logger.warning("Invalid JSON from TCGGO: %s", e)
-        return None
+        return shared_fetch_card_price(
+            name=name,
+            number=number,
+            set_name=set_name,
+            set_code=set_code,
+            price_multiplier=PRICE_MULTIPLIER,
+            rapidapi_key=RAPIDAPI_KEY,
+            rapidapi_host=RAPIDAPI_HOST,
+            get_rate=self.get_exchange_rate,
+        )
 
     def fetch_psa10_price(self, name, number, set_name):
         """Return PSA10 price for a card converted to PLN.
@@ -6741,18 +6608,7 @@ class CardEditorApp:
         webbrowser.open(url)
 
     def get_exchange_rate(self):
-        try:
-            res = requests.get(
-                "https://api.nbp.pl/api/exchangerates/rates/A/EUR/?format=json",
-                timeout=10,
-            )
-            if res.status_code == 200:
-                return res.json()["rates"][0]["mid"]
-        except requests.Timeout:
-            logger.warning("Exchange rate request timed out")
-        except (requests.RequestException, ValueError, KeyError) as exc:
-            logger.warning("Failed to fetch exchange rate: %s", exc)
-        return 4.265
+        return pricing_get_exchange_rate()
 
     def apply_variant_multiplier(self, price, is_reverse=False, is_holo=False):
         """Apply holo/reverse or special variant multiplier when needed."""

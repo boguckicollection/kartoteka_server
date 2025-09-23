@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Portfel - Kartoteka{% endblock %}
+{% block content %}
+<section class="summary-grid" id="portfolio-overview">
+  <article class="summary-card">
+    <h3>Wpisy w kolekcji</h3>
+    <p id="portfolio-count">0</p>
+  </article>
+  <article class="summary-card">
+    <h3>Łączna ilość kart</h3>
+    <p id="portfolio-quantity">0</p>
+  </article>
+  <article class="summary-card">
+    <h3>Szacowana wartość [PLN]</h3>
+    <p id="portfolio-value">0.00</p>
+  </article>
+</section>
+<div class="alert" id="portfolio-alert" hidden></div>
+<button id="refresh-portfolio" class="primary" type="button">Odśwież wartość</button>
+{% endblock %}

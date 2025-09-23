@@ -7,6 +7,8 @@ from tkinter import filedialog, messagebox, TclError
 
 import logging
 
+from .pricing import normalize
+
 logger = logging.getLogger(__name__)
 
 INVENTORY_CSV = os.getenv(
@@ -157,8 +159,6 @@ def find_duplicates(
     list[dict[str, str]]
         List of matching rows including warehouse codes.
     """
-
-    from .ui import normalize  # local import to avoid circular dependency
 
     matches = []
     number = _sanitize_number(str(number))

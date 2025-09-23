@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Kartoteka Web{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}" />
+  <script defer src="{{ url_for('static', path='/js/app.js') }}"></script>
+</head>
+<body data-username="{{ username | default('') }}">
+  <nav>
+    <div class="brand">Kartoteka Web</div>
+    <div class="links">
+      <a href="/">Logowanie</a>
+      <a href="/register">Rejestracja</a>
+      <a href="/dashboard">Kolekcja</a>
+      <a href="/portfolio">Portfel</a>
+    </div>
+  </nav>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

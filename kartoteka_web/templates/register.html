@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Rejestracja - Kartoteka{% endblock %}
+{% block content %}
+<section>
+  <form id="register-form">
+    <h2>Załóż konto</h2>
+    <div class="alert" id="register-alert" hidden></div>
+    <label>
+      Nazwa użytkownika
+      <input type="text" name="username" required />
+    </label>
+    <label>
+      Adres e-mail (opcjonalnie)
+      <input type="email" name="email" />
+    </label>
+    <label>
+      Hasło
+      <input type="password" name="password" required minlength="6" />
+    </label>
+    <button type="submit" class="primary">Zarejestruj</button>
+  </form>
+</section>
+{% endblock %}
