@@ -2,42 +2,41 @@ import os
 import re
 import csv
 from datetime import date, timedelta
-from typing import Optional, Tuple
+from typing import Iterable, Optional, Tuple
 from tkinter import filedialog, messagebox, TclError
 
 import logging
 
-from webdav_client import WebDAVClient
+logger = logging.getLogger(__name__)
+
 INVENTORY_CSV = os.getenv(
     "INVENTORY_CSV", os.getenv("WAREHOUSE_CSV", "magazyn.csv")
 )
 WAREHOUSE_CSV = os.getenv("WAREHOUSE_CSV", INVENTORY_CSV)
-STORE_EXPORT_CSV = os.getenv("STORE_EXPORT_CSV", "store_export.csv")
+COLLECTION_EXPORT_CSV = os.getenv("COLLECTION_EXPORT_CSV") or os.getenv(
+    "STORE_EXPORT_CSV", "collection_export.csv"
+)
 
 # Track last modification time and cached statistics for the warehouse CSV
 WAREHOUSE_CSV_MTIME: Optional[float] = None
 _inventory_stats_cache: Optional[Tuple[int, float, int, float]] = None
 _inventory_stats_path: Optional[str] = None
 
-# column order for exported CSV files
-STORE_FIELDNAMES = [
+# column order for exported collection CSV files
+COLLECTION_FIELDNAMES = [
     "product_code",
     "name",
-    "producer_code",
-    "category",
-    "producer",
-    "short_description",
-    "description",
-    "price",
-    "currency",
-    "availability",
-    "unit",
-    "delivery",
-    "stock",
-    "active",
-    "seo_title",
-    "vat",
-    "images 1",
+    "number",
+    "set",
+    "era",
+    "language",
+    "condition",
+    "variant",
+    "estimated_value",
+    "psa10_price",
+    "warehouse_code",
+    "tags",
+    "added_at",
 ]
 
 # include a ``sold`` flag so individual cards can be marked as sold and track
@@ -55,20 +54,38 @@ WAREHOUSE_FIELDNAMES = [
 ]
 
 
-def load_store_export(path: str = STORE_EXPORT_CSV) -> dict[str, dict[str, str]]:
-    """Return mapping of ``product_code`` to rows from the store export CSV.
+def _ensure_default_warehouse_csv(path: str = WAREHOUSE_CSV) -> None:
+    """Ensure a warehouse CSV with the correct header exists."""
+
+    if not path:
+        return
+    if os.path.exists(path):
+        return
+    try:
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=WAREHOUSE_FIELDNAMES, delimiter=";")
+            writer.writeheader()
+    except OSError:
+        logger.debug("Unable to create default warehouse CSV at %s", path)
+
+
+_ensure_default_warehouse_csv()
+
+
+def load_collection_export(path: str = COLLECTION_EXPORT_CSV) -> dict[str, dict[str, str]]:
+    """Return mapping of ``product_code`` to rows from the collection CSV.
 
     Parameters
     ----------
     path:
-        Optional path to the store export CSV.  Defaults to
-        :data:`STORE_EXPORT_CSV`.
+        Optional path to the collection CSV.  Defaults to
+        :data:`COLLECTION_EXPORT_CSV`.
 
     Returns
     -------
     dict[str, dict[str, str]]
-        Mapping where keys are product codes and values are the corresponding
-        CSV rows.  Missing files result in an empty mapping.
+        Mapping keyed by product code.  Missing files result in an empty
+        mapping.
     """
 
     data: dict[str, dict[str, str]] = {}
@@ -77,11 +94,17 @@ def load_store_export(path: str = STORE_EXPORT_CSV) -> dict[str, dict[str, str]]
             reader = csv.DictReader(f, delimiter=";")
             for row in reader:
                 code = (row.get("product_code") or "").strip()
+                if not code:
+                    code = (row.get("warehouse_code") or "").strip()
                 if code:
                     data[code] = row
     except OSError:
         return {}
     return data
+
+
+# Backwards compatibility for modules still importing the legacy helper
+load_store_export = load_collection_export
 
 
 def _sanitize_number(value: str) -> str:
@@ -199,6 +222,67 @@ def get_row_by_code(code: str, path: str = WAREHOUSE_CSV) -> Optional[dict[str, 
     return None
 
 
+def mark_codes_as_sold(codes: Iterable[str], path: Optional[str] = None) -> int:
+    """Mark the provided warehouse codes as sold in ``path``.
+
+    Parameters
+    ----------
+    codes:
+        Iterable of warehouse codes to mark as sold. Empty strings are ignored.
+    path:
+        Optional path to the warehouse CSV. Defaults to :data:`WAREHOUSE_CSV`.
+
+    Returns
+    -------
+    int
+        Number of rows updated.
+    """
+
+    normalized = {c.strip() for c in codes if c and c.strip()}
+    if not normalized:
+        return 0
+
+    if path is None:
+        path = WAREHOUSE_CSV
+
+    try:
+        with open(path, encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            fieldnames = reader.fieldnames or WAREHOUSE_FIELDNAMES
+            rows = list(reader)
+    except OSError:
+        return 0
+
+    updated = 0
+    for row in rows:
+        row_codes = {
+            code.strip()
+            for code in str(row.get("warehouse_code") or "").split(";")
+            if code.strip()
+        }
+        if row_codes and row_codes.intersection(normalized):
+            if str(row.get("sold") or "").strip().lower() not in {"1", "true", "yes"}:
+                row["sold"] = "1"
+                updated += 1
+
+    if not updated:
+        return 0
+
+    try:
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
+            writer.writeheader()
+            writer.writerows(rows)
+    except OSError:
+        return 0
+
+    try:
+        get_inventory_stats(path, force=True)
+    except Exception:
+        pass
+    return updated
+
+
 def get_inventory_stats(path: str = WAREHOUSE_CSV, force: bool = False):
     """Return statistics for both unsold and sold items in the warehouse CSV.
 
@@ -300,28 +384,86 @@ def get_daily_additions(days: int = 7) -> dict[str, int]:
     return counts
 
 
-def format_store_row(row):
-    """Return a row formatted for the store CSV."""
-    formatted_name = row["nazwa"]
+def get_valuation_history(
+    path: str = WAREHOUSE_CSV, limit: Optional[int] = None
+) -> list[dict[str, object]]:
+    """Return aggregated valuation history grouped by day."""
+
+    if not os.path.exists(path):
+        return []
+
+    history: dict[str, dict[str, object]] = {}
+
+    with open(path, encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=";")
+        for row in reader:
+            added_raw = (row.get("added_at") or "").split("T", 1)[0]
+            try:
+                day = date.fromisoformat(added_raw)
+            except ValueError:
+                continue
+            try:
+                price = float(row.get("price") or 0)
+            except (TypeError, ValueError):
+                price = 0.0
+            entry = history.setdefault(
+                day.isoformat(), {"date": day.isoformat(), "count": 0, "total": 0.0}
+            )
+            entry["count"] = int(entry["count"]) + 1
+            entry["total"] = float(entry["total"]) + price
+
+    entries = sorted(history.values(), key=lambda item: item["date"], reverse=True)
+    if limit is not None:
+        entries = entries[:limit]
+
+    for entry in entries:
+        total = float(entry["total"])
+        count = int(entry["count"])
+        entry["total"] = round(total, 2)
+        entry["average"] = round(total / count, 2) if count else 0.0
+
+    return entries
+
+
+def format_collection_row(row: dict[str, object]) -> dict[str, str]:
+    """Return a row formatted for the collection CSV."""
+
+    types = row.get("types") or {}
+    if isinstance(types, dict):
+        selected = [name for name, value in types.items() if value]
+    else:
+        selected = []
+
+    variant = row.get("variant") or row.get("typ") or ""
+    if not variant:
+        if "Holo" in selected:
+            variant = "Holo"
+        elif "Reverse" in selected:
+            variant = "Reverse"
+        else:
+            variant = "Common"
+
+    number = _sanitize_number(str(row.get("numer", "")))
+    added_at = row.get("added_at") or date.today().isoformat()
+
+    tags = row.get("typ")
+    if not tags and selected:
+        tags = ", ".join(selected)
 
     return {
-        "product_code": row["product_code"],
-        "name": formatted_name,
-        "producer_code": row.get("producer_code") or row.get("numer", ""),
-        "category": row["category"],
-        "producer": row["producer"],
-        "short_description": row["short_description"],
-        "description": row["description"],
-        "price": row["cena"],
-        "currency": row.get("currency", "PLN"),
-        "availability": row.get("availability", 1),
-        "unit": row.get("unit", "szt."),
-        "delivery": "3 dni",
-        "stock": row.get("stock", 1),
-        "active": row.get("active", 1),
-        "seo_title": row.get("seo_title", ""),
-        "vat": row.get("vat", "23%"),
-        "images 1": row.get("image1", row.get("images", "")),
+        "product_code": str(row.get("product_code", "")),
+        "name": str(row.get("nazwa", "")),
+        "number": number,
+        "set": str(row.get("set", "")),
+        "era": str(row.get("era", "")),
+        "language": str(row.get("język", "")),
+        "condition": str(row.get("stan", "")),
+        "variant": str(variant),
+        "estimated_value": str(row.get("cena", "")),
+        "psa10_price": str(row.get("psa10_price", "")),
+        "warehouse_code": str(row.get("warehouse_code", "")),
+        "tags": str(tags or ""),
+        "added_at": str(added_at),
     }
 
 
@@ -458,48 +600,37 @@ def load_csv_data(app):
     messagebox.showinfo("Sukces", "Plik CSV został scalony i zapisany.")
 
 
-def export_csv(app, path: str = STORE_EXPORT_CSV):
-    """Export collected data to the store CSV file."""
+def export_csv(app, path: str = COLLECTION_EXPORT_CSV):
+    """Export collected data to the collection CSV file."""
 
-    combined: dict[str, dict[str, str | int]] = {}
-
-    if os.path.exists(path):
-        with open(path, encoding="utf-8") as f:
-            reader = csv.DictReader(f, delimiter=";")
-            for row in reader:
-                product_code = row.get("product_code")
-                if not product_code:
-                    continue
-                try:
-                    row["stock"] = int(row.get("stock") or 0)
-                except ValueError:
-                    row["stock"] = 0
-                combined[product_code] = row
+    combined = load_collection_export(path)
 
     for row in app.output_data:
         if row is None:
             continue
-        product_code = str(row["product_code"])
-        if product_code in combined:
-            combined[product_code]["stock"] = int(combined[product_code]["stock"]) + 1
-        else:
-            row_copy = row.copy()
-            row_copy["stock"] = 1
-            combined[product_code] = format_store_row(row_copy)
-
-    fieldnames = STORE_FIELDNAMES
+        row_copy = row.copy()
+        product_code = str(row_copy.get("product_code", ""))
+        if not product_code:
+            product_code = build_product_code(
+                row_copy.get("set", ""),
+                row_copy.get("numer", ""),
+                row_copy.get("variant"),
+            )
+            row_copy["product_code"] = product_code
+        formatted = format_collection_row(row_copy)
+        key = formatted["product_code"] or formatted["warehouse_code"] or formatted["name"]
+        combined[key] = formatted
 
     with open(path, mode="w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=fieldnames, delimiter=";")
+        writer = csv.DictWriter(
+            file, fieldnames=COLLECTION_FIELDNAMES, delimiter=";"
+        )
         writer.writeheader()
         for row in combined.values():
-            row_out = row.copy()
-            row_out["stock"] = str(row_out.get("stock", 0))
-            writer.writerow(row_out)
+            writer.writerow(row)
+
     append_warehouse_csv(app)
-    messagebox.showinfo("Sukces", "Plik CSV został zapisany.")
-    if messagebox.askyesno("Wysyłka", "Czy wysłać plik do Shoper?"):
-        send_csv_to_shoper(app, path)
+    messagebox.showinfo("Sukces", "Plik kolekcji został zapisany.")
     app.back_to_welcome()
 
 
@@ -525,30 +656,4 @@ def append_warehouse_csv(app, path: str = WAREHOUSE_CSV):
             app.update_inventory_stats(force=True)
         except TclError:
             pass
-
-
-def send_csv_to_shoper(app, file_path: str):
-    """Send a CSV file using the Shoper API or WebDAV fallback."""
-    from tkinter import messagebox  # ensure patched instance is used
-    try:
-        if getattr(app, "shoper_client", None):
-            result = app.shoper_client.import_csv(file_path)
-            errors = result.get("errors") or []
-            warnings = result.get("warnings") or []
-            status = (result.get("status") or "").lower()
-            if errors or warnings or status not in {"completed", "finished", "done", "success"}:
-                issues = "\n".join(map(str, errors + warnings)) or f"Status: {status or 'nieznany'}"
-                messagebox.showerror("Błąd", f"Import zakończony z problemami:\n{issues}")
-            else:
-                messagebox.showinfo("Sukces", f"Import zakończony: {status}")
-        else:
-            with WebDAVClient(
-                getattr(app, "WEBDAV_URL", None),
-                getattr(app, "WEBDAV_USER", None),
-                getattr(app, "WEBDAV_PASSWORD", None),
-            ) as client:
-                client.upload_file(file_path)
-            messagebox.showinfo("Sukces", "Plik CSV został wysłany.")
-    except Exception as exc:  # pragma: no cover - network failure
-        messagebox.showerror("Błąd", f"Nie udało się wysłać pliku: {exc}")
 

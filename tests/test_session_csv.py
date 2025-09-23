@@ -2,6 +2,10 @@ import csv
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+import csv
+import sys
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 sys.modules.setdefault("customtkinter", MagicMock())
@@ -63,8 +67,8 @@ def test_session_csv_created(tmp_path):
     assert dummy.session_csv_path == str(session_path)
     with open(session_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
-        assert reader.fieldnames == csv_utils.STORE_FIELDNAMES
-        assert "stock" in reader.fieldnames
+        assert reader.fieldnames == csv_utils.COLLECTION_FIELDNAMES
+        assert "estimated_value" in reader.fieldnames
 
 
 def test_save_current_appends_session(tmp_path):
@@ -72,7 +76,9 @@ def test_save_current_appends_session(tmp_path):
     dummy = make_dummy()
     dummy.session_csv_path = str(session_path)
     with open(session_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=csv_utils.STORE_FIELDNAMES, delimiter=";")
+        writer = csv.DictWriter(
+            f, fieldnames=csv_utils.COLLECTION_FIELDNAMES, delimiter=";"
+        )
         writer.writeheader()
 
     ui.CardEditorApp.save_current_data(dummy)
@@ -81,20 +87,17 @@ def test_save_current_appends_session(tmp_path):
         reader = csv.DictReader(f, delimiter=";")
         rows = list(reader)
         assert len(rows) == 1
-        assert rows[0]["name"]
-        assert rows[0]["currency"] == "PLN"
-        assert rows[0]["producer_code"] == "4"
-        assert rows[0]["stock"] == "1"
-        assert rows[0]["active"] == "1"
-        assert rows[0]["vat"] == "23%"
-        assert rows[0]["seo_title"] == "Charizard 4 Base"
-        assert rows[0]["delivery"] == "3 dni"
+        assert rows[0]["name"] == "Charizard"
+        assert rows[0]["number"] == "4"
+        assert rows[0]["language"] == "ENG"
+        assert rows[0]["condition"] == "NM"
+        assert rows[0]["variant"] == "Common"
 
 
 def test_export_accumulates_between_sessions(tmp_path, monkeypatch):
-    out_path = tmp_path / "out.csv"
+    out_path = tmp_path / "collection.csv"
     inv_path = tmp_path / "inv.csv"
-    monkeypatch.setenv("STORE_EXPORT_CSV", str(out_path))
+    monkeypatch.setenv("COLLECTION_EXPORT_CSV", str(out_path))
     monkeypatch.setenv("WAREHOUSE_CSV", str(inv_path))
     import importlib
     importlib.reload(csv_utils)
@@ -107,11 +110,6 @@ def test_export_accumulates_between_sessions(tmp_path, monkeypatch):
         "era": "Era1",
         "product_code": "PC1",
         "cena": "10",
-        "category": "Karty Pokémon > Era1 > Base",
-        "producer": "Pokemon",
-        "short_description": "s",
-        "description": "d",
-        "image1": "img.jpg",
     }
     second_row = {
         "nazwa": "Charmander",
@@ -120,24 +118,19 @@ def test_export_accumulates_between_sessions(tmp_path, monkeypatch):
         "era": "Era1",
         "product_code": "PC2",
         "cena": "5",
-        "category": "Karty Pokémon > Era1 > Base",
-        "producer": "Pokemon",
-        "short_description": "s",
-        "description": "d",
-        "image1": "img.jpg",
     }
 
     dummy1 = SimpleNamespace(output_data=[base_row], back_to_welcome=lambda: None)
     dummy2 = SimpleNamespace(output_data=[dict(base_row), second_row], back_to_welcome=lambda: None)
 
-    with patch("tkinter.messagebox.showinfo"), \
-         patch("tkinter.messagebox.askyesno", return_value=False):
+    with patch("tkinter.messagebox.showinfo"):
         ui.CardEditorApp.export_csv(dummy1)
         ui.CardEditorApp.export_csv(dummy2)
 
     with open(out_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=";")
         rows = {r["product_code"]: r for r in reader}
-        assert rows["PC1"]["stock"] == "2"
-        assert rows["PC2"]["stock"] == "1"
+        assert set(rows) == {"PC1", "PC2"}
+        assert rows["PC1"]["estimated_value"] == "10"
+        assert rows["PC2"]["estimated_value"] == "5"
 

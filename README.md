@@ -2,7 +2,8 @@
 # Kartoteka
 
 ## Overview
-Kartoteka is a lightweight Tkinter app for organizing Pokémon card scans and exporting pricing data to CSV.
+Kartoteka is a lightweight Tkinter app for organising a private Pokémon card collection. The interface helps catalogue scans,
+track storage locations and record personal valuations without relying on shop integrations.
 
 ## Python Compatibility
 Kartoteka supports Python 3.9 through 3.13. The default requirements use `Pillow>=10.4`, which ships pre-built wheels for Python 3.13.
@@ -39,7 +40,9 @@ Examples:
 * `PKM-BS-1-H`
 * `PKM-BS-1-R`
 
-When exporting, the application creates a single consolidated CSV file. Entries with the same card code are merged so duplicates appear only once.
+Exporting creates `collection_export.csv`, a collection-focused CSV containing fields such as `language`, `condition`,
+`variant`, `estimated_value` and the assigned `warehouse_code`. Entries are keyed by product code so the newest valuation
+replaces older data.
 
 ## Storage configuration
 

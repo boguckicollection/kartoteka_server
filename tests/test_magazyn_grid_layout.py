@@ -106,9 +106,11 @@ def test_magazyn_displays_all_cards(tmp_path):
 
     app, _ = _load_app(csv_path, (25, 25.0, 0, 0))
 
-    assert len(app.mag_card_labels) == 25
-    assert not hasattr(app, "mag_prev_button")
-    assert not hasattr(app, "mag_next_button")
+    assert len(app.mag_card_labels) == 20
+    assert hasattr(app, "mag_prev_button")
+    assert hasattr(app, "mag_next_button")
+    assert getattr(app, "_mag_total_pages", 1) == 2
+    assert app.mag_page == 0
 
 
 def test_magazyn_adaptive_grid(tmp_path):
