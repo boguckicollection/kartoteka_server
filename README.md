@@ -17,6 +17,26 @@ With dependencies installed, launch the interface:
 python main.py
 ```
 
+## Web API and dashboard
+
+Kartoteka now exposes a FastAPI service with JWT authentication, REST
+endpoints and a lightweight dashboard for browsing the collection in a web
+browser.  To start the server locally use uvicorn:
+
+```bash
+uvicorn server:app --reload
+```
+
+By default the API stores data in `kartoteka.db` (SQLite).  Override the
+location with the `KARTOTEKA_DATABASE_URL` environment variable if you prefer
+a different database path.  Background tasks automatically refresh card prices
+at regular intervals using the shared pricing module.
+
+The web UI is available at `http://localhost:8000/` and provides pages for
+logging in, registering new users, managing the collection and monitoring the
+portfolio value.  JavaScript widgets communicate with the REST API to perform
+CRUD operations on stored cards.
+
 ## Set validation
 
 OpenAI responses normally validate set and era names against a built-in list.

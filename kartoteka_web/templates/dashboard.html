@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Kolekcja - Kartoteka{% endblock %}
+{% block content %}
+<h2>Twoja kolekcja</h2>
+<section class="summary-grid" id="portfolio-summary">
+  <article class="summary-card">
+    <h3>Liczba wpisów</h3>
+    <p id="summary-count">0</p>
+  </article>
+  <article class="summary-card">
+    <h3>Liczba kart</h3>
+    <p id="summary-quantity">0</p>
+  </article>
+  <article class="summary-card">
+    <h3>Wartość [PLN]</h3>
+    <p id="summary-value">0.00</p>
+  </article>
+</section>
+
+<section class="table-wrapper">
+  <header>
+    <h3>Dodaj kartę</h3>
+  </header>
+  <form id="add-card-form">
+    <label>
+      Nazwa karty
+      <input type="text" name="name" required />
+    </label>
+    <label>
+      Numer
+      <input type="text" name="number" required />
+    </label>
+    <label>
+      Set
+      <input type="text" name="set_name" required />
+    </label>
+    <label>
+      Kod setu (opcjonalnie)
+      <input type="text" name="set_code" />
+    </label>
+    <label>
+      Ilość
+      <input type="number" name="quantity" value="1" min="1" />
+    </label>
+    <label>
+      Cena zakupu
+      <input type="number" name="purchase_price" step="0.01" />
+    </label>
+    <label>
+      Reverse?
+      <input type="checkbox" name="is_reverse" />
+    </label>
+    <label>
+      Holo?
+      <input type="checkbox" name="is_holo" />
+    </label>
+    <button type="submit" class="primary">Dodaj do kolekcji</button>
+    <div class="alert" id="add-card-alert" hidden></div>
+  </form>
+</section>
+
+<section class="table-wrapper">
+  <header>
+    <h3>Aktualna kolekcja</h3>
+    <button id="refresh-collection" class="primary" type="button">Odśwież</button>
+  </header>
+  <table>
+    <thead>
+      <tr>
+        <th>Nazwa</th>
+        <th>Numer</th>
+        <th>Set</th>
+        <th>Ilość</th>
+        <th>Wartość</th>
+        <th>Akcje</th>
+      </tr>
+    </thead>
+    <tbody id="collection-table"></tbody>
+  </table>
+</section>
+{% endblock %}

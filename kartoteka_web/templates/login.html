@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Logowanie - Kartoteka{% endblock %}
+{% block content %}
+<section>
+  <form id="login-form">
+    <h2>Zaloguj się</h2>
+    <div class="alert" id="login-alert" hidden></div>
+    <label>
+      Nazwa użytkownika
+      <input type="text" name="username" required />
+    </label>
+    <label>
+      Hasło
+      <input type="password" name="password" required />
+    </label>
+    <button type="submit" class="primary">Zaloguj</button>
+  </form>
+</section>
+{% endblock %}

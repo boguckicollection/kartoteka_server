@@ -1,0 +1,55 @@
+"""Database models for the web API."""
+
+import datetime as dt
+from typing import List, Optional
+
+from sqlalchemy import UniqueConstraint
+from sqlmodel import Field, Relationship, SQLModel
+
+
+class User(SQLModel, table=True):
+    """Registered API user."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True, unique=True)
+    email: Optional[str] = Field(default=None, index=True)
+    hashed_password: str
+    created_at: dt.datetime = Field(
+        default_factory=lambda: dt.datetime.now(dt.timezone.utc)
+    )
+
+    collections: List["CollectionEntry"] = Relationship(back_populates="owner")
+
+
+class Card(SQLModel, table=True):
+    """Trading card tracked in the collection."""
+
+    __table_args__ = (
+        UniqueConstraint("name", "number", "set_name", name="uq_card_identity"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True)
+    number: str = Field(index=True)
+    set_name: str = Field(index=True)
+    set_code: Optional[str] = Field(default=None, index=True)
+    rarity: Optional[str] = None
+
+    entries: List["CollectionEntry"] = Relationship(back_populates="card")
+
+
+class CollectionEntry(SQLModel, table=True):
+    """Link between a user and the cards they own."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    card_id: int = Field(foreign_key="card.id", index=True)
+    quantity: int = Field(default=1, ge=0)
+    purchase_price: Optional[float] = Field(default=None, ge=0)
+    current_price: Optional[float] = Field(default=None, ge=0)
+    is_reverse: bool = Field(default=False)
+    is_holo: bool = Field(default=False)
+    last_price_update: Optional[dt.datetime] = Field(default=None)
+
+    owner: Optional["User"] = Relationship(back_populates="collections")
+    card: Optional["Card"] = Relationship(back_populates="entries")
