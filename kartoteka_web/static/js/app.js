@@ -258,6 +258,110 @@ function renderCollection(entries) {
   }
 }
 
+function renderPortfolio(entries) {
+  const container = document.getElementById("portfolio-cards");
+  const empty = document.getElementById("portfolio-empty");
+  if (!container) return;
+  container.innerHTML = "";
+  if (!Array.isArray(entries) || !entries.length) {
+    if (empty) empty.hidden = false;
+    return;
+  }
+  if (empty) empty.hidden = true;
+  const fragment = document.createDocumentFragment();
+  entries.forEach((entry) => {
+    const card = entry.card || {};
+    const article = document.createElement("article");
+    article.className = "portfolio-card";
+    const link = document.createElement("a");
+    link.href = buildCardDetailUrl(card);
+    link.className = "portfolio-card-link";
+
+    const media = document.createElement("div");
+    media.className = "portfolio-card-media";
+    const imageSource = card.image_small || card.image_large;
+    if (imageSource) {
+      const img = document.createElement("img");
+      img.src = imageSource;
+      img.alt = `Podgląd ${card.name || "karty"}`;
+      img.loading = "lazy";
+      img.className = "portfolio-card-image";
+      media.appendChild(img);
+    } else {
+      const placeholder = document.createElement("div");
+      placeholder.className = "portfolio-card-placeholder";
+      placeholder.textContent = "🃏";
+      placeholder.setAttribute("aria-hidden", "true");
+      media.appendChild(placeholder);
+    }
+    link.appendChild(media);
+
+    const body = document.createElement("div");
+    body.className = "portfolio-card-body";
+
+    if (card.set_name) {
+      const setInfo = document.createElement("div");
+      setInfo.className = "portfolio-card-set";
+      if (card.set_icon) {
+        const setImg = document.createElement("img");
+        setImg.src = card.set_icon;
+        setImg.alt = `Logo ${card.set_name}`;
+        setImg.loading = "lazy";
+        setInfo.appendChild(setImg);
+      }
+      const setName = document.createElement("span");
+      setName.textContent = card.set_name;
+      setInfo.appendChild(setName);
+      body.appendChild(setInfo);
+    }
+
+    const title = document.createElement("h3");
+    title.className = "portfolio-card-title";
+    title.textContent = card.name || "";
+    body.appendChild(title);
+
+    const meta = document.createElement("p");
+    meta.className = "portfolio-card-meta";
+    const numberText = formatCardNumber(card);
+    const rarity = card.rarity ? String(card.rarity) : "";
+    const quantity = entry.quantity ? `x${entry.quantity}` : "";
+    meta.textContent = [numberText, rarity, quantity].filter(Boolean).join(" • ");
+    body.appendChild(meta);
+
+    const value = document.createElement("p");
+    value.className = "portfolio-card-value";
+    const priceValue =
+      typeof entry.current_price === "number" ? entry.current_price.toFixed(2) : null;
+    const totalValue =
+      typeof entry.current_price === "number"
+        ? (entry.current_price * entry.quantity || 0).toFixed(2)
+        : null;
+    if (priceValue && totalValue) {
+      value.textContent = `Wartość sztuki: ${priceValue} PLN • Łącznie: ${totalValue} PLN`;
+    } else if (priceValue) {
+      value.textContent = `Wartość sztuki: ${priceValue} PLN`;
+    } else {
+      value.textContent = "Wartość sztuki: -";
+    }
+    body.appendChild(value);
+
+    if (entry.last_price_update) {
+      const updated = document.createElement("p");
+      updated.className = "portfolio-card-update";
+      const date = new Date(entry.last_price_update);
+      if (!Number.isNaN(date.getTime())) {
+        updated.textContent = `Aktualizacja: ${date.toLocaleDateString()}`;
+        body.appendChild(updated);
+      }
+    }
+
+    link.appendChild(body);
+    article.appendChild(link);
+    fragment.appendChild(article);
+  });
+  container.appendChild(fragment);
+}
+
 function updateSummary(summary) {
   const count = document.getElementById("summary-count");
   const quantity = document.getElementById("summary-quantity");
@@ -288,6 +392,17 @@ async function loadSummary(targetAlert) {
     const summary = await apiFetch("/cards/summary");
     updateSummary(summary);
     showAlert(targetAlert, "");
+  } catch (error) {
+    if (targetAlert) {
+      showAlert(targetAlert, error.message);
+    }
+  }
+}
+
+async function loadPortfolioCards(targetAlert) {
+  try {
+    const entries = await apiFetch("/cards/");
+    renderPortfolio(entries);
   } catch (error) {
     if (targetAlert) {
       showAlert(targetAlert, error.message);
@@ -580,6 +695,12 @@ async function addCard(form, cardSearch) {
   };
   if (data.rarity !== undefined) {
     payload.card.rarity = data.rarity || undefined;
+  }
+  if (selectedCard.image_small) {
+    payload.card.image_small = selectedCard.image_small;
+  }
+  if (selectedCard.image_large) {
+    payload.card.image_large = selectedCard.image_large;
   }
   try {
     await apiFetch("/cards/", {
@@ -1035,9 +1156,13 @@ function bindPortfolio() {
   const alertBox = document.getElementById("portfolio-alert");
   const refreshBtn = document.getElementById("refresh-portfolio");
   if (refreshBtn) {
-    refreshBtn.addEventListener("click", () => loadSummary(alertBox));
+    refreshBtn.addEventListener("click", () => {
+      loadSummary(alertBox);
+      loadPortfolioCards(alertBox);
+    });
   }
   loadSummary(alertBox);
+  loadPortfolioCards(alertBox);
 }
 
 async function ensureAuthenticated() {

@@ -21,6 +21,7 @@ from kartoteka_web import models
 from kartoteka_web.auth import get_current_user, oauth2_scheme
 from kartoteka_web.database import init_db, session_scope
 from kartoteka_web.routes import cards, users
+from kartoteka_web.utils import images as image_utils
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,16 @@ app.include_router(cards.router)
 app.mount("/static", StaticFiles(directory="kartoteka_web/static"), name="static")
 if Path("set_logos").exists():
     app.mount("/set-logos", StaticFiles(directory="set_logos"), name="set-logos")
+
+image_utils.ensure_directory()
+card_image_mount = image_utils.CARD_IMAGE_URL_PREFIX
+if not card_image_mount.startswith("/"):
+    card_image_mount = f"/{card_image_mount}"
+app.mount(
+    card_image_mount,
+    StaticFiles(directory=str(image_utils.CARD_IMAGE_DIR)),
+    name="card-images",
+)
 
 templates = Jinja2Templates(directory="kartoteka_web/templates")
 

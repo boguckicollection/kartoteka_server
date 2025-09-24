@@ -43,6 +43,8 @@ def api_client(db_path, monkeypatch):
     monkeypatch.setattr("kartoteka.pricing.fetch_card_price", fake_price)
     monkeypatch.setattr("kartoteka.pricing.search_cards", lambda *a, **k: [])
     monkeypatch.setattr("kartoteka.pricing.list_set_cards", lambda *a, **k: [])
+    monkeypatch.setattr("kartoteka_web.utils.images.cache_card_images", lambda payload, **_: payload)
+    monkeypatch.setattr("kartoteka_web.utils.images.ensure_local_path", lambda value, **_: value)
 
     with TestClient(server.app) as client:
         yield client, prices, server
@@ -188,6 +190,7 @@ def test_card_search_endpoint(api_client, monkeypatch):
     assert results[0]["set_name"] == "Base Set"
     assert results[0]["number"] == "25"
     assert "set_icon" in results[0]
+    assert results[0]["image_small"] == sample[0]["image_small"]
 
 
 def test_card_info_endpoint(api_client, monkeypatch):

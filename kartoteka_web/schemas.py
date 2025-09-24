@@ -38,6 +38,8 @@ class CardBase(SQLModel):
     set_name: str
     set_code: Optional[str] = None
     rarity: Optional[str] = None
+    image_small: Optional[str] = None
+    image_large: Optional[str] = None
 
 
 class CardRead(CardBase):

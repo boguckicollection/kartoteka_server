@@ -13,7 +13,7 @@ from sqlmodel import Session, select
 from .. import models, schemas
 from ..auth import get_current_user
 from ..database import get_session
-from ..utils import sets as set_utils
+from ..utils import images as image_utils, sets as set_utils
 from kartoteka import pricing
 
 router = APIRouter(prefix="/cards", tags=["cards"])
@@ -50,6 +50,10 @@ def _enrich_card_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if not data.get("set_icon") and local_icon:
         data["set_icon"] = local_icon
     return data
+
+
+def _prepare_card_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    return image_utils.cache_card_images(_enrich_card_payload(payload))
 
 
 def _select_best_result(
@@ -154,6 +158,33 @@ def record_price_history(
     session.add(history)
 
 
+def _apply_card_images(card: models.Card, card_data: schemas.CardBase) -> bool:
+    """Update cached image paths for ``card`` based on ``card_data``."""
+
+    small_path = image_utils.ensure_local_path(card_data.image_small, variant="small")
+    large_path = image_utils.ensure_local_path(card_data.image_large, variant="large")
+
+    current_small = card.image_small
+    current_large = card.image_large
+
+    small_value = small_path or current_small or card_data.image_small
+    large_value = large_path or current_large or card_data.image_large
+
+    if not small_value and large_value:
+        small_value = large_value
+    if not large_value and small_value:
+        large_value = small_value
+
+    updated = False
+    if small_value and current_small != small_value:
+        card.image_small = small_value
+        updated = True
+    if large_value and current_large != large_value:
+        card.image_large = large_value
+        updated = True
+    return updated
+
+
 def _serialize_entries(entries: Iterable[models.CollectionEntry]) -> list[schemas.CollectionEntryRead]:
     return [
         schemas.CollectionEntryRead.model_validate(entry, from_attributes=True)
@@ -179,9 +210,9 @@ def search_cards_endpoint(
         set_name=set_name,
         limit=cleaned_limit,
     )
-    enriched = [_enrich_card_payload(result) for result in results]
+    prepared = [_prepare_card_payload(result) for result in results]
     return [
-        schemas.CardSearchResult.model_validate(result) for result in enriched
+        schemas.CardSearchResult.model_validate(result) for result in prepared
     ]
 
 
@@ -215,7 +246,7 @@ def card_info(
     if not selected:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nie znaleziono karty.")
 
-    detail_data = _enrich_card_payload(selected)
+    detail_data = _prepare_card_payload(selected)
     if total and not detail_data.get("total"):
         total_value = pricing.sanitize_number(str(total))
         if total_value:
@@ -308,7 +339,7 @@ def card_info(
         for item in candidate_cards:
             if is_same_card(item):
                 continue
-            enriched = _enrich_card_payload(item)
+            enriched = _prepare_card_payload(item)
             related_items.append(
                 schemas.CardSearchResult.model_validate(enriched)
             )
@@ -384,6 +415,7 @@ def add_card(
             set_code=set_code_value,
             rarity=rarity_value,
         )
+        _apply_card_images(card, card_data)
         session.add(card)
         session.commit()
         session.refresh(card)
@@ -394,6 +426,8 @@ def add_card(
             updated = True
         if rarity_value and not card.rarity:
             card.rarity = rarity_value
+            updated = True
+        if _apply_card_images(card, card_data):
             updated = True
         if updated:
             session.add(card)
