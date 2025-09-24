@@ -963,9 +963,17 @@ def add_card(
         if updated:
             session.add(card)
 
+    owner_id = current_user.id
+    if owner_id is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+    if card.id is None:
+        session.add(card)
+        session.flush()
+
     entry = models.CollectionEntry(
-        owner=current_user,
-        card=card,
+        user_id=owner_id,
+        card_id=card.id,
         quantity=payload.quantity,
         purchase_price=payload.purchase_price,
         is_reverse=payload.is_reverse,
