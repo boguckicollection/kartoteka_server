@@ -44,6 +44,18 @@ class CardRead(CardBase):
     id: int
 
 
+class CardSearchResult(SQLModel):
+    name: str
+    number: str
+    number_display: Optional[str] = None
+    total: Optional[str] = None
+    set_name: str
+    set_code: Optional[str] = None
+    rarity: Optional[str] = None
+    image_small: Optional[str] = None
+    image_large: Optional[str] = None
+
+
 class CollectionEntryBase(SQLModel):
     quantity: int = 1
     purchase_price: Optional[float] = None

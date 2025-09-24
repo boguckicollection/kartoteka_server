@@ -39,35 +39,57 @@ def _refresh_prices() -> int:
     """Synchronously refresh prices for all collection entries."""
 
     updated = 0
+    now = dt.datetime.now(dt.timezone.utc)
     with session_scope() as session:
         entries = session.exec(
             select(models.CollectionEntry).options(selectinload(models.CollectionEntry.card))
         ).all()
+        price_cache: dict[int, Optional[float]] = {}
+        recorded_cards: set[int] = set()
         for entry in entries:
             card = entry.card
-            if not card:
+            if not card or card.id is None:
                 continue
-            price = pricing.fetch_card_price(
-                name=card.name,
-                number=card.number,
-                set_name=card.set_name,
-                set_code=card.set_code,
-            )
+            if card.id not in price_cache:
+                price_cache[card.id] = pricing.fetch_card_price(
+                    name=card.name,
+                    number=card.number,
+                    set_name=card.set_name,
+                    set_code=card.set_code,
+                )
+            price = price_cache[card.id]
             new_price = _apply_variant_multiplier(entry, price)
             if new_price is not None:
                 entry.current_price = new_price
-                entry.last_price_update = dt.datetime.now(dt.timezone.utc)
+                entry.last_price_update = now
                 updated += 1
+            if price is not None and card.id not in recorded_cards:
+                cards.record_price_history(session, card, price, now)
+                recorded_cards.add(card.id)
         session.flush()
     return updated
 
 
-async def _price_update_loop(interval: int = 3600) -> None:
+def _seconds_until_next_midnight(now: dt.datetime | None = None) -> float:
+    """Return seconds until the next local midnight."""
+
+    reference = (now or dt.datetime.now(dt.timezone.utc)).astimezone()
+    next_midnight = (reference + dt.timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    delta = next_midnight - reference
+    return max(delta.total_seconds(), 1.0)
+
+
+async def _price_update_loop() -> None:
     while True:
+        try:
+            await asyncio.sleep(_seconds_until_next_midnight())
+        except asyncio.CancelledError:
+            raise
         updated = await asyncio.to_thread(_refresh_prices)
         if updated:
             logger.info("Background price refresh updated %s entries", updated)
-        await asyncio.sleep(interval)
 
 
 @contextlib.asynccontextmanager
