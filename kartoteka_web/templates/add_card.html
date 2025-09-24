@@ -36,7 +36,6 @@
       Kod setu (opcjonalnie)
       <input type="text" name="set_code" id="add-card-set-code" autocomplete="off" />
     </label>
-    <div id="card-suggestions" class="card-suggestions" hidden></div>
     <label>
       Ilość
       <input type="number" name="quantity" value="1" min="1" />
@@ -60,5 +59,50 @@
       <div class="alert" id="add-card-alert" hidden></div>
     </div>
   </form>
+</section>
+
+<section class="panel card-search-results-panel" id="card-search-results-section" hidden>
+  <div class="panel-header card-search-results-header">
+    <div>
+      <h2>Wyniki wyszukiwania</h2>
+      <p>Wybierz kartę z listy, aby uzupełnić formularz i dodać ją do kolekcji.</p>
+    </div>
+    <div class="card-search-controls">
+      <label class="card-search-sort">
+        Sortuj według
+        <select id="card-search-sort" name="card-search-sort">
+          <option value="relevance">Trafność</option>
+          <option value="name_asc">Nazwa A–Z</option>
+          <option value="name_desc">Nazwa Z–A</option>
+          <option value="number_asc">Numer rosnąco</option>
+          <option value="number_desc">Numer malejąco</option>
+          <option value="set_asc">Set A–Z</option>
+          <option value="set_desc">Set Z–A</option>
+        </select>
+      </label>
+    </div>
+  </div>
+  <p id="card-search-summary" class="card-search-summary" hidden aria-live="polite"></p>
+  <div id="card-search-results" class="card-search-results" role="list"></div>
+  <p id="card-search-empty" class="card-search-empty" hidden aria-live="polite"></p>
+  <div id="card-search-pagination" class="card-search-pagination" hidden>
+    <button
+      type="button"
+      class="card-search-page-button"
+      data-page-action="prev"
+      aria-label="Poprzednia strona wyników"
+    >
+      Poprzednia
+    </button>
+    <span id="card-search-page-info" class="card-search-page-info" aria-live="polite"></span>
+    <button
+      type="button"
+      class="card-search-page-button"
+      data-page-action="next"
+      aria-label="Następna strona wyników"
+    >
+      Następna
+    </button>
+  </div>
 </section>
 {% endblock %}

@@ -417,15 +417,31 @@ function setupCardSearch(form) {
   const setInput = form.querySelector('input[name="set_name"]');
   const setCodeInput = form.querySelector('input[name="set_code"]');
   const rarityInput = form.querySelector('input[name="rarity"]');
-  const suggestionsBox = document.getElementById("card-suggestions");
+  const resultsSection = document.getElementById("card-search-results-section");
+  const resultsContainer = document.getElementById("card-search-results");
+  const summary = document.getElementById("card-search-summary");
+  const statusMessage = document.getElementById("card-search-empty");
+  const pagination = document.getElementById("card-search-pagination");
+  const pageInfo = document.getElementById("card-search-page-info");
+  const prevButton = pagination?.querySelector('[data-page-action="prev"]') ?? null;
+  const nextButton = pagination?.querySelector('[data-page-action="next"]') ?? null;
+  const sortSelect = document.getElementById("card-search-sort");
 
-  if (!nameInput || !suggestionsBox) {
+  if (!nameInput || !resultsSection || !resultsContainer) {
     return null;
   }
 
   const eventTarget = form;
   let selectedCard = null;
+  let selectedKey = "";
   let requestId = 0;
+
+  const state = {
+    baseResults: [],
+    sortMode: sortSelect?.value || "relevance",
+    currentPage: 1,
+    pageSize: 20,
+  };
 
   const clearNumberMetadata = () => {
     if (numberInput) {
@@ -433,31 +449,293 @@ function setupCardSearch(form) {
     }
   };
 
-  const hideSuggestions = () => {
-    suggestionsBox.innerHTML = "";
-    suggestionsBox.hidden = true;
+  const buildResultKey = (card) => {
+    const setCode = card?.set_code ?? "";
+    const setName = card?.set_name ?? "";
+    const number = card?.number ?? "";
+    const name = card?.name ?? "";
+    return [setCode, setName, number, name].join("|");
   };
 
-  const showSuggestionsMessage = (message) => {
-    suggestionsBox.innerHTML = "";
-    const info = document.createElement("p");
-    info.className = "card-suggestions-empty";
-    info.textContent = message;
-    suggestionsBox.appendChild(info);
-    suggestionsBox.hidden = false;
+  const formatResultsCount = (count) => {
+    if (count === 1) {
+      return "Znaleziono 1 kartę";
+    }
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+      return `Znaleziono ${count} karty`;
+    }
+    return `Znaleziono ${count} kart`;
+  };
+
+  const updateSummary = (count) => {
+    if (!summary) return;
+    if (count > 0) {
+      summary.textContent = formatResultsCount(count);
+      summary.hidden = false;
+    } else {
+      summary.textContent = "";
+      summary.hidden = true;
+    }
+  };
+
+  const updateStatus = (message = "", stateAttr = "") => {
+    if (!statusMessage) return;
+    if (message) {
+      statusMessage.textContent = message;
+      statusMessage.hidden = false;
+      if (stateAttr) {
+        statusMessage.dataset.state = stateAttr;
+      } else {
+        delete statusMessage.dataset.state;
+      }
+    } else {
+      statusMessage.textContent = "";
+      statusMessage.hidden = true;
+      delete statusMessage.dataset.state;
+    }
+  };
+
+  const parseNumberParts = (value) => {
+    const trimmed = String(value || "").trim();
+    if (!trimmed) {
+      return { number: "", total: "" };
+    }
+    if (trimmed.includes("/")) {
+      const [num, total] = trimmed.split("/", 2);
+      return { number: num.trim(), total: (total || "").trim() };
+    }
+    return { number: trimmed, total: "" };
+  };
+
+  const compareText = (left, right) =>
+    String(left || "").localeCompare(String(right || ""), undefined, { sensitivity: "base" });
+
+  const parseCardNumberValue = (card) => {
+    const raw = String(card?.number || card?.number_display || "");
+    const match = raw.match(/\d+/);
+    if (!match) {
+      return Number.NaN;
+    }
+    const value = Number.parseInt(match[0], 10);
+    return Number.isNaN(value) ? Number.NaN : value;
+  };
+
+  const compareNumberAsc = (a, b) => {
+    const valueA = parseCardNumberValue(a);
+    const valueB = parseCardNumberValue(b);
+    const aIsNaN = Number.isNaN(valueA);
+    const bIsNaN = Number.isNaN(valueB);
+    if (!aIsNaN && !bIsNaN && valueA !== valueB) {
+      return valueA - valueB;
+    }
+    if (aIsNaN && !bIsNaN) {
+      return 1;
+    }
+    if (!aIsNaN && bIsNaN) {
+      return -1;
+    }
+    return compareText(a?.number || a?.number_display, b?.number || b?.number_display);
+  };
+
+  const comparators = {
+    name_asc: (a, b) => compareText(a?.name, b?.name),
+    name_desc: (a, b) => compareText(b?.name, a?.name),
+    number_asc: compareNumberAsc,
+    number_desc: (a, b) => compareNumberAsc(b, a),
+    set_asc: (a, b) => compareText(a?.set_name, b?.set_name),
+    set_desc: (a, b) => compareText(b?.set_name, a?.set_name),
+  };
+
+  const getSortedResults = () => {
+    const base = [...state.baseResults];
+    const comparator = state.sortMode ? comparators[state.sortMode] : null;
+    if (comparator) {
+      base.sort(comparator);
+    }
+    return base;
+  };
+
+  const updateSelectionHighlight = () => {
+    const items = resultsContainer.querySelectorAll("[data-result-key]");
+    items.forEach((item) => {
+      if (!(item instanceof HTMLElement)) {
+        return;
+      }
+      if (selectedKey && item.dataset.resultKey === selectedKey) {
+        item.classList.add("is-selected");
+      } else {
+        item.classList.remove("is-selected");
+      }
+    });
+  };
+
+  const updateSortDisabled = () => {
+    if (sortSelect) {
+      sortSelect.disabled = state.baseResults.length <= 1;
+    }
+  };
+
+  const updatePaginationControls = (total) => {
+    if (!pagination || !pageInfo) {
+      return;
+    }
+    if (!total) {
+      pagination.hidden = true;
+      pageInfo.textContent = "";
+      if (prevButton) prevButton.disabled = true;
+      if (nextButton) nextButton.disabled = true;
+      return;
+    }
+    const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
+    if (state.currentPage > totalPages) {
+      state.currentPage = totalPages;
+    }
+    pagination.hidden = false;
+    pageInfo.textContent = `Strona ${state.currentPage} z ${totalPages}`;
+    if (prevButton) {
+      prevButton.disabled = state.currentPage <= 1;
+    }
+    if (nextButton) {
+      nextButton.disabled = state.currentPage >= totalPages;
+    }
+  };
+
+  const createResultItem = (card) => {
+    const item = document.createElement("article");
+    item.className = "card-search-item";
+    item.dataset.resultKey = buildResultKey(card);
+    item.setAttribute("role", "listitem");
+
+    const media = document.createElement("div");
+    media.className = "card-search-thumb-wrapper";
+    if (card.image_small || card.image_large) {
+      const img = document.createElement("img");
+      img.className = "card-search-thumb";
+      img.src = card.image_small || card.image_large;
+      img.alt = card.name ? `Podgląd ${card.name}` : "Podgląd karty";
+      img.loading = "lazy";
+      media.appendChild(img);
+    } else {
+      const placeholder = document.createElement("div");
+      placeholder.className = "card-search-thumb placeholder";
+      placeholder.textContent = "🃏";
+      placeholder.setAttribute("aria-hidden", "true");
+      media.appendChild(placeholder);
+    }
+    item.appendChild(media);
+
+    const info = document.createElement("div");
+    info.className = "card-search-info";
+    const cardName = card?.name?.trim() || "Nieznana karta";
+    const title = document.createElement("h3");
+    title.className = "card-search-title";
+    title.textContent = cardName;
+    info.appendChild(title);
+
+    const meta = document.createElement("div");
+    meta.className = "card-search-meta";
+    const numberTag = document.createElement("span");
+    numberTag.className = "card-search-tag";
+    numberTag.textContent = formatCardNumber(card) || card.number || "Brak numeru";
+    meta.appendChild(numberTag);
+    const setTag = document.createElement("span");
+    setTag.className = "card-search-tag";
+    setTag.textContent = card.set_name || "Brak informacji o secie";
+    meta.appendChild(setTag);
+    info.appendChild(meta);
+
+    item.appendChild(info);
+
+    const actions = document.createElement("div");
+    actions.className = "card-search-actions";
+
+    const detailLink = document.createElement("a");
+    detailLink.className = "card-search-detail";
+    detailLink.href = buildCardDetailUrl(card);
+    const detailLabel = `Zobacz szczegóły karty ${cardName}`;
+    detailLink.textContent = "Szczegóły";
+    detailLink.title = detailLabel;
+    detailLink.setAttribute("aria-label", detailLabel);
+    actions.appendChild(detailLink);
+
+    const selectButton = document.createElement("button");
+    selectButton.type = "button";
+    selectButton.className = "card-search-select";
+    selectButton.textContent = "Wybierz";
+    const selectLabelParts = [`Wybierz kartę ${cardName}`];
+    if (card.set_name) {
+      selectLabelParts.push(`z zestawu ${card.set_name}`);
+    }
+    const selectLabel = selectLabelParts.join(" ");
+    selectButton.setAttribute("aria-label", selectLabel);
+    selectButton.title = selectLabel;
+    selectButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      applySuggestion(card);
+    });
+    actions.appendChild(selectButton);
+
+    item.appendChild(actions);
+
+    item.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+      if (target.closest(".card-search-select") || target.closest(".card-search-detail")) {
+        return;
+      }
+      applySuggestion(card);
+    });
+
+    return item;
+  };
+
+  const renderResults = () => {
+    const sorted = getSortedResults();
+    const total = sorted.length;
+    const totalPages = total ? Math.ceil(total / state.pageSize) : 1;
+    if (state.currentPage > totalPages) {
+      state.currentPage = totalPages;
+    }
+    if (state.currentPage < 1) {
+      state.currentPage = 1;
+    }
+    const startIndex = total ? (state.currentPage - 1) * state.pageSize : 0;
+    const pageItems = total ? sorted.slice(startIndex, startIndex + state.pageSize) : [];
+
+    resultsContainer.innerHTML = "";
+    if (!pageItems.length) {
+      resultsContainer.hidden = true;
+    } else {
+      const fragment = document.createDocumentFragment();
+      pageItems.forEach((card) => {
+        fragment.appendChild(createResultItem(card));
+      });
+      resultsContainer.hidden = false;
+      resultsContainer.appendChild(fragment);
+    }
+
+    updatePaginationControls(total);
+    updateSelectionHighlight();
   };
 
   const clearSelection = () => {
     selectedCard = null;
+    selectedKey = "";
     if (rarityInput) {
       rarityInput.value = "";
     }
     clearNumberMetadata();
+    updateSelectionHighlight();
     eventTarget.dispatchEvent(new Event("cardsearch:clear"));
   };
 
   const applySuggestion = (card) => {
     selectedCard = card;
+    selectedKey = buildResultKey(card);
     nameInput.value = card.name || "";
     if (numberInput) {
       const display =
@@ -480,83 +758,31 @@ function setupCardSearch(form) {
     if (rarityInput) {
       rarityInput.value = card.rarity || "";
     }
-    hideSuggestions();
+    updateSelectionHighlight();
     eventTarget.dispatchEvent(new CustomEvent("cardsearch:select", { detail: { card } }));
-  };
-
-  const renderSuggestions = (cards) => {
-    suggestionsBox.innerHTML = "";
-    if (!Array.isArray(cards) || !cards.length) {
-      showSuggestionsMessage("Nie znaleziono kart dla podanych kryteriów.");
-      return;
-    }
-    const fragment = document.createDocumentFragment();
-    cards.forEach((card) => {
-      const item = document.createElement("article");
-      item.className = "card-suggestion";
-
-      const cardName = card?.name?.trim() || "Nieznana karta";
-      const extraInfo = [];
-      if (card.set_name) {
-        extraInfo.push(card.set_name);
-      }
-      const cardNumber = formatCardNumber(card);
-      if (cardNumber) {
-        extraInfo.push(cardNumber);
-      }
-      const description = [cardName, ...extraInfo].join(" • ");
-
-      const link = document.createElement("a");
-      link.className = "card-suggestion-link";
-      link.href = buildCardDetailUrl(card);
-      link.textContent = cardName;
-      link.setAttribute("title", description);
-      link.setAttribute("aria-label", description);
-      item.appendChild(link);
-
-      const addButton = document.createElement("button");
-      addButton.type = "button";
-      addButton.className = "card-suggestion-add";
-      const buttonLabel = `Dodaj kartę ${description} do portfela`;
-      addButton.setAttribute("aria-label", buttonLabel);
-      addButton.title = buttonLabel;
-      addButton.textContent = "+";
-      addButton.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        applySuggestion(card);
-      });
-      item.appendChild(addButton);
-
-      fragment.appendChild(item);
-    });
-    suggestionsBox.appendChild(fragment);
-    suggestionsBox.hidden = false;
-    suggestionsBox.scrollTop = 0;
-  };
-
-  const parseNumberParts = (value) => {
-    const trimmed = String(value || "").trim();
-    if (!trimmed) {
-      return { number: "", total: "" };
-    }
-    if (trimmed.includes("/")) {
-      const [num, total] = trimmed.split("/", 2);
-      return { number: num.trim(), total: (total || "").trim() };
-    }
-    return { number: trimmed, total: "" };
   };
 
   const fetchSuggestions = async () => {
     const name = nameInput.value.trim();
     if (!name) {
-      hideSuggestions();
+      state.baseResults = [];
+      state.currentPage = 1;
+      updateSummary(0);
+      updateStatus("");
+      resultsContainer.innerHTML = "";
+      resultsContainer.hidden = true;
+      if (resultsSection) {
+        resultsSection.hidden = true;
+      }
+      updatePaginationControls(0);
+      updateSortDisabled();
       return [];
     }
+
     const { number, total } = parseNumberParts(numberInput ? numberInput.value : "");
     const setName = setInput?.value.trim() ?? "";
 
-    const params = new URLSearchParams({ name });
+    const params = new URLSearchParams({ name, limit: "100" });
     if (number) {
       params.set("number", number);
     }
@@ -568,22 +794,47 @@ function setupCardSearch(form) {
     }
 
     const currentRequest = ++requestId;
+    state.currentPage = 1;
+    state.sortMode = sortSelect?.value || state.sortMode || "relevance";
+    if (resultsSection) {
+      resultsSection.hidden = false;
+    }
+    updateSummary(0);
+    updateStatus("Wyszukiwanie kart...", "loading");
+    resultsContainer.innerHTML = "";
+    resultsContainer.hidden = true;
+    updatePaginationControls(0);
+    updateSortDisabled();
+
     try {
       const results = await apiFetch(`/cards/search?${params.toString()}`);
       if (currentRequest !== requestId) {
         return [];
       }
-      renderSuggestions(results);
+
+      state.baseResults = Array.isArray(results) ? results : [];
+      renderResults();
+      updateSortDisabled();
+      updateSummary(state.baseResults.length);
+      if (!state.baseResults.length) {
+        updateStatus("Nie znaleziono kart dla podanych kryteriów.");
+      } else {
+        updateStatus("");
+      }
       eventTarget.dispatchEvent(
-        new CustomEvent("cardsearch:results", { detail: { count: results.length } })
+        new CustomEvent("cardsearch:results", { detail: { count: state.baseResults.length } })
       );
-      return results;
+      return state.baseResults;
     } catch (error) {
       if (currentRequest !== requestId) {
         return [];
       }
-      console.error(error);
-      showSuggestionsMessage(error.message || "Nie udało się pobrać wyników.");
+      state.baseResults = [];
+      renderResults();
+      updateSummary(0);
+      updateStatus(error.message || "Nie udało się pobrać wyników.", "error");
+      updateSortDisabled();
+      eventTarget.dispatchEvent(new CustomEvent("cardsearch:results", { detail: { count: 0 } }));
       throw error;
     }
   };
@@ -601,22 +852,40 @@ function setupCardSearch(form) {
   numberInput?.addEventListener("input", handleInputChange);
   setInput?.addEventListener("input", handleInputChange);
 
-  document.addEventListener("click", (event) => {
-    if (
-      !suggestionsBox.contains(event.target) &&
-      event.target !== nameInput &&
-      event.target !== numberInput &&
-      event.target !== setInput
-    ) {
-      hideSuggestions();
-    }
+  sortSelect?.addEventListener("change", () => {
+    state.sortMode = sortSelect.value || "relevance";
+    state.currentPage = 1;
+    renderResults();
   });
+
+  prevButton?.addEventListener("click", () => {
+    state.currentPage = Math.max(1, state.currentPage - 1);
+    renderResults();
+  });
+
+  nextButton?.addEventListener("click", () => {
+    state.currentPage += 1;
+    renderResults();
+  });
+
+  updateSortDisabled();
+  updatePaginationControls(0);
 
   return {
     getSelectedCard: () => selectedCard,
     reset: () => {
       clearSelection();
-      hideSuggestions();
+      state.baseResults = [];
+      state.currentPage = 1;
+      updateSummary(0);
+      updateStatus("");
+      resultsContainer.innerHTML = "";
+      resultsContainer.hidden = true;
+      if (resultsSection) {
+        resultsSection.hidden = true;
+      }
+      updatePaginationControls(0);
+      updateSortDisabled();
     },
     search,
   };
