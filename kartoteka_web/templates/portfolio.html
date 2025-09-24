@@ -1,20 +1,42 @@
 {% extends "base.html" %}
 {% block title %}Portfel - Kartoteka{% endblock %}
 {% block content %}
-<section class="summary-grid" id="portfolio-overview">
-  <article class="summary-card">
-    <h3>Wpisy w kolekcji</h3>
-    <p id="portfolio-count">0</p>
-  </article>
-  <article class="summary-card">
-    <h3>Łączna ilość kart</h3>
-    <p id="portfolio-quantity">0</p>
-  </article>
-  <article class="summary-card">
-    <h3>Szacowana wartość [PLN]</h3>
-    <p id="portfolio-value">0.00</p>
-  </article>
+<section class="page-hero">
+  <div>
+    <p class="eyebrow">Analiza kolekcji</p>
+    <h1>Portfel kolekcjonera</h1>
+    <p>Sprawdzaj aktualną wartość oraz skalę swojej kolekcji i porównuj wyniki z poprzednimi odczytami.</p>
+    <div class="hero-actions">
+      <a class="button secondary" href="/dashboard">Powrót do kolekcji</a>
+      <button id="refresh-portfolio" class="primary" type="button">Odśwież wartość</button>
+    </div>
+  </div>
 </section>
-<div class="alert" id="portfolio-alert" hidden></div>
-<button id="refresh-portfolio" class="primary" type="button">Odśwież wartość</button>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Podsumowanie portfela</h2>
+      <p>Kluczowe wskaźniki obejmujące liczbę wpisów, egzemplarzy i całkowitą wartość kolekcji.</p>
+    </div>
+  </div>
+  <div class="stat-grid" id="portfolio-overview">
+    <article class="stat-card">
+      <h3>Wpisy w kolekcji</h3>
+      <p id="portfolio-count">0</p>
+      <span>Unikalne rekordy w bazie</span>
+    </article>
+    <article class="stat-card">
+      <h3>Łączna ilość kart</h3>
+      <p id="portfolio-quantity">0</p>
+      <span>Sumaryczna liczba egzemplarzy</span>
+    </article>
+    <article class="stat-card">
+      <h3>Szacowana wartość [PLN]</h3>
+      <p id="portfolio-value">0.00</p>
+      <span>Wycena portfela na podstawie aktualnych danych</span>
+    </article>
+  </div>
+  <div class="alert" id="portfolio-alert" hidden></div>
+</section>
 {% endblock %}

@@ -1,19 +1,33 @@
 {% extends "base.html" %}
 {% block title %}Logowanie - Kartoteka{% endblock %}
 {% block content %}
-<section>
-  <form id="login-form">
-    <h2>Zaloguj się</h2>
+<section class="auth-layout">
+  <div class="auth-copy">
+    <p class="eyebrow">Pokemon TCG Manager</p>
+    <h1>Powrót do kolekcji</h1>
+    <p>Zaloguj się, aby śledzić swoją kolekcję Pokemon TCG, odświeżać wyceny kart i zarządzać zakupami z dowolnego urządzenia.</p>
+    <ul class="feature-list">
+      <li><span>01</span> Natychmiastowy wgląd w liczbę kart oraz ich szacowaną wartość.</li>
+      <li><span>02</span> Aktualizacje cen jednym kliknięciem dzięki wbudowanemu modułowi wyceny.</li>
+      <li><span>03</span> Synchronizacja danych między aplikacją webową i mobilną.</li>
+    </ul>
+  </div>
+  <form id="login-form" class="form-card">
+    <h2>Panel logowania</h2>
+    <p>Wpisz dane swojego konta, aby przejść do kokpitu kolekcji.</p>
     <div class="alert" id="login-alert" hidden></div>
     <label>
       Nazwa użytkownika
-      <input type="text" name="username" required />
+      <input type="text" name="username" autocomplete="username" required />
     </label>
     <label>
       Hasło
-      <input type="password" name="password" required />
+      <input type="password" name="password" autocomplete="current-password" required />
     </label>
-    <button type="submit" class="primary">Zaloguj</button>
+    <div class="form-footer">
+      <button type="submit" class="primary">Zaloguj się</button>
+      <p>Nie masz konta? <a href="/register" class="inline-link">Zarejestruj się</a></p>
+    </div>
   </form>
 </section>
 {% endblock %}
