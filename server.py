@@ -8,7 +8,7 @@ import datetime as dt
 import logging
 from typing import Optional
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -17,7 +17,7 @@ from sqlmodel import select
 
 from kartoteka import pricing
 from kartoteka_web import models
-from kartoteka_web.auth import get_current_user
+from kartoteka_web.auth import get_current_user, oauth2_scheme
 from kartoteka_web.database import init_db, session_scope
 from kartoteka_web.routes import cards, users
 
@@ -102,23 +102,45 @@ async def register_page(request: Request) -> HTMLResponse:
     return templates.TemplateResponse("register.html", {"request": request})
 
 
+async def _resolve_request_username(request: Request) -> tuple[str, bool]:
+    """Return the username for the request or flag invalid credentials."""
+
+    try:
+        token = await oauth2_scheme(request)
+    except HTTPException:
+        return "", bool(request.headers.get("Authorization"))
+
+    with session_scope() as session:
+        try:
+            user = await get_current_user(session=session, token=token)
+        except HTTPException:
+            return "", True
+        return user.username, False
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard_page(
-    request: Request, current_user: models.User = Depends(get_current_user)
-) -> HTMLResponse:
+async def dashboard_page(request: Request) -> HTMLResponse:
+    username, invalid_credentials = await _resolve_request_username(request)
+    if invalid_credentials:
+        return templates.TemplateResponse(
+            "login.html", {"request": request, "username": ""}
+        )
     return templates.TemplateResponse(
         "dashboard.html",
-        {"request": request, "username": current_user.username},
+        {"request": request, "username": username},
     )
 
 
 @app.get("/portfolio", response_class=HTMLResponse)
-async def portfolio_page(
-    request: Request, current_user: models.User = Depends(get_current_user)
-) -> HTMLResponse:
+async def portfolio_page(request: Request) -> HTMLResponse:
+    username, invalid_credentials = await _resolve_request_username(request)
+    if invalid_credentials:
+        return templates.TemplateResponse(
+            "login.html", {"request": request, "username": ""}
+        )
     return templates.TemplateResponse(
         "portfolio.html",
-        {"request": request, "username": current_user.username},
+        {"request": request, "username": username},
     )
 
 
