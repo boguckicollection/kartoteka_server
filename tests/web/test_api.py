@@ -173,6 +173,8 @@ def test_card_search_endpoint(api_client, monkeypatch):
             "rarity": "Common",
             "image_small": "https://example.com/pikachu-small.png",
             "image_large": "https://example.com/pikachu-large.png",
+            "artist": "kodama",
+            "series": "Scarlet & Violet",
         }
     ]
 
