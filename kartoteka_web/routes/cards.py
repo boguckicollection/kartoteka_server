@@ -202,7 +202,7 @@ def search_cards_endpoint(
     current_user: models.User = Depends(get_current_user),
 ):
     del current_user  # Only used to enforce authentication via dependency.
-    cleaned_limit = max(1, min(limit, 25))
+    cleaned_limit = max(1, min(limit, 100))
     results = pricing.search_cards(
         name=name,
         number=number,
