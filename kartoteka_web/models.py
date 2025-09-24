@@ -41,6 +41,39 @@ class Card(SQLModel, table=True):
     price_history: List["PriceHistory"] = Relationship(back_populates="card")
 
 
+class CardRecord(SQLModel, table=True):
+    """Cached catalogue entry for faster search and detail pages."""
+
+    __table_args__ = (
+        UniqueConstraint("name", "number", "set_name", name="uq_cardrecord_identity"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True)
+    name_normalized: str = Field(index=True)
+    number: str = Field(index=True)
+    number_display: Optional[str] = Field(default=None)
+    total: Optional[str] = Field(default=None, index=True)
+    set_name: str = Field(index=True)
+    set_name_normalized: Optional[str] = Field(default=None, index=True)
+    set_code: Optional[str] = Field(default=None, index=True)
+    set_code_clean: Optional[str] = Field(default=None, index=True)
+    rarity: Optional[str] = Field(default=None)
+    artist: Optional[str] = Field(default=None)
+    series: Optional[str] = Field(default=None)
+    release_date: Optional[str] = Field(default=None)
+    image_small: Optional[str] = Field(default=None)
+    image_large: Optional[str] = Field(default=None)
+    set_icon: Optional[str] = Field(default=None)
+    price_pln: Optional[float] = Field(default=None)
+    price_updated_at: Optional[dt.datetime] = Field(default=None)
+    created_at: dt.datetime = Field(
+        default_factory=lambda: dt.datetime.now(dt.timezone.utc)
+    )
+    updated_at: dt.datetime = Field(
+        default_factory=lambda: dt.datetime.now(dt.timezone.utc)
+    )
+
 class CollectionEntry(SQLModel, table=True):
     """Link between a user and the cards they own."""
 
