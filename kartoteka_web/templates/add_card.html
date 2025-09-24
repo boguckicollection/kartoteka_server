@@ -20,10 +20,9 @@
     </div>
   </div>
   <form id="add-card-form" class="form-grid" autocomplete="off">
-    <label class="with-suggestions">
+    <label>
       Nazwa karty
       <input type="text" name="name" id="add-card-name" autocomplete="off" required />
-      <div id="card-suggestions" class="card-suggestions" hidden></div>
     </label>
     <label>
       Numer (opcjonalnie)
@@ -37,6 +36,7 @@
       Kod setu (opcjonalnie)
       <input type="text" name="set_code" id="add-card-set-code" autocomplete="off" />
     </label>
+    <div id="card-suggestions" class="card-suggestions" hidden></div>
     <label>
       Ilość
       <input type="number" name="quantity" value="1" min="1" />
