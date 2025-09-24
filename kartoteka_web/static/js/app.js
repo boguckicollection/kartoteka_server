@@ -1,4 +1,7 @@
 const TOKEN_KEY = "kartoteka_token";
+const THEME_KEY = "kartoteka_theme";
+const LIGHT_THEME_COLOR = "#333366";
+const DARK_THEME_COLOR = "#0c1224";
 
 const getToken = () => window.localStorage.getItem(TOKEN_KEY);
 const setToken = (token) => window.localStorage.setItem(TOKEN_KEY, token);
@@ -12,6 +15,119 @@ function debounce(fn, delay = 250) {
   };
 }
 
+function getStoredTheme() {
+  try {
+    return window.localStorage.getItem(THEME_KEY);
+  } catch (error) {
+    console.warn("Unable to read stored theme", error);
+    return null;
+  }
+}
+
+function applyTheme(theme) {
+  const normalized = theme === "dark" ? "dark" : "light";
+  const body = document.body;
+  if (body) {
+    body.dataset.theme = normalized;
+  }
+  const root = document.documentElement;
+  if (root) {
+    root.style.colorScheme = normalized;
+  }
+  const meta = document.querySelector("[data-theme-color]");
+  if (meta) {
+    const color = normalized === "dark" ? DARK_THEME_COLOR : LIGHT_THEME_COLOR;
+    meta.setAttribute("content", color);
+  }
+  const toggle = document.querySelector("[data-theme-toggle]");
+  if (toggle) {
+    const icon = toggle.querySelector("span");
+    const label = normalized === "dark" ? "Włącz jasny motyw" : "Włącz ciemny motyw";
+    toggle.setAttribute("aria-label", label);
+    if (icon) {
+      icon.textContent = normalized === "dark" ? "☀️" : "🌙";
+    }
+  }
+}
+
+function determineTheme() {
+  const stored = getStoredTheme();
+  if (stored === "dark" || stored === "light") {
+    return stored;
+  }
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function persistTheme(theme) {
+  try {
+    window.localStorage.setItem(THEME_KEY, theme);
+  } catch (error) {
+    console.warn("Unable to persist theme", error);
+  }
+}
+
+function setupThemeToggle() {
+  const initial = determineTheme();
+  applyTheme(initial);
+  const toggle = document.querySelector("[data-theme-toggle]");
+  if (toggle) {
+    toggle.addEventListener("click", () => {
+      const current = document.body?.dataset.theme || initial;
+      const next = current === "dark" ? "light" : "dark";
+      persistTheme(next);
+      applyTheme(next);
+    });
+  }
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+  if (media && typeof media.addEventListener === "function") {
+    media.addEventListener("change", (event) => {
+      const stored = getStoredTheme();
+      if (stored === "dark" || stored === "light") {
+        return;
+      }
+      applyTheme(event.matches ? "dark" : "light");
+    });
+  }
+}
+
+const plnFormatter = new Intl.NumberFormat("pl-PL", {
+  style: "currency",
+  currency: "PLN",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function formatPln(value) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return null;
+  }
+  return plnFormatter.format(value);
+}
+
+function formatChangeValue(value) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "0,00 zł";
+  }
+  const absolute = plnFormatter.format(Math.abs(value));
+  if (value > 0) {
+    return `+${absolute}`;
+  }
+  if (value < 0) {
+    return `-${absolute}`;
+  }
+  return absolute;
+}
+
+function resolveTrendSymbol(direction) {
+  if (direction === "up") {
+    return "↑";
+  }
+  if (direction === "down") {
+    return "↓";
+  }
+  return "→";
+}
+
 function updateUserBadge(username) {
   const display = document.querySelector("[data-username-display]");
   const logoutButton = document.getElementById("logout-button");
@@ -20,8 +136,19 @@ function updateUserBadge(username) {
     display.textContent = trimmed || "Gość";
     display.dataset.state = trimmed ? "authenticated" : "anonymous";
   }
-  if (logoutButton) {
-    logoutButton.hidden = !trimmed;
+  const avatar = document.querySelector("[data-user-avatar]");
+  if (avatar) {
+    const initial = trimmed ? trimmed.charAt(0).toUpperCase() : "G";
+    avatar.textContent = initial;
+    avatar.dataset.state = trimmed ? "authenticated" : "anonymous";
+  }
+  const logout = logoutButton;
+  if (logout) {
+    logout.hidden = !trimmed;
+  }
+  const loginButton = document.getElementById("login-button");
+  if (loginButton) {
+    loginButton.hidden = Boolean(trimmed);
   }
 }
 
@@ -57,7 +184,7 @@ function setupNavigation() {
     logoutButton.addEventListener("click", () => {
       clearToken();
       updateUserBadge("");
-      window.location.href = "/";
+      window.location.href = "/login";
     });
   }
 
@@ -331,19 +458,35 @@ function renderPortfolio(entries) {
     const value = document.createElement("p");
     value.className = "portfolio-card-value";
     const priceValue =
-      typeof entry.current_price === "number" ? entry.current_price.toFixed(2) : null;
-    const totalValue =
-      typeof entry.current_price === "number"
-        ? (entry.current_price * entry.quantity || 0).toFixed(2)
-        : null;
-    if (priceValue && totalValue) {
-      value.textContent = `Wartość sztuki: ${priceValue} PLN • Łącznie: ${totalValue} PLN`;
-    } else if (priceValue) {
-      value.textContent = `Wartość sztuki: ${priceValue} PLN`;
+      typeof entry.current_price === "number" ? entry.current_price : null;
+    if (priceValue !== null) {
+      const formatted = formatPln(priceValue);
+      value.textContent = formatted
+        ? `Wartość sztuki: ${formatted}`
+        : "Wartość sztuki: -";
     } else {
       value.textContent = "Wartość sztuki: -";
     }
     body.appendChild(value);
+
+    const changeContainer = document.createElement("div");
+    changeContainer.className = "portfolio-card-trend";
+    const direction = entry.change_direction || "flat";
+    changeContainer.dataset.direction = direction;
+    const changeValue =
+      typeof entry.change_24h === "number" ? entry.change_24h : 0;
+    const changeIcon = document.createElement("span");
+    changeIcon.className = "portfolio-card-trend-icon";
+    changeIcon.setAttribute("aria-hidden", "true");
+    changeIcon.textContent = resolveTrendSymbol(direction);
+    const changeText = document.createElement("span");
+    changeText.className = "portfolio-card-trend-value";
+    const changeFormatted = formatChangeValue(changeValue);
+    changeText.textContent = changeFormatted;
+    changeContainer.appendChild(changeIcon);
+    changeContainer.appendChild(changeText);
+    changeContainer.title = `Zmiana w 24h: ${changeFormatted}`;
+    body.appendChild(changeContainer);
 
     if (entry.last_price_update) {
       const updated = document.createElement("p");
@@ -360,6 +503,96 @@ function renderPortfolio(entries) {
     fragment.appendChild(article);
   });
   container.appendChild(fragment);
+}
+
+function renderPortfolioPerformance(history) {
+  const chartContainer = document.getElementById("portfolio-chart");
+  const changeWrapper = document.getElementById("portfolio-change");
+  const changeValue = document.getElementById("portfolio-change-value");
+  if (!chartContainer) {
+    return;
+  }
+  chartContainer.innerHTML = "";
+  const direction = history?.direction || "flat";
+  const deltaValue = typeof history?.change_24h === "number" ? history.change_24h : 0;
+  chartContainer.dataset.direction = direction;
+  if (changeWrapper) {
+    changeWrapper.dataset.direction = direction;
+    const icon = changeWrapper.querySelector(".portfolio-change-icon");
+    if (icon) {
+      icon.textContent = resolveTrendSymbol(direction);
+    }
+  }
+  if (changeValue) {
+    changeValue.textContent = formatChangeValue(deltaValue);
+  }
+
+  const points = Array.isArray(history?.points) ? history.points : [];
+  if (!points.length) {
+    const emptyMessage = document.createElement("p");
+    emptyMessage.className = "portfolio-chart-empty";
+    emptyMessage.textContent = "Brak danych do wyświetlenia.";
+    chartContainer.appendChild(emptyMessage);
+    return;
+  }
+
+  const numericPoints = points
+    .map((point, index) => {
+      const rawTimestamp = point.timestamp || point.date || point.recorded_at || "";
+      const parsed = rawTimestamp ? Date.parse(rawTimestamp) : Number.NaN;
+      return {
+        order: Number.isNaN(parsed) ? index : parsed,
+        value: typeof point.value === "number" ? point.value : Number(point.value) || 0,
+      };
+    })
+    .sort((a, b) => a.order - b.order);
+
+  const values = numericPoints.map((point) => point.value);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const range = maxValue - minValue || 1;
+  const minY = 10;
+  const maxY = 55;
+
+  const coords = [];
+  let linePath = "";
+  numericPoints.forEach((point, idx) => {
+    const ratio = numericPoints.length > 1 ? idx / (numericPoints.length - 1) : 0.5;
+    const x = ratio * 100;
+    const normalized = (point.value - minValue) / range;
+    const y = maxY - normalized * (maxY - minY);
+    coords.push({ x, y });
+    linePath += `${idx === 0 ? "M" : " L"}${x.toFixed(2)},${y.toFixed(2)}`;
+  });
+
+  const areaPath = `${linePath} L 100 ${maxY} L 0 ${maxY} Z`;
+
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 100 60");
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.classList.add("portfolio-chart-svg");
+
+  const area = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  area.setAttribute("d", areaPath);
+  area.classList.add("portfolio-chart-area");
+  svg.appendChild(area);
+
+  const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  line.setAttribute("d", linePath);
+  line.classList.add("portfolio-chart-line");
+  svg.appendChild(line);
+
+  const lastCoord = coords[coords.length - 1];
+  if (lastCoord) {
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("cx", lastCoord.x.toFixed(2));
+    dot.setAttribute("cy", lastCoord.y.toFixed(2));
+    dot.setAttribute("r", "1.4");
+    dot.classList.add("portfolio-chart-dot");
+    svg.appendChild(dot);
+  }
+
+  chartContainer.appendChild(svg);
 }
 
 function updateSummary(summary) {
@@ -384,6 +617,32 @@ async function loadCollection() {
     renderCollection(entries);
   } catch (error) {
     console.error(error);
+  }
+}
+
+async function loadPortfolioHistory(targetAlert) {
+  const chartContainer = document.getElementById("portfolio-chart");
+  if (chartContainer) {
+    const loading = document.createElement("p");
+    loading.className = "portfolio-chart-loading";
+    loading.textContent = "Ładuję dane wykresu…";
+    chartContainer.innerHTML = "";
+    chartContainer.appendChild(loading);
+  }
+  try {
+    const history = await apiFetch("/cards/portfolio/history");
+    renderPortfolioPerformance(history);
+  } catch (error) {
+    if (chartContainer) {
+      chartContainer.innerHTML = "";
+      const message = document.createElement("p");
+      message.className = "portfolio-chart-error";
+      message.textContent = error.message;
+      chartContainer.appendChild(message);
+    }
+    if (targetAlert) {
+      showAlert(targetAlert, error.message);
+    }
   }
 }
 
@@ -1402,10 +1661,12 @@ function bindPortfolio() {
     refreshBtn.addEventListener("click", () => {
       loadSummary(alertBox);
       loadPortfolioCards(alertBox);
+      loadPortfolioHistory(alertBox);
     });
   }
   loadSummary(alertBox);
   loadPortfolioCards(alertBox);
+  loadPortfolioHistory(alertBox);
 }
 
 async function ensureAuthenticated() {
@@ -1415,7 +1676,7 @@ async function ensureAuthenticated() {
     if (alertBox) {
       showAlert(alertBox, "Wymagane logowanie.");
     }
-    window.location.href = "/";
+    window.location.href = "/login";
     return false;
   }
 
@@ -1433,12 +1694,13 @@ async function ensureAuthenticated() {
       showAlert(alertBox, "Sesja wygasła. Zaloguj się ponownie.");
     }
     updateUserBadge("");
-    window.location.href = "/";
+    window.location.href = "/login";
     return false;
   }
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
+  setupThemeToggle();
   setupNavigation();
   const loginForm = document.getElementById("login-form");
   if (loginForm) {

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import datetime as dt
 from pathlib import Path
-from typing import Any, Iterable
+from collections import defaultdict
+from typing import Any, Iterable, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import selectinload
@@ -405,6 +406,86 @@ def _apply_variant_multiplier(price: float | None, entry: models.CollectionEntry
         return price
 
 
+def _entry_price_points(
+    entry: models.CollectionEntry,
+    history: Sequence[models.PriceHistory] | None = None,
+) -> list[tuple[dt.datetime, float]]:
+    if history is None:
+        history = []
+    points: list[tuple[dt.datetime, float]] = []
+    for record in history:
+        price = _apply_variant_multiplier(record.price, entry)
+        if price is None:
+            continue
+        points.append((record.recorded_at, float(price)))
+    if entry.current_price is not None and entry.last_price_update:
+        points.append((entry.last_price_update, float(entry.current_price)))
+    points.sort(key=lambda item: item[0])
+    return points
+
+
+def _calculate_change(
+    points: Sequence[tuple[dt.datetime, float]] | None,
+) -> tuple[float, str]:
+    if not points:
+        return 0.0, "flat"
+    latest_ts, latest_value = points[-1]
+    baseline_value = latest_value
+    threshold = latest_ts - dt.timedelta(hours=24)
+    for ts, value in reversed(points[:-1]):
+        if ts <= threshold:
+            baseline_value = value
+            break
+    else:
+        if len(points) >= 2:
+            baseline_value = points[-2][1]
+    change = round(latest_value - baseline_value, 2)
+    epsilon = 0.01
+    if change > epsilon:
+        return change, "up"
+    if change < -epsilon:
+        return change, "down"
+    return 0.0, "flat"
+
+
+def _serialize_entry(
+    entry: models.CollectionEntry,
+    session: Session | None = None,
+) -> schemas.CollectionEntryRead:
+    schema = schemas.CollectionEntryRead.model_validate(entry, from_attributes=True)
+    history_records = None
+    card = entry.card
+    if card is not None:
+        history_records = getattr(card, "price_history", None)
+        if history_records is None and session is not None:
+            history_records = _load_price_history(session, card)
+    points = _entry_price_points(entry, history_records or [])
+    change, direction = _calculate_change(points)
+    schema.change_24h = round(change, 2) if points else 0.0
+    schema.change_direction = direction
+    return schema
+
+
+def _aggregate_portfolio_history(
+    entries: Sequence[models.CollectionEntry],
+    session: Session | None = None,
+) -> list[tuple[dt.datetime, float]]:
+    combined: dict[dt.datetime, float] = defaultdict(float)
+    for entry in entries:
+        quantity = entry.quantity or 0
+        if quantity <= 0:
+            continue
+        card = entry.card
+        history_records = None
+        if card is not None:
+            history_records = getattr(card, "price_history", None)
+            if history_records is None and session is not None:
+                history_records = _load_price_history(session, card)
+        for timestamp, price in _entry_price_points(entry, history_records or []):
+            combined[timestamp] += price * quantity
+    return sorted((ts, round(value, 2)) for ts, value in combined.items())
+
+
 def record_price_history(
     session: Session,
     card: models.Card | None,
@@ -454,11 +535,11 @@ def _apply_card_images(card: models.Card, card_data: schemas.CardBase) -> bool:
     return updated
 
 
-def _serialize_entries(entries: Iterable[models.CollectionEntry]) -> list[schemas.CollectionEntryRead]:
-    return [
-        schemas.CollectionEntryRead.model_validate(entry, from_attributes=True)
-        for entry in entries
-    ]
+def _serialize_entries(
+    entries: Iterable[models.CollectionEntry],
+    session: Session | None = None,
+) -> list[schemas.CollectionEntryRead]:
+    return [_serialize_entry(entry, session=session) for entry in entries]
 
 
 @router.get("/search", response_model=list[schemas.CardSearchResult])
@@ -763,9 +844,13 @@ def list_collection(
     entries = session.exec(
         select(models.CollectionEntry)
         .where(models.CollectionEntry.user_id == current_user.id)
-        .options(selectinload(models.CollectionEntry.card))
+        .options(
+            selectinload(models.CollectionEntry.card).selectinload(
+                models.Card.price_history
+            )
+        )
     ).all()
-    return _serialize_entries(entries)
+    return _serialize_entries(entries, session=session)
 
 
 @router.get("/summary", response_model=schemas.PortfolioSummary)
@@ -784,6 +869,35 @@ def portfolio_summary(
         total_cards=len(entries),
         total_quantity=total_quantity,
         estimated_value=round(estimated_value, 2),
+    )
+
+
+@router.get("/portfolio/history", response_model=schemas.PortfolioHistoryResponse)
+def portfolio_history_points(
+    current_user: models.User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    entries = session.exec(
+        select(models.CollectionEntry)
+        .where(models.CollectionEntry.user_id == current_user.id)
+        .options(
+            selectinload(models.CollectionEntry.card).selectinload(
+                models.Card.price_history
+            )
+        )
+    ).all()
+    aggregated = _aggregate_portfolio_history(entries, session=session)
+    points = [
+        schemas.PortfolioHistoryPoint(timestamp=timestamp, value=value)
+        for timestamp, value in aggregated
+    ]
+    change, direction = _calculate_change(aggregated)
+    latest_value = points[-1].value if points else 0.0
+    return schemas.PortfolioHistoryResponse(
+        points=points,
+        change_24h=round(change, 2) if points else 0.0,
+        direction=direction,
+        latest_value=round(latest_value, 2),
     )
 
 
@@ -888,7 +1002,7 @@ def add_card(
     session.commit()
     session.refresh(entry)
     session.refresh(card)
-    return schemas.CollectionEntryRead.model_validate(entry, from_attributes=True)
+    return _serialize_entry(entry, session=session)
 
 
 @router.patch("/{entry_id}", response_model=schemas.CollectionEntryRead)
@@ -921,7 +1035,7 @@ def update_entry(
     session.add(entry)
     session.commit()
     session.refresh(entry)
-    return schemas.CollectionEntryRead.model_validate(entry, from_attributes=True)
+    return _serialize_entry(entry, session=session)
 
 
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -1004,4 +1118,4 @@ def refresh_entry_price(
     session.add(entry)
     session.commit()
     session.refresh(entry)
-    return schemas.CollectionEntryRead.model_validate(entry, from_attributes=True)
+    return _serialize_entry(entry, session=session)

@@ -132,13 +132,24 @@ templates = Jinja2Templates(directory="kartoteka_web/templates")
 
 
 @app.get("/", response_class=HTMLResponse)
+async def home_page(request: Request) -> HTMLResponse:
+    username, invalid_credentials = await _resolve_request_username(request)
+    context = {"request": request, "username": username if not invalid_credentials else ""}
+    return templates.TemplateResponse("home.html", context)
+
+
+@app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("login.html", {"request": request})
+    username, invalid_credentials = await _resolve_request_username(request)
+    context = {"request": request, "username": username if not invalid_credentials else ""}
+    return templates.TemplateResponse("login.html", context)
 
 
 @app.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("register.html", {"request": request})
+    username, invalid_credentials = await _resolve_request_username(request)
+    context = {"request": request, "username": username if not invalid_credentials else ""}
+    return templates.TemplateResponse("register.html", context)
 
 
 async def _resolve_request_username(request: Request) -> tuple[str, bool]:

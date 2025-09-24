@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Strona główna - Kartoteka{% endblock %}
+{% block content %}
+<section class="home-hero">
+  <div class="home-hero-copy">
+    <p class="eyebrow">Pokemon TCG Hub</p>
+    <h1>Zarządzaj kolekcją i śledź rynek kart</h1>
+    <p>
+      Kartoteka łączy informacje o Twoim portfelu z aktualnościami ze świata Pokemon.
+      Sprawdzaj zapowiedzi nowych dodatków, trendy cenowe i reaguj na zmiany w czasie rzeczywistym.
+    </p>
+    <div class="hero-actions">
+      <a class="button primary" href="/login">Zaloguj się</a>
+      <a class="button secondary" href="/register">Załóż konto</a>
+    </div>
+  </div>
+  <div class="home-hero-cards">
+    <article>
+      <h3>Aktualna wartość portfela</h3>
+      <p>Śledź zmiany na wykresie i otrzymuj alerty o wzrostach i spadkach.</p>
+    </article>
+    <article>
+      <h3>Pełna baza kart</h3>
+      <p>Wyszukuj karty po nazwie, numerze i secie oraz dodawaj je jednym kliknięciem.</p>
+    </article>
+    <article>
+      <h3>Synchronizacja</h3>
+      <p>Dostęp z przeglądarki i aplikacji mobilnej – Twoje dane zawsze pod ręką.</p>
+    </article>
+  </div>
+</section>
+
+<section class="panel home-panel">
+  <div class="panel-header">
+    <div>
+      <h2>Nowości ze świata Pokemon</h2>
+      <p>Najważniejsze informacje z ostatnich dni, które warto znać przed kolejnymi zakupami.</p>
+    </div>
+  </div>
+  <div class="home-news-grid">
+    <article class="home-news-card">
+      <span class="home-news-tag">Turnieje</span>
+      <h3>Finały World Championships 2025</h3>
+      <p>Najlepsze talie turniejowe ujawniają popyt na karty z serii Stellar Crown oraz powrót klasycznych archetypów.</p>
+      <time datetime="2025-03-05">5 marca 2025</time>
+    </article>
+    <article class="home-news-card">
+      <span class="home-news-tag">Kolekcjonerstwo</span>
+      <h3>Limitowane boxy 151 Premium</h3>
+      <p>Pokemon Center zapowiedziało kolejną falę boxów z ekskluzywnymi ilustracjami – przedsprzedaż startuje za tydzień.</p>
+      <time datetime="2025-03-02">2 marca 2025</time>
+    </article>
+    <article class="home-news-card">
+      <span class="home-news-tag">Rynek</span>
+      <h3>Raport cenowy Q1</h3>
+      <p>
+        Średnia wartość kart holo wzrosła o 8% względem poprzedniego kwartału, a rynek alternatywnych artów nadal
+        przyspiesza.
+      </p>
+      <time datetime="2025-03-01">1 marca 2025</time>
+    </article>
+  </div>
+</section>
+
+<section class="panel home-panel">
+  <div class="panel-header">
+    <div>
+      <h2>Zapowiadane sety</h2>
+      <p>Przygotuj portfel na premiery, które mogą namieszać w cenach kart.</p>
+    </div>
+  </div>
+  <div class="home-sets-grid">
+    <article>
+      <h3>Stellar Crown</h3>
+      <p>Nowy set z akcentem na Pokemon typu Dragon i Fairy. Data premiery: <strong>19 kwietnia 2025</strong>.</p>
+    </article>
+    <article>
+      <h3>Obsidian Flames+ Collection</h3>
+      <p>Reedycja bestsellerowych kart wraz z unikalnymi promkami Gym Leader. Premiera: <strong>maj 2025</strong>.</p>
+    </article>
+    <article>
+      <h3>Legends Awakened</h3>
+      <p>
+        Specjalny mini-set skupiający legendarne trio Johto z nowymi ilustracjami.
+        Premiera: <strong>czerwiec 2025</strong>.
+      </p>
+    </article>
+  </div>
+</section>
+
+<section class="panel home-panel">
+  <div class="panel-header">
+    <div>
+      <h2>Trendy cenowe</h2>
+      <p>Największe wzrosty i spadki cen kart obserwowane w ostatnich odczytach.</p>
+    </div>
+  </div>
+  <div class="home-trends">
+    <div class="home-trends-column">
+      <h3>Wzrosty</h3>
+      <ul>
+        <li>
+          <span>Charizard ex (Obsidian Flames)</span>
+          <span class="trend-up">▲ +12%</span>
+        </li>
+        <li>
+          <span>Iron Valiant ex (Paradox Rift)</span>
+          <span class="trend-up">▲ +9%</span>
+        </li>
+        <li>
+          <span>Miraidon ex (Scarlet &amp; Violet)</span>
+          <span class="trend-up">▲ +6%</span>
+        </li>
+      </ul>
+    </div>
+    <div class="home-trends-column">
+      <h3>Spadki</h3>
+      <ul>
+        <li>
+          <span>Gardevoir ex (Triple Beat)</span>
+          <span class="trend-down">▼ -7%</span>
+        </li>
+        <li>
+          <span>Mew VMAX (Fusion Strike)</span>
+          <span class="trend-down">▼ -5%</span>
+        </li>
+        <li>
+          <span>Pikachu VMAX (Celebrations)</span>
+          <span class="trend-down">▼ -4%</span>
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>
+{% endblock %}
