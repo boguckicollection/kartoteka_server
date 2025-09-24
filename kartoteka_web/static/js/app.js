@@ -435,6 +435,7 @@ function setupCardSearch(form) {
   let selectedCard = null;
   let selectedKey = "";
   let requestId = 0;
+  let cardSearchApi = null;
 
   const state = {
     baseResults: [],
@@ -608,6 +609,42 @@ function setupCardSearch(form) {
     item.dataset.resultKey = buildResultKey(card);
     item.setAttribute("role", "listitem");
 
+    const cardName = card?.name?.trim() || "Nieznana karta";
+
+    const addButton = document.createElement("button");
+    addButton.type = "button";
+    addButton.className = "card-search-add";
+    addButton.innerHTML = "<span aria-hidden=\"true\">+</span>";
+    const addLabelParts = [`Dodaj kartę ${cardName} do kolekcji`];
+    if (card.set_name) {
+      addLabelParts.push(`z zestawu ${card.set_name}`);
+    }
+    const addLabel = addLabelParts.join(" ");
+    addButton.setAttribute("aria-label", addLabel);
+    addButton.title = addLabel;
+    addButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (addButton.dataset.loading === "true") return;
+      addButton.dataset.loading = "true";
+      addButton.disabled = true;
+      try {
+        applySuggestion(card);
+        await addCard(form, cardSearchApi, card);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        addButton.disabled = false;
+        delete addButton.dataset.loading;
+      }
+    });
+    item.appendChild(addButton);
+
+    const link = document.createElement("a");
+    link.className = "card-search-link";
+    link.href = buildCardDetailUrl(card);
+    link.setAttribute("aria-label", `Przejdź do szczegółów karty ${cardName}`);
+
     const media = document.createElement("div");
     media.className = "card-search-thumb-wrapper";
     if (card.image_small || card.image_large) {
@@ -624,71 +661,37 @@ function setupCardSearch(form) {
       placeholder.setAttribute("aria-hidden", "true");
       media.appendChild(placeholder);
     }
-    item.appendChild(media);
+    link.appendChild(media);
 
     const info = document.createElement("div");
     info.className = "card-search-info";
-    const cardName = card?.name?.trim() || "Nieznana karta";
+
     const title = document.createElement("h3");
     title.className = "card-search-title";
     title.textContent = cardName;
     info.appendChild(title);
 
-    const meta = document.createElement("div");
-    meta.className = "card-search-meta";
-    const numberTag = document.createElement("span");
-    numberTag.className = "card-search-tag";
-    numberTag.textContent = formatCardNumber(card) || card.number || "Brak numeru";
-    meta.appendChild(numberTag);
-    const setTag = document.createElement("span");
-    setTag.className = "card-search-tag";
-    setTag.textContent = card.set_name || "Brak informacji o secie";
-    meta.appendChild(setTag);
-    info.appendChild(meta);
+    const numberMeta = document.createElement("p");
+    numberMeta.className = "card-search-number";
+    numberMeta.textContent = formatCardNumber(card) || card.number || "Brak numeru";
+    info.appendChild(numberMeta);
 
-    item.appendChild(info);
-
-    const actions = document.createElement("div");
-    actions.className = "card-search-actions";
-
-    const detailLink = document.createElement("a");
-    detailLink.className = "card-search-detail";
-    detailLink.href = buildCardDetailUrl(card);
-    const detailLabel = `Zobacz szczegóły karty ${cardName}`;
-    detailLink.textContent = "Szczegóły";
-    detailLink.title = detailLabel;
-    detailLink.setAttribute("aria-label", detailLabel);
-    actions.appendChild(detailLink);
-
-    const selectButton = document.createElement("button");
-    selectButton.type = "button";
-    selectButton.className = "card-search-select";
-    selectButton.textContent = "Wybierz";
-    const selectLabelParts = [`Wybierz kartę ${cardName}`];
-    if (card.set_name) {
-      selectLabelParts.push(`z zestawu ${card.set_name}`);
+    const setMeta = document.createElement("p");
+    setMeta.className = "card-search-set";
+    if (card.set_icon) {
+      const setImg = document.createElement("img");
+      setImg.src = card.set_icon;
+      setImg.alt = card.set_name ? `Logo ${card.set_name}` : "Logo dodatku";
+      setImg.loading = "lazy";
+      setMeta.appendChild(setImg);
     }
-    const selectLabel = selectLabelParts.join(" ");
-    selectButton.setAttribute("aria-label", selectLabel);
-    selectButton.title = selectLabel;
-    selectButton.addEventListener("click", (event) => {
-      event.preventDefault();
-      applySuggestion(card);
-    });
-    actions.appendChild(selectButton);
+    const setText = document.createElement("span");
+    setText.textContent = card.set_name || "Brak informacji o secie";
+    setMeta.appendChild(setText);
+    info.appendChild(setMeta);
 
-    item.appendChild(actions);
-
-    item.addEventListener("click", (event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) {
-        return;
-      }
-      if (target.closest(".card-search-select") || target.closest(".card-search-detail")) {
-        return;
-      }
-      applySuggestion(card);
-    });
+    link.appendChild(info);
+    item.appendChild(link);
 
     return item;
   };
@@ -871,8 +874,11 @@ function setupCardSearch(form) {
   updateSortDisabled();
   updatePaginationControls(0);
 
-  return {
+  const api = {
     getSelectedCard: () => selectedCard,
+    clearSelection: () => {
+      clearSelection();
+    },
     reset: () => {
       clearSelection();
       state.baseResults = [];
@@ -889,12 +895,14 @@ function setupCardSearch(form) {
     },
     search,
   };
+  cardSearchApi = api;
+  return api;
 }
 
-async function addCard(form, cardSearch) {
+async function addCard(form, cardSearch, selectedCardOverride = null) {
   const alertBox = document.getElementById("add-card-alert");
   showAlert(alertBox, "");
-  const selectedCard = cardSearch?.getSelectedCard?.();
+  const selectedCard = selectedCardOverride ?? cardSearch?.getSelectedCard?.();
   if (!selectedCard) {
     showAlert(alertBox, "Najpierw wyszukaj kartę i wybierz ją z listy wyników.");
     return;
@@ -937,8 +945,13 @@ async function addCard(form, cardSearch) {
       method: "POST",
       body: JSON.stringify(payload),
     });
-    form.reset();
-    cardSearch?.reset?.();
+    const shouldResetSearch = !selectedCardOverride;
+    if (shouldResetSearch) {
+      form.reset();
+      cardSearch?.reset?.();
+    } else {
+      cardSearch?.clearSelection?.();
+    }
     const updates = [];
     if (document.getElementById("collection-table")) {
       updates.push(loadCollection());

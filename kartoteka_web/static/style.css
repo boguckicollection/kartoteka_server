@@ -518,9 +518,9 @@ button.danger:hover {
 }
 
 .card-search-results {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 18px;
 }
 
 .card-search-empty {
@@ -543,11 +543,11 @@ button.danger:hover {
 }
 
 .card-search-item {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 16px;
-  padding: 14px 18px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
   border-radius: 18px;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -565,9 +565,54 @@ button.danger:hover {
   box-shadow: 0 0 0 3px rgba(51, 51, 102, 0.12);
 }
 
+.card-search-add {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-primary), #2b2b55);
+  color: #fff;
+  font-size: 1.4rem;
+  cursor: pointer;
+  box-shadow: 0 16px 32px -18px rgba(17, 22, 63, 0.5);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.card-search-add:hover,
+.card-search-add:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 40px -18px rgba(17, 22, 63, 0.55);
+}
+
+.card-search-add:active {
+  transform: scale(0.95);
+}
+
+.card-search-add:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.card-search-link {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-decoration: none;
+  color: inherit;
+  flex: 1;
+}
+
 .card-search-thumb-wrapper {
-  width: 64px;
-  height: 64px;
+  width: 100%;
+  aspect-ratio: 3 / 4;
   border-radius: 16px;
   overflow: hidden;
   background: rgba(51, 51, 102, 0.08);
@@ -592,90 +637,40 @@ button.danger:hover {
 .card-search-info {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .card-search-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.05rem;
   color: var(--color-primary);
   font-weight: 600;
 }
 
-.card-search-title a {
-  color: inherit;
-  text-decoration: none;
-}
-
-.card-search-title a:hover,
-.card-search-title a:focus-visible {
-  text-decoration: underline;
-}
-
-.card-search-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: 0.85rem;
+.card-search-number,
+.card-search-set {
+  margin: 0;
+  font-size: 0.9rem;
   color: var(--color-text-muted);
 }
 
-.card-search-tag {
-  display: inline-flex;
+.card-search-number {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.card-search-set {
+  display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(51, 51, 102, 0.08);
-  font-weight: 600;
-  color: var(--color-primary);
+  font-weight: 500;
 }
 
-.card-search-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-}
-
-.card-search-detail {
-  font-size: 0.85rem;
-  color: var(--color-primary);
-  text-decoration: none;
-}
-
-.card-search-detail:hover,
-.card-search-detail:focus-visible {
-  text-decoration: underline;
-}
-
-.card-search-select {
-  border: none;
-  border-radius: 999px;
-  padding: 0.55rem 1.25rem;
-  font-weight: 600;
-  cursor: pointer;
-  background: linear-gradient(135deg, var(--color-primary), #2b2b55);
-  color: #fff;
-  box-shadow: 0 16px 28px -18px rgba(17, 22, 63, 0.5);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-}
-
-.card-search-select:hover,
-.card-search-select:focus-visible {
-  transform: translateY(-1px);
-  box-shadow: 0 20px 36px -18px rgba(17, 22, 63, 0.55);
-}
-
-.card-search-select:active {
-  transform: scale(0.96);
-}
-
-.card-search-select:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
+.card-search-set img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(17, 22, 63, 0.25));
 }
 
 .card-search-pagination {
@@ -738,22 +733,22 @@ button.danger:hover {
     width: 100%;
   }
 
+  .card-search-results {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+  }
+
   .card-search-item {
-    grid-template-columns: 1fr;
-    gap: 12px;
+    padding: 16px;
   }
 
-  .card-search-actions {
-    flex-direction: row;
-    width: 100%;
-    justify-content: space-between;
-    align-items: center;
+  .card-search-add {
+    top: 10px;
+    right: 10px;
   }
 
-  .card-search-select {
-    flex: 1;
-    justify-content: center;
-    text-align: center;
+  .card-search-thumb-wrapper {
+    aspect-ratio: 2 / 3;
   }
 }
 

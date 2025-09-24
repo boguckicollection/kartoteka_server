@@ -56,24 +56,293 @@ def _prepare_card_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return image_utils.cache_card_images(_enrich_card_payload(payload))
 
 
-def _select_best_result(
-    results: list[dict[str, Any]],
+def _normalise_search_value(value: str | None) -> str:
+    return pricing.normalize(value or "") or (value or "").strip().lower()
+
+
+def _sanitise_optional_number(value: str | None) -> str | None:
+    cleaned = pricing.sanitize_number(str(value or ""))
+    return cleaned or None
+
+
+def _ensure_record_assets(session: Session, record: "models.CardRecord") -> bool:
+    updated = False
+    if record and not record.set_icon:
+        icon = _resolve_set_icon(record.set_code, record.set_name)
+        if icon:
+            record.set_icon = icon
+            updated = True
+    if record and record.image_large and not record.image_small:
+        record.image_small = record.image_large
+        updated = True
+    if updated:
+        record.updated_at = dt.datetime.now(dt.timezone.utc)
+        session.add(record)
+    return updated
+
+
+def _upsert_card_record(session: Session, payload: dict[str, Any]) -> "models.CardRecord" | None:
+    data = _prepare_card_payload(payload)
+    name_value = (data.get("name") or "").strip()
+    number_value = pricing.sanitize_number(str(data.get("number") or ""))
+    if not name_value or not number_value:
+        return None
+
+    set_name_value = (data.get("set_name") or "").strip()
+    number_display = data.get("number_display") or data.get("number") or number_value
+    total_value = _sanitise_optional_number(data.get("total"))
+    set_code_value = data.get("set_code") or None
+    set_code_clean = set_utils.clean_code(set_code_value)
+    now = dt.datetime.now(dt.timezone.utc)
+    set_icon_value = data.get("set_icon") or _resolve_set_icon(set_code_value, set_name_value)
+
+    candidate = None
+    if set_code_clean:
+        candidate = session.exec(
+            select(models.CardRecord).where(
+                (models.CardRecord.number == number_value)
+                & (models.CardRecord.set_code_clean == set_code_clean)
+            )
+        ).first()
+    if candidate is None and set_name_value:
+        candidate = session.exec(
+            select(models.CardRecord).where(
+                (models.CardRecord.number == number_value)
+                & (models.CardRecord.set_name == set_name_value)
+            )
+        ).first()
+    if candidate is None:
+        candidate = session.exec(
+            select(models.CardRecord).where(
+                (models.CardRecord.name == name_value)
+                & (models.CardRecord.number == number_value)
+                & (models.CardRecord.set_name == set_name_value)
+            )
+        ).first()
+
+    name_normalized = _normalise_search_value(name_value)
+    set_name_normalized = (
+        _normalise_search_value(set_name_value) if set_name_value else None
+    )
+
+    if candidate is None:
+        record = models.CardRecord(
+            name=name_value,
+            name_normalized=name_normalized,
+            number=number_value,
+            number_display=number_display,
+            total=total_value,
+            set_name=set_name_value,
+            set_name_normalized=set_name_normalized,
+            set_code=set_code_value,
+            set_code_clean=set_code_clean,
+            rarity=data.get("rarity"),
+            artist=data.get("artist"),
+            series=data.get("series"),
+            release_date=data.get("release_date"),
+            image_small=data.get("image_small"),
+            image_large=data.get("image_large"),
+            set_icon=set_icon_value,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(record)
+        return record
+
+    updated = False
+
+    def _apply(attr: str, value: Any, allow_none: bool = False) -> None:
+        nonlocal updated
+        if value is None and not allow_none:
+            return
+        if getattr(candidate, attr) != value:
+            setattr(candidate, attr, value)
+            updated = True
+
+    _apply("name", name_value)
+    _apply("name_normalized", name_normalized)
+    _apply("number", number_value)
+    _apply("number_display", number_display, allow_none=True)
+    _apply("total", total_value, allow_none=True)
+    _apply("set_name", set_name_value)
+    _apply("set_name_normalized", set_name_normalized, allow_none=True)
+    if set_code_value is not None:
+        _apply("set_code", set_code_value, allow_none=True)
+    if set_code_clean is not None:
+        _apply("set_code_clean", set_code_clean, allow_none=True)
+    if data.get("rarity"):
+        _apply("rarity", data.get("rarity"), allow_none=True)
+    if data.get("artist"):
+        _apply("artist", data.get("artist"), allow_none=True)
+    if data.get("series"):
+        _apply("series", data.get("series"), allow_none=True)
+    if data.get("release_date"):
+        _apply("release_date", data.get("release_date"), allow_none=True)
+    if data.get("image_small"):
+        _apply("image_small", data.get("image_small"), allow_none=True)
+    if data.get("image_large"):
+        _apply("image_large", data.get("image_large"), allow_none=True)
+    if set_icon_value:
+        _apply("set_icon", set_icon_value, allow_none=True)
+
+    if updated:
+        candidate.updated_at = now
+        session.add(candidate)
+    return candidate
+
+
+def _record_to_search_schema(record: "models.CardRecord") -> schemas.CardSearchResult:
+    payload = {
+        "name": record.name,
+        "number": record.number,
+        "number_display": record.number_display or record.number,
+        "total": record.total,
+        "set_name": record.set_name,
+        "set_code": record.set_code,
+        "rarity": record.rarity,
+        "image_small": record.image_small,
+        "image_large": record.image_large,
+        "set_icon": record.set_icon,
+        "artist": record.artist,
+        "series": record.series,
+        "release_date": record.release_date,
+    }
+    return schemas.CardSearchResult.model_validate(payload)
+
+
+def _record_to_detail_payload(record: "models.CardRecord") -> dict[str, Any]:
+    return {
+        "name": record.name,
+        "number": record.number,
+        "number_display": record.number_display,
+        "total": record.total,
+        "set_name": record.set_name,
+        "set_code": record.set_code,
+        "set_icon": record.set_icon,
+        "image_small": record.image_small,
+        "image_large": record.image_large,
+        "rarity": record.rarity,
+        "artist": record.artist,
+        "series": record.series,
+        "release_date": record.release_date,
+        "price_pln": record.price_pln,
+        "last_price_update": record.price_updated_at,
+    }
+
+
+def _search_catalogue(
+    session: Session,
+    *,
+    name: str,
+    number: str | None = None,
+    total: str | None = None,
+    set_name: str | None = None,
+    limit: int = 50,
+) -> list["models.CardRecord"]:
+    name_norm = _normalise_search_value(name)
+    if not name_norm:
+        return []
+    stmt = select(models.CardRecord).where(
+        models.CardRecord.name_normalized.contains(name_norm)
+    )
+    number_clean = _sanitise_optional_number(number)
+    if number_clean:
+        stmt = stmt.where(models.CardRecord.number == number_clean)
+    total_clean = _sanitise_optional_number(total)
+    if total_clean:
+        stmt = stmt.where(models.CardRecord.total == total_clean)
+    if set_name:
+        set_norm = _normalise_search_value(set_name)
+        if set_norm:
+            stmt = stmt.where(models.CardRecord.set_name_normalized.contains(set_norm))
+    stmt = stmt.order_by(models.CardRecord.set_name, models.CardRecord.number)
+    stmt = stmt.limit(max(1, limit))
+    return session.exec(stmt).all()
+
+
+def _select_best_record(
+    records: list["models.CardRecord"],
     *,
     set_code: str | None = None,
     set_name: str | None = None,
-) -> dict[str, Any] | None:
+) -> "models.CardRecord" | None:
     code_clean = set_utils.clean_code(set_code)
     if code_clean:
-        for item in results:
-            if set_utils.clean_code(item.get("set_code")) == code_clean:
-                return item
-    name_norm = pricing.normalize(set_name or "") if set_name else ""
-    if name_norm:
-        for item in results:
-            if pricing.normalize(item.get("set_name")) == name_norm:
-                return item
-    return results[0] if results else None
+        for record in records:
+            if record.set_code_clean == code_clean:
+                return record
+    set_norm = pricing.normalize(set_name or "") if set_name else ""
+    if set_norm:
+        for record in records:
+            if (record.set_name_normalized or "") == set_norm:
+                return record
+            if pricing.normalize(record.set_name or "") == set_norm:
+                return record
+    return records[0] if records else None
 
+
+def _locate_catalogue_record(
+    session: Session,
+    *,
+    name: str,
+    number: str,
+    set_code: str | None = None,
+    set_name: str | None = None,
+) -> "models.CardRecord" | None:
+    number_clean = pricing.sanitize_number(str(number or ""))
+    if not number_clean:
+        return None
+
+    candidates: list[models.CardRecord] = []
+    code_clean = set_utils.clean_code(set_code)
+    if code_clean:
+        candidates = session.exec(
+            select(models.CardRecord).where(
+                (models.CardRecord.number == number_clean)
+                & (models.CardRecord.set_code_clean == code_clean)
+            )
+        ).all()
+    if not candidates and set_name:
+        set_norm = _normalise_search_value(set_name)
+        candidates = session.exec(
+            select(models.CardRecord).where(
+                (models.CardRecord.number == number_clean)
+                & (models.CardRecord.set_name_normalized == set_norm)
+            )
+        ).all()
+    if not candidates:
+        name_norm = _normalise_search_value(name)
+        if name_norm:
+            candidates = session.exec(
+                select(models.CardRecord).where(
+                    (models.CardRecord.number == number_clean)
+                    & (models.CardRecord.name_normalized == name_norm)
+                )
+            ).all()
+    if not candidates:
+        candidates = session.exec(
+            select(models.CardRecord).where(models.CardRecord.number == number_clean)
+        ).all()
+    return _select_best_record(candidates, set_code=set_code, set_name=set_name)
+
+
+def _load_related_catalogue(
+    session: Session,
+    base: "models.CardRecord" | None,
+    limit: int,
+) -> list["models.CardRecord"]:
+    if not base or limit <= 0:
+        return []
+    stmt = select(models.CardRecord).where(models.CardRecord.id != base.id)
+    if base.set_code_clean:
+        stmt = stmt.where(models.CardRecord.set_code_clean == base.set_code_clean)
+    elif base.set_name_normalized:
+        stmt = stmt.where(models.CardRecord.set_name_normalized == base.set_name_normalized)
+    else:
+        return []
+    stmt = stmt.order_by(models.CardRecord.number)
+    stmt = stmt.limit(limit)
+    return session.exec(stmt).all()
 
 def _find_card_record(
     session: Session,
@@ -200,20 +469,53 @@ def search_cards_endpoint(
     set_name: str | None = None,
     limit: int = 10,
     current_user: models.User = Depends(get_current_user),
+    session: Session = Depends(get_session),
 ):
     del current_user  # Only used to enforce authentication via dependency.
     cleaned_limit = max(1, min(limit, 100))
-    results = pricing.search_cards(
+    records = _search_catalogue(
+        session,
         name=name,
         number=number,
         total=total,
         set_name=set_name,
         limit=cleaned_limit,
     )
-    prepared = [_prepare_card_payload(result) for result in results]
-    return [
-        schemas.CardSearchResult.model_validate(result) for result in prepared
-    ]
+    updated = False
+    for record in records:
+        updated = _ensure_record_assets(session, record) or updated
+
+    if not records:
+        api_results = pricing.search_cards(
+            name=name,
+            number=number,
+            total=total,
+            set_name=set_name,
+            limit=cleaned_limit,
+        )
+        stored = False
+        for payload in api_results:
+            if _upsert_card_record(session, payload):
+                stored = True
+        if stored:
+            session.commit()
+            records = _search_catalogue(
+                session,
+                name=name,
+                number=number,
+                total=total,
+                set_name=set_name,
+                limit=cleaned_limit,
+            )
+            updated = False
+            for record in records:
+                updated = _ensure_record_assets(session, record) or updated
+        else:
+            records = []
+    elif updated:
+        session.commit()
+
+    return [_record_to_search_schema(record) for record in records]
 
 
 @router.get("/info", response_model=schemas.CardDetailResponse)
@@ -228,33 +530,111 @@ def card_info(
     session: Session = Depends(get_session),
 ):
     del current_user
-    search_results = pricing.search_cards(
+
+    number_clean = pricing.sanitize_number(str(number))
+    total_clean = pricing.sanitize_number(str(total)) if total else None
+
+    remote_results: list[dict[str, Any]] = []
+
+    def _fetch_remote_results() -> list[dict[str, Any]]:
+        nonlocal remote_results
+        if not remote_results:
+            remote_results = pricing.search_cards(
+                name=name,
+                number=number,
+                total=total,
+                set_name=set_name,
+                limit=20,
+            )
+        return remote_results
+
+    record = _locate_catalogue_record(
+        session,
         name=name,
         number=number,
-        total=total,
-        set_name=set_name,
-        limit=20,
-    )
-    if not search_results:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nie znaleziono karty.")
-
-    selected = _select_best_result(
-        search_results,
         set_code=set_code,
         set_name=set_name,
     )
-    if not selected:
+    if record is None:
+        records = _search_catalogue(
+            session,
+            name=name,
+            number=number,
+            total=total,
+            set_name=set_name,
+            limit=20,
+        )
+        record = _select_best_record(records, set_code=set_code, set_name=set_name)
+
+    if record is None:
+        stored = False
+        for payload in _fetch_remote_results():
+            if _upsert_card_record(session, payload):
+                stored = True
+        if stored:
+            session.commit()
+            record = _locate_catalogue_record(
+                session,
+                name=name,
+                number=number,
+                set_code=set_code,
+                set_name=set_name,
+            )
+            if record is None:
+                records = _search_catalogue(
+                    session,
+                    name=name,
+                    number=number,
+                    total=total,
+                    set_name=set_name,
+                    limit=20,
+                )
+                record = _select_best_record(records, set_code=set_code, set_name=set_name)
+
+    if record is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nie znaleziono karty.")
 
-    detail_data = _prepare_card_payload(selected)
-    if total and not detail_data.get("total"):
-        total_value = pricing.sanitize_number(str(total))
-        if total_value:
-            detail_data["total"] = total_value
+    needs_refresh = any(
+        not getattr(record, field)
+        for field in ("series", "artist", "image_large", "image_small", "rarity")
+    )
+    if needs_refresh:
+        stored = False
+        for payload in _fetch_remote_results():
+            if _upsert_card_record(session, payload):
+                stored = True
+        if stored:
+            session.commit()
+            record = _locate_catalogue_record(
+                session,
+                name=name,
+                number=number,
+                set_code=set_code,
+                set_name=set_name,
+            )
+            if record is None:
+                records = _search_catalogue(
+                    session,
+                    name=name,
+                    number=number,
+                    total=total,
+                    set_name=set_name,
+                    limit=20,
+                )
+                record = _select_best_record(records, set_code=set_code, set_name=set_name)
+            if record is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nie znaleziono karty.")
+
+    if _ensure_record_assets(session, record):
+        session.commit()
+
+    detail_data = _record_to_detail_payload(record)
     if not detail_data.get("name"):
         detail_data["name"] = name
+    if total_clean and not detail_data.get("total"):
+        detail_data["total"] = total_clean
 
-    number_value = detail_data.get("number") or pricing.sanitize_number(str(number))
+    number_value = detail_data.get("number") or number_clean
     detail_data["number"] = number_value
     if not detail_data.get("number_display"):
         detail_data["number_display"] = number
@@ -276,8 +656,11 @@ def card_info(
         for row in history_rows
     ]
 
-    price_value: float | None = history_rows[-1].price if history_rows else None
-    last_update = history_rows[-1].recorded_at if history_rows else None
+    price_value: float | None = detail_data.get("price_pln")
+    last_update = detail_data.get("last_price_update")
+    if history_rows:
+        price_value = history_rows[-1].price
+        last_update = history_rows[-1].recorded_at
 
     if card and card.id is not None:
         entries = session.exec(
@@ -296,13 +679,29 @@ def card_info(
             elif price_value is None:
                 price_value = entry.current_price
 
+    should_commit = False
     if price_value is None:
-        price_value = pricing.fetch_card_price(
+        fetched_price = pricing.fetch_card_price(
             name=detail_data.get("name") or name,
             number=number_value,
             set_name=resolved_set_name,
             set_code=resolved_set_code,
         )
+        if fetched_price is not None:
+            price_value = fetched_price
+            last_update = dt.datetime.now(dt.timezone.utc)
+            record.price_pln = float(fetched_price)
+            record.price_updated_at = last_update
+            record.updated_at = last_update
+            session.add(record)
+            should_commit = True
+    else:
+        if record.price_pln != price_value or record.price_updated_at != last_update:
+            record.price_pln = price_value
+            record.price_updated_at = last_update
+            record.updated_at = dt.datetime.now(dt.timezone.utc)
+            session.add(record)
+            should_commit = True
 
     detail_data["price_pln"] = price_value
     detail_data["last_price_update"] = last_update
@@ -310,41 +709,43 @@ def card_info(
     limit_value = max(0, min(related_limit, 24))
     related_items: list[schemas.CardSearchResult] = []
     if limit_value:
-        lookup_code = set_utils.clean_code(resolved_set_code)
-        lookup_code = lookup_code or set_utils.clean_code(detail_data.get("set_code"))
-        lookup_code = lookup_code or set_utils.guess_set_code(resolved_set_name)
+        related_records = _load_related_catalogue(session, record, limit_value + 1)
+        if len(related_records) < limit_value:
+            lookup_code = record.set_code_clean or set_utils.guess_set_code(resolved_set_name)
+            stored_related = False
+            if lookup_code:
+                api_related = pricing.list_set_cards(lookup_code, limit=limit_value + 1)
+                for item in api_related:
+                    if _upsert_card_record(session, item):
+                        stored_related = True
+            if stored_related:
+                session.commit()
+                related_records = _load_related_catalogue(session, record, limit_value + 1)
 
-        candidate_cards: list[dict[str, Any]] = []
-        if lookup_code:
-            candidate_cards = pricing.list_set_cards(lookup_code, limit=limit_value + 1)
-        elif resolved_set_name:
-            guessed = set_utils.guess_set_code(resolved_set_name)
-            if guessed:
-                candidate_cards = pricing.list_set_cards(guessed, limit=limit_value + 1)
-
-        def is_same_card(candidate: dict[str, Any]) -> bool:
-            same_number = (candidate.get("number") or "") == number_value
-            if not same_number:
+        def is_same_record(candidate: models.CardRecord) -> bool:
+            if candidate.number != number_value:
                 return False
-            candidate_code = set_utils.clean_code(candidate.get("set_code"))
-            detail_code = set_utils.clean_code(detail_data.get("set_code"))
+            candidate_code = candidate.set_code_clean
+            detail_code = record.set_code_clean
             if candidate_code and detail_code:
                 return candidate_code == detail_code
-            candidate_name = pricing.normalize(candidate.get("set_name"))
-            detail_name = pricing.normalize(detail_data.get("set_name"))
+            candidate_name = pricing.normalize(candidate.set_name or "")
+            detail_name = pricing.normalize(record.set_name or "")
             if candidate_name and detail_name:
                 return candidate_name == detail_name
             return False
 
-        for item in candidate_cards:
-            if is_same_card(item):
+        for item in related_records:
+            if item.id == record.id or is_same_record(item):
                 continue
-            enriched = _prepare_card_payload(item)
-            related_items.append(
-                schemas.CardSearchResult.model_validate(enriched)
-            )
+            if _ensure_record_assets(session, item):
+                should_commit = True
+            related_items.append(_record_to_search_schema(item))
             if len(related_items) >= limit_value:
                 break
+
+    if should_commit:
+        session.commit()
 
     detail = schemas.CardDetail.model_validate(detail_data)
     return schemas.CardDetailResponse(
@@ -399,6 +800,22 @@ def add_card(
     set_code_value = (card_data.set_code or "").strip() or None
     rarity_value = (card_data.rarity or "").strip() or None
 
+    catalog_payload = card_data.model_dump(exclude_unset=True)
+    catalog_payload.setdefault("name", name_value)
+    catalog_payload.setdefault("number", number_value)
+    catalog_payload.setdefault("set_name", set_name_value)
+    catalog_payload.setdefault("set_code", set_code_value)
+    catalog_payload.setdefault("rarity", rarity_value)
+    _upsert_card_record(session, catalog_payload)
+
+    catalog_record = _locate_catalogue_record(
+        session,
+        name=name_value,
+        number=number_value,
+        set_code=set_code_value,
+        set_name=set_name_value,
+    )
+
     card = session.exec(
         select(models.Card)
         .where(
@@ -441,14 +858,28 @@ def add_card(
         is_holo=payload.is_holo,
     )
 
-    base_price = pricing.fetch_card_price(
-        name=card.name,
-        number=card.number,
-        set_name=card.set_name,
-        set_code=card.set_code,
-    )
+    base_price = None
+    price_timestamp: dt.datetime | None = None
+    if catalog_record and catalog_record.price_pln is not None:
+        base_price = catalog_record.price_pln
+        price_timestamp = catalog_record.price_updated_at
+
+    if base_price is None:
+        base_price = pricing.fetch_card_price(
+            name=card.name,
+            number=card.number,
+            set_name=card.set_name,
+            set_code=card.set_code,
+        )
+        if base_price is not None and catalog_record:
+            price_timestamp = dt.datetime.now(dt.timezone.utc)
+            catalog_record.price_pln = float(base_price)
+            catalog_record.price_updated_at = price_timestamp
+            catalog_record.updated_at = price_timestamp
+            session.add(catalog_record)
+
     entry.current_price = _apply_variant_multiplier(base_price, entry)
-    timestamp = dt.datetime.now(dt.timezone.utc)
+    timestamp = price_timestamp or dt.datetime.now(dt.timezone.utc)
     if entry.current_price is not None:
         entry.last_price_update = timestamp
     record_price_history(session, card, base_price, timestamp)
@@ -535,14 +966,39 @@ def refresh_entry_price(
     if card is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Entry has no card")
 
+    catalog_payload = {
+        "name": card.name,
+        "number": card.number,
+        "set_name": card.set_name,
+        "set_code": card.set_code,
+        "rarity": card.rarity,
+        "image_small": card.image_small,
+        "image_large": card.image_large,
+    }
+    _upsert_card_record(session, catalog_payload)
+
+    catalog_record = _locate_catalogue_record(
+        session,
+        name=card.name,
+        number=card.number,
+        set_code=card.set_code,
+        set_name=card.set_name,
+    )
+
     base_price = pricing.fetch_card_price(
         name=card.name,
         number=card.number,
         set_name=card.set_name,
         set_code=card.set_code,
     )
-    entry.current_price = _apply_variant_multiplier(base_price, entry)
     timestamp = dt.datetime.now(dt.timezone.utc)
+    if base_price is not None and catalog_record:
+        catalog_record.price_pln = float(base_price)
+        catalog_record.price_updated_at = timestamp
+        catalog_record.updated_at = timestamp
+        session.add(catalog_record)
+
+    entry.current_price = _apply_variant_multiplier(base_price, entry)
     entry.last_price_update = timestamp
     record_price_history(session, card, base_price, timestamp)
     session.add(entry)
