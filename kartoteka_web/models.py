@@ -34,6 +34,8 @@ class Card(SQLModel, table=True):
     set_name: str = Field(index=True)
     set_code: Optional[str] = Field(default=None, index=True)
     rarity: Optional[str] = None
+    image_small: Optional[str] = Field(default=None)
+    image_large: Optional[str] = Field(default=None)
 
     entries: List["CollectionEntry"] = Relationship(back_populates="card")
     price_history: List["PriceHistory"] = Relationship(back_populates="card")

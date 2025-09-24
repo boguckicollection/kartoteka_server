@@ -746,6 +746,113 @@ tbody tr:hover {
   flex-wrap: wrap;
 }
 
+.portfolio-grid {
+  display: grid;
+  gap: 24px;
+  margin-top: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.portfolio-empty {
+  margin-top: 16px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.portfolio-card {
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.portfolio-card:hover,
+.portfolio-card:focus-within {
+  transform: translateY(-4px);
+  box-shadow: 0 30px 56px -32px rgba(17, 22, 63, 0.5);
+}
+
+.portfolio-card-link {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
+.portfolio-card-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  background: rgba(51, 51, 102, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.portfolio-card-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.portfolio-card-placeholder {
+  font-size: 2.8rem;
+  color: rgba(51, 51, 102, 0.28);
+}
+
+.portfolio-card-body {
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.portfolio-card-set {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.portfolio-card-set img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(51, 51, 102, 0.12);
+  object-fit: contain;
+  padding: 3px;
+}
+
+.portfolio-card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.portfolio-card-meta {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.portfolio-card-value {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-primary);
+}
+
+.portfolio-card-update {
+  margin: 0;
+  font-size: 0.75rem;
+  color: rgba(31, 31, 61, 0.6);
+}
+
 .table-responsive a.table-link {
   color: var(--color-primary);
   font-weight: 600;
