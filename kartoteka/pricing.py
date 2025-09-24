@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import unicodedata
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import requests
 
@@ -104,6 +104,150 @@ def _split_number_total(value: str) -> tuple[str, Optional[str]]:
         number, total = text.split("/", 1)
         return number.strip(), total.strip() or None
     return text, None
+
+
+def _card_sort_key(card: dict[str, Any]) -> tuple[int, str]:
+    """Return a sort key that keeps numeric identifiers ordered."""
+
+    number = str(card.get("number") or "")
+    try:
+        return (0, f"{int(number):04d}")
+    except ValueError:
+        return (1, number)
+
+
+def _extract_images(card: dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
+    images = card.get("images") or {}
+    image_small = None
+    image_large = None
+    if isinstance(images, dict):
+        image_small = (
+            images.get("small")
+            or images.get("smallUrl")
+            or images.get("thumbnail")
+            or images.get("thumb")
+            or images.get("icon")
+        )
+        image_large = (
+            images.get("large")
+            or images.get("largeUrl")
+            or images.get("hires")
+            or images.get("image")
+            or images.get("full")
+        )
+    if not image_small:
+        image_small = (
+            card.get("image")
+            or card.get("imageUrl")
+            or card.get("image_url")
+            or card.get("thumbnail")
+        )
+    if not image_large:
+        image_large = (
+            card.get("imageUrlHiRes")
+            or card.get("hires")
+            or card.get("image_large")
+            or image_small
+        )
+    if image_small and isinstance(image_small, dict):
+        image_small = image_small.get("url")
+    if image_large and isinstance(image_large, dict):
+        image_large = image_large.get("url")
+    return image_small, image_large
+
+
+def _build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Return a normalised representation of a card payload."""
+
+    episode = card.get("episode") or card.get("set") or {}
+    set_name_value = (
+        episode.get("name")
+        or card.get("set_name")
+        or card.get("setName")
+        or ""
+    )
+    set_code_value = (
+        episode.get("code")
+        or episode.get("slug")
+        or episode.get("id")
+        or card.get("set_code")
+        or card.get("setCode")
+    )
+
+    raw_number = str(
+        card.get("card_number")
+        or card.get("number")
+        or card.get("collector_number")
+        or ""
+    )
+    raw_total = str(
+        card.get("total_prints")
+        or card.get("total")
+        or card.get("set_total")
+        or ""
+    )
+
+    card_number_part, card_total_from_number = _split_number_total(raw_number)
+    card_number_clean = sanitize_number(card_number_part.lower())
+    if not card_number_clean:
+        return None
+    card_total_clean = sanitize_number(card_total_from_number or raw_total)
+
+    number_display = (
+        card.get("card_number_display")
+        or card.get("printed_number")
+        or raw_number
+    )
+    if not number_display:
+        number_display = (
+            f"{card_number_clean}/{card_total_clean}"
+            if card_total_clean
+            else card_number_clean
+        )
+
+    rarity = (
+        card.get("rarity")
+        or card.get("rarity_name")
+        or card.get("rarityName")
+        or None
+    )
+    artist = card.get("artist") or card.get("illustrator")
+    series = (
+        episode.get("series")
+        or episode.get("era")
+        or card.get("series")
+    )
+    release_date = (
+        episode.get("releaseDate")
+        or episode.get("release_date")
+        or card.get("releaseDate")
+        or card.get("release_date")
+    )
+    set_icon = (
+        episode.get("symbol")
+        or episode.get("logo")
+        or episode.get("icon")
+        or card.get("set_symbol")
+        or card.get("set_logo")
+    )
+
+    image_small, image_large = _extract_images(card)
+
+    return {
+        "name": card.get("name") or "",
+        "number": card_number_clean,
+        "number_display": number_display,
+        "total": card_total_clean or None,
+        "set_name": set_name_value,
+        "set_code": set_code_value,
+        "rarity": rarity,
+        "image_small": image_small,
+        "image_large": image_large,
+        "artist": artist,
+        "series": series,
+        "release_date": release_date,
+        "set_icon": set_icon,
+    }
 
 
 def fetch_card_price(
@@ -302,50 +446,23 @@ def search_cards(
     total_norm = total_clean
     set_norm = normalize(set_name) if set_name else ""
 
-    suggestions: list[dict] = []
+    suggestions: list[dict[str, Any]] = []
     for card in cards or []:
-        episode = card.get("episode") or card.get("set") or {}
-        set_name_value = (
-            episode.get("name")
-            or card.get("set_name")
-            or card.get("setName")
-            or ""
-        )
-        set_code_value = (
-            episode.get("code")
-            or episode.get("slug")
-            or episode.get("id")
-            or card.get("set_code")
-            or card.get("setCode")
-        )
-
-        card_name = card.get("name", "")
-        card_name_norm = normalize(card_name)
-
-        raw_number = str(
-            card.get("card_number")
-            or card.get("number")
-            or card.get("collector_number")
-            or ""
-        )
-        raw_total = str(
-            card.get("total_prints")
-            or card.get("total")
-            or card.get("set_total")
-            or ""
-        )
-
-        card_number_part, card_total_from_number = _split_number_total(raw_number)
-        card_number_clean = sanitize_number(card_number_part.lower())
-        card_total_clean = sanitize_number(card_total_from_number or raw_total)
-        if not card_number_clean:
+        payload = _build_card_payload(card)
+        if not payload:
             continue
+
+        card_name_norm = normalize(payload.get("name", ""))
+        card_number_clean = payload.get("number") or ""
+        total_value = payload.get("total") or ""
+        card_total_clean = sanitize_number(str(total_value)) if total_value else ""
+
         if number_clean and card_number_clean != number_clean:
             continue
         if total_clean and card_total_clean and card_total_clean != total_clean:
             continue
 
-        card_set_norm = normalize(set_name_value)
+        card_set_norm = normalize(payload.get("set_name"))
         score = 0
         if name_norm and card_name_norm == name_norm:
             score += 3
@@ -358,76 +475,12 @@ def search_cards(
         if set_norm and set_norm in card_set_norm:
             score += 1
 
-        rarity = (
-            card.get("rarity")
-            or card.get("rarity_name")
-            or card.get("rarityName")
-            or None
-        )
-
-        images = card.get("images") or {}
-        image_small = None
-        image_large = None
-        if isinstance(images, dict):
-            image_small = (
-                images.get("small")
-                or images.get("smallUrl")
-                or images.get("thumbnail")
-                or images.get("thumb")
-                or images.get("icon")
-            )
-            image_large = (
-                images.get("large")
-                or images.get("largeUrl")
-                or images.get("hires")
-                or images.get("image")
-                or images.get("full")
-            )
-        if not image_small:
-            image_small = (
-                card.get("image")
-                or card.get("imageUrl")
-                or card.get("image_url")
-                or card.get("thumbnail")
-            )
-        if not image_large:
-            image_large = (
-                card.get("imageUrlHiRes")
-                or card.get("hires")
-                or card.get("image_large")
-                or image_small
-            )
-
-        if image_small and isinstance(image_small, dict):
-            image_small = image_small.get("url")
-        if image_large and isinstance(image_large, dict):
-            image_large = image_large.get("url")
-
-        number_display = (
-            card.get("card_number_display")
-            or card.get("printed_number")
-            or raw_number
-        )
-        if not number_display:
-            number_display = (
-                f"{card_number_clean}/{card_total_clean}"
-                if card_total_clean
-                else card_number_clean
-            )
-
-        suggestion = {
-            "name": card_name or name,
-            "number": card_number_clean,
-            "number_display": number_display,
-            "total": card_total_clean or None,
-            "set_name": set_name_value,
-            "set_code": set_code_value,
-            "rarity": rarity,
-            "image_small": image_small,
-            "image_large": image_large,
-            "_score": score,
-        }
-        suggestions.append(suggestion)
+        if not payload.get("name"):
+            payload["name"] = name
+        if not payload.get("image_small") and payload.get("image_large"):
+            payload["image_small"] = payload.get("image_large")
+        payload["_score"] = score
+        suggestions.append(payload)
 
     suggestions.sort(
         key=lambda item: (
@@ -452,5 +505,69 @@ def search_cards(
         if len(results) >= limit:
             break
 
+    return results
+
+
+def list_set_cards(
+    set_code: str,
+    *,
+    limit: int = 12,
+    rapidapi_key: Optional[str] = None,
+    rapidapi_host: Optional[str] = None,
+    session: Optional[requests.sessions.Session] = None,
+    timeout: float = 10.0,
+) -> list[dict[str, Any]]:
+    """Return a selection of cards belonging to ``set_code``."""
+
+    if not set_code:
+        return []
+
+    http = session or requests
+    rapidapi_key = rapidapi_key if rapidapi_key is not None else RAPIDAPI_KEY
+    rapidapi_host = rapidapi_host if rapidapi_host is not None else RAPIDAPI_HOST
+
+    params: dict[str, str] = {}
+    headers: dict[str, str] = {}
+    url = "https://www.tcggo.com/api/cards/"
+    if rapidapi_key and rapidapi_host:
+        url = f"https://{rapidapi_host}/cards/search"
+        params = {"set": set_code}
+        headers = {
+            "X-RapidAPI-Key": rapidapi_key,
+            "X-RapidAPI-Host": rapidapi_host,
+        }
+    else:
+        params = {"set": set_code}
+
+    try:
+        response = http.get(url, params=params, headers=headers, timeout=timeout)
+        if response.status_code != 200:
+            logger.warning("API error: %s", response.status_code)
+            return []
+        cards = response.json()
+    except requests.Timeout:
+        logger.warning("Request timed out")
+        return []
+    except (requests.RequestException, ValueError) as exc:  # pragma: no cover
+        logger.warning("Fetching cards for set %s failed: %s", set_code, exc)
+        return []
+
+    if isinstance(cards, dict):
+        cards = cards.get("cards") or cards.get("data") or cards.get("results") or []
+
+    results: list[dict[str, Any]] = []
+    for card in cards or []:
+        payload = _build_card_payload(card)
+        if not payload:
+            continue
+        if not payload.get("name"):
+            payload["name"] = card.get("name") or ""
+        if not payload.get("image_small") and payload.get("image_large"):
+            payload["image_small"] = payload.get("image_large")
+        results.append(payload)
+
+    results.sort(key=_card_sort_key)
+    if limit and limit > 0:
+        return results[:limit]
     return results
 

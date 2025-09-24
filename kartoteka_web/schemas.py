@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import Optional
+from typing import List, Optional
 
 from sqlmodel import SQLModel
 
@@ -54,6 +54,39 @@ class CardSearchResult(SQLModel):
     rarity: Optional[str] = None
     image_small: Optional[str] = None
     image_large: Optional[str] = None
+    set_icon: Optional[str] = None
+    artist: Optional[str] = None
+    series: Optional[str] = None
+    release_date: Optional[str] = None
+
+
+class PricePoint(SQLModel):
+    price: float
+    recorded_at: dt.datetime
+
+
+class CardDetail(SQLModel):
+    name: str
+    number: str
+    number_display: Optional[str] = None
+    total: Optional[str] = None
+    set_name: str
+    set_code: Optional[str] = None
+    set_icon: Optional[str] = None
+    image_small: Optional[str] = None
+    image_large: Optional[str] = None
+    rarity: Optional[str] = None
+    artist: Optional[str] = None
+    series: Optional[str] = None
+    release_date: Optional[str] = None
+    price_pln: Optional[float] = None
+    last_price_update: Optional[dt.datetime] = None
+
+
+class CardDetailResponse(SQLModel):
+    card: CardDetail
+    history: List[PricePoint] = []
+    related: List[CardSearchResult] = []
 
 
 class CollectionEntryBase(SQLModel):

@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import datetime as dt
 import logging
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
@@ -110,6 +111,8 @@ app.include_router(users.router)
 app.include_router(cards.router)
 
 app.mount("/static", StaticFiles(directory="kartoteka_web/static"), name="static")
+if Path("set_logos").exists():
+    app.mount("/set-logos", StaticFiles(directory="set_logos"), name="set-logos")
 
 templates = Jinja2Templates(directory="kartoteka_web/templates")
 
@@ -164,6 +167,26 @@ async def portfolio_page(request: Request) -> HTMLResponse:
         "portfolio.html",
         {"request": request, "username": username},
     )
+
+
+@app.get("/cards/{set_identifier}/{number}", response_class=HTMLResponse)
+async def card_detail_page(request: Request, set_identifier: str, number: str) -> HTMLResponse:
+    username, invalid_credentials = await _resolve_request_username(request)
+    if invalid_credentials:
+        return templates.TemplateResponse(
+            "login.html", {"request": request, "username": ""}
+        )
+    query = dict(request.query_params)
+    context = {
+        "request": request,
+        "username": username,
+        "card_name": query.get("name", ""),
+        "card_number": number,
+        "card_set_code": set_identifier,
+        "card_set_name": query.get("set_name", ""),
+        "card_total": query.get("total", ""),
+    }
+    return templates.TemplateResponse("card_detail.html", context)
 
 
 def run() -> None:
