@@ -24,7 +24,7 @@ from kartoteka_web import models
 from kartoteka_web.auth import get_current_user, oauth2_scheme
 from kartoteka_web.database import init_db, session_scope
 from kartoteka_web.routes import cards, users
-from kartoteka_web.utils import images as image_utils
+from kartoteka_web.utils import images as image_utils, sets as set_utils
 
 logger = logging.getLogger(__name__)
 
@@ -203,15 +203,74 @@ async def card_detail_page(request: Request, set_identifier: str, number: str) -
         return templates.TemplateResponse(
             "login.html", {"request": request, "username": ""}
         )
-    query = dict(request.query_params)
+    raw_query = {key: value for key, value in request.query_params.items()}
+    card_name = (raw_query.get("name") or "").strip()
+    set_name = (raw_query.get("set_name") or "").strip()
+    set_code = (raw_query.get("set_code") or "").strip()
+    total = (raw_query.get("total") or "").strip()
+
+    number_clean = pricing.sanitize_number(number)
+    resolved_number = number_clean or number
+    resolved_name = card_name
+    resolved_set_name = set_name
+    resolved_set_code = set_code
+    resolved_total = total
+
+    identifier = set_utils.clean_code(set_identifier) or set_identifier.strip().lower()
+
+    with session_scope() as session:
+        record = None
+        if resolved_number:
+            candidates = session.exec(
+                select(models.CardRecord).where(models.CardRecord.number == resolved_number)
+            ).all()
+            for candidate in candidates:
+                candidate_identifier = set_utils.slugify_set_identifier(
+                    set_code=candidate.set_code, set_name=candidate.set_name
+                )
+                candidate_name = (candidate.set_name or "").strip().lower()
+                if identifier and candidate_identifier == identifier:
+                    record = candidate
+                    break
+                if resolved_set_name and candidate_name == resolved_set_name.lower():
+                    record = candidate
+                    break
+            if record is None and candidates:
+                record = candidates[0]
+
+        if record:
+            resolved_name = resolved_name or record.name
+            resolved_set_name = resolved_set_name or (record.set_name or "")
+            if not resolved_set_code:
+                resolved_set_code = (
+                    record.set_code_clean or record.set_code or ""
+                )
+            if not resolved_total and record.total:
+                resolved_total = record.total
+            if not resolved_number:
+                resolved_number = record.number
+
+    if resolved_set_code and not resolved_set_name:
+        info = set_utils.get_set_info(set_code=resolved_set_code)
+        if info:
+            resolved_set_name = info.get("name") or resolved_set_name
+            if not resolved_total and info.get("total"):
+                resolved_total = str(info.get("total"))
+    elif resolved_set_name and not resolved_set_code:
+        guessed_code = set_utils.guess_set_code(resolved_set_name)
+        if guessed_code:
+            resolved_set_code = guessed_code
+
+    resolved_set_code = set_utils.clean_code(resolved_set_code) or ""
+
     context = {
         "request": request,
         "username": username,
-        "card_name": query.get("name", ""),
-        "card_number": number,
-        "card_set_code": set_identifier,
-        "card_set_name": query.get("set_name", ""),
-        "card_total": query.get("total", ""),
+        "card_name": resolved_name,
+        "card_number": resolved_number,
+        "card_set_code": resolved_set_code or identifier,
+        "card_set_name": resolved_set_name,
+        "card_total": resolved_total,
     }
     return templates.TemplateResponse("card_detail.html", context)
 

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 import os
+import threading
 import unicodedata
 from typing import Any, Callable, Optional
 
@@ -18,6 +20,13 @@ HOLO_REVERSE_MULTIPLIER = float(os.getenv("HOLO_REVERSE_MULTIPLIER", "3.5"))
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
 DEFAULT_EXCHANGE_RATE = float(os.getenv("DEFAULT_EUR_PLN", "4.265"))
+
+_exchange_rate_lock = threading.Lock()
+_exchange_rate_cache: dict[str, Any] = {"value": None, "date": None}
+
+
+def _current_date() -> dt.date:
+    return dt.datetime.now(dt.timezone.utc).date()
 
 
 def sanitize_number(value: str) -> str:
@@ -78,6 +87,13 @@ def extract_cardmarket_price(card: dict | None) -> Optional[float]:
 def get_exchange_rate(session: Optional[requests.sessions.Session] = None) -> float:
     """Fetch the EUR/PLN exchange rate using the public NBP API."""
 
+    today = _current_date()
+    with _exchange_rate_lock:
+        cached_value = _exchange_rate_cache.get("value")
+        cached_date = _exchange_rate_cache.get("date")
+        if cached_value is not None and cached_date == today:
+            return float(cached_value)
+
     http = session or requests
     try:
         response = http.get(
@@ -86,11 +102,21 @@ def get_exchange_rate(session: Optional[requests.sessions.Session] = None) -> fl
         )
         if response.status_code == 200:
             data = response.json()
-            return float(data["rates"][0]["mid"])
+            rate = float(data["rates"][0]["mid"])
+            with _exchange_rate_lock:
+                _exchange_rate_cache["value"] = rate
+                _exchange_rate_cache["date"] = today
+            return rate
+        logger.warning("Exchange rate request failed with status %s", response.status_code)
     except requests.Timeout:
         logger.warning("Exchange rate request timed out")
     except (requests.RequestException, ValueError, KeyError) as exc:
         logger.warning("Failed to fetch exchange rate: %s", exc)
+
+    with _exchange_rate_lock:
+        cached_value = _exchange_rate_cache.get("value")
+        if cached_value is not None:
+            return float(cached_value)
     return DEFAULT_EXCHANGE_RATE
 
 
