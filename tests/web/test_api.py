@@ -261,3 +261,41 @@ def test_card_info_endpoint(api_client, monkeypatch):
     assert data["history"][0]["price"] == prices["value"]
     assert data["related"]
     assert data["related"][0]["name"] == "Raichu"
+
+
+def test_card_detail_page_prefills_dataset(api_client):
+    client, _prices, _server = api_client
+    token = register_and_login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    from kartoteka import pricing
+    from kartoteka_web import database, models
+
+    with database.session_scope() as session:
+        record = models.CardRecord(
+            name="Pikachu",
+            name_normalized=pricing.normalize("Pikachu"),
+            number=pricing.sanitize_number("25"),
+            number_display="25/102",
+            total="102",
+            set_name="Base Set",
+            set_name_normalized=pricing.normalize("Base Set"),
+            set_code="base",
+            set_code_clean="base",
+            rarity="Common",
+            artist="Mitsuhiro Arita",
+            series="Base",
+            image_small="https://example.com/pikachu-small.png",
+            image_large="https://example.com/pikachu-large.png",
+        )
+        session.add(record)
+        session.commit()
+
+    res = client.get("/cards/base/25", headers=headers)
+    assert res.status_code == 200
+    html = res.text
+    assert 'data-name="Pikachu"' in html
+    assert 'data-number="25"' in html
+    assert 'data-set-code="base"' in html
+    assert 'data-set-name="Base Set"' in html
+    assert 'data-total="102"' in html
