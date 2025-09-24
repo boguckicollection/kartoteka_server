@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#333366" />
+  <meta name="theme-color" content="#333366" data-theme-color />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>{% block title %}Kartoteka Web{% endblock %}</title>
@@ -30,13 +30,17 @@
       <span></span>
     </button>
     <nav class="app-nav" id="primary-navigation" data-nav>
-      <a href="/" class="{{ 'active' if current_path == '/' else '' }}">Logowanie</a>
-      <a href="/register" class="{{ 'active' if current_path.startswith('/register') else '' }}">Rejestracja</a>
-      <a href="/dashboard" class="{{ 'active' if current_path.startswith('/dashboard') else '' }}">Kolekcja</a>
+      <a href="/" class="{{ 'active' if current_path == '/' else '' }}">Strona główna</a>
+      <a href="/dashboard" class="{{ 'active' if current_path.startswith('/dashboard') else '' }}">Konto</a>
       <a href="/portfolio" class="{{ 'active' if current_path.startswith('/portfolio') else '' }}">Portfel</a>
     </nav>
     <div class="header-actions">
-      <span class="user-chip" data-username-display>Gość</span>
+      <button type="button" class="theme-toggle" data-theme-toggle aria-label="Przełącz motyw">
+        <span aria-hidden="true">🌙</span>
+      </button>
+      <span class="user-name" data-username-display>Gość</span>
+      <div class="user-avatar" data-user-avatar aria-hidden="true">G</div>
+      <a href="/login" class="ghost" id="login-button">Zaloguj</a>
       <button type="button" class="ghost" id="logout-button" hidden>Wyloguj</button>
     </div>
   </header>

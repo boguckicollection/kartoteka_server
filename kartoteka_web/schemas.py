@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import List, Optional
 
-from sqlmodel import SQLModel
+from sqlmodel import Field, SQLModel
 
 
 class Token(SQLModel):
@@ -114,9 +114,23 @@ class CollectionEntryRead(CollectionEntryBase):
     current_price: Optional[float] = None
     last_price_update: Optional[dt.datetime] = None
     card: CardRead
+    change_24h: Optional[float] = None
+    change_direction: str = "flat"
 
 
 class PortfolioSummary(SQLModel):
     total_cards: int
     total_quantity: int
     estimated_value: float
+
+
+class PortfolioHistoryPoint(SQLModel):
+    timestamp: dt.datetime
+    value: float
+
+
+class PortfolioHistoryResponse(SQLModel):
+    points: List[PortfolioHistoryPoint] = Field(default_factory=list)
+    change_24h: float = 0.0
+    direction: str = "flat"
+    latest_value: float = 0.0
