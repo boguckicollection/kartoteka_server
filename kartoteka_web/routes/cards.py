@@ -164,7 +164,7 @@ def _serialize_entries(entries: Iterable[models.CollectionEntry]) -> list[schema
 @router.get("/search", response_model=list[schemas.CardSearchResult])
 def search_cards_endpoint(
     name: str,
-    number: str,
+    number: str | None = None,
     total: str | None = None,
     set_name: str | None = None,
     limit: int = 10,

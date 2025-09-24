@@ -7,7 +7,7 @@
     <h1>Witaj, {{ username or 'Trenerze' }}!</h1>
     <p>Z poziomu kokpitu błyskawicznie sprawdzisz stan swojej kolekcji, dodasz nowe karty i odświeżysz ich wycenę.</p>
     <div class="hero-actions">
-      <a class="button primary" href="#add-card-form">Dodaj nową kartę</a>
+      <a class="button primary" href="/cards/add">Wyszukaj kartę</a>
       <a class="button secondary" href="#collection-section">Przeglądaj kolekcję</a>
     </div>
   </div>
@@ -47,7 +47,7 @@
     </div>
   </div>
   <div class="quick-actions">
-    <a class="action-card" href="#add-card-form">
+    <a class="action-card" href="/cards/add">
       <span class="action-emoji">➕</span>
       <strong>Dodaj kartę</strong>
       <span>Rozszerz swoją kolekcję o nowy wpis.</span>
@@ -69,49 +69,16 @@
   <div class="panel-header">
     <div>
       <h2>Dodaj kartę</h2>
-      <p>Uzupełnij szczegóły karty, aby znalazła się w Twojej kolekcji.</p>
+      <p>Skorzystaj z wyszukiwarki, aby odnaleźć kartę przed dodaniem jej do kolekcji.</p>
     </div>
   </div>
-  <form id="add-card-form" class="form-grid">
-    <label class="with-suggestions">
-      Nazwa karty
-      <input type="text" name="name" id="add-card-name" autocomplete="off" required />
-      <div id="card-suggestions" class="card-suggestions" hidden></div>
-    </label>
-    <label>
-      Numer
-      <input type="text" name="number" id="add-card-number" autocomplete="off" required />
-    </label>
-    <label>
-      Set
-      <input type="text" name="set_name" id="add-card-set" autocomplete="off" required />
-    </label>
-    <label>
-      Kod setu (opcjonalnie)
-      <input type="text" name="set_code" id="add-card-set-code" autocomplete="off" />
-    </label>
-    <label>
-      Ilość
-      <input type="number" name="quantity" value="1" min="1" />
-    </label>
-    <label>
-      Cena zakupu
-      <input type="number" name="purchase_price" step="0.01" />
-    </label>
-    <label class="form-checkbox">
-      <input type="checkbox" name="is_reverse" />
-      Reverse
-    </label>
-    <label class="form-checkbox">
-      <input type="checkbox" name="is_holo" />
-      Holo
-    </label>
-    <input type="hidden" name="rarity" id="add-card-rarity" />
-    <div class="form-footer">
-      <button type="submit" class="primary">Dodaj do kolekcji</button>
-      <div class="alert" id="add-card-alert" hidden></div>
-    </div>
-  </form>
+  <div class="add-card-cta">
+    <p>
+      Nowe wpisy dodasz na dedykowanej stronie wyszukiwania kart. Wprowadź nazwę, opcjonalnie
+      numer lub zestaw, wybierz odpowiednią kartę i potwierdź dodanie do kolekcji.
+    </p>
+    <a class="button primary" href="/cards/add">Szukaj kart</a>
+  </div>
 </section>
 
 <section class="panel" id="collection-section">
