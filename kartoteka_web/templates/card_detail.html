@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}{{ card_name or 'Szczegóły karty' }} - Kartoteka{% endblock %}
+{% block head_extra %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha384-eDqHtkobaN6D+PfYZ7RUTpujISiFDUFxIr05oig3NbS1Ry6j3TDIrS9KuX3sI5OG" crossorigin="anonymous" defer></script>
+{% endblock %}
+{% block content %}
+<section
+  class="panel card-detail-hero"
+  id="card-detail-page"
+  data-name="{{ card_name | default('') }}"
+  data-number="{{ card_number | default('') }}"
+  data-set-code="{{ card_set_code | default('') }}"
+  data-set-name="{{ card_set_name | default('') }}"
+  data-total="{{ card_total | default('') }}"
+>
+  <div class="card-detail-main">
+    <div class="card-detail-media">
+      <div class="card-detail-image" id="card-image-container">
+        <img id="card-detail-image" alt="Podgląd karty" loading="lazy" hidden />
+        <div class="card-detail-placeholder" id="card-detail-placeholder">🃏</div>
+      </div>
+    </div>
+    <div class="card-detail-info">
+      <p class="card-detail-era" id="card-detail-era" hidden></p>
+      <h1 id="card-detail-title">Szczegóły karty</h1>
+      <div class="card-detail-set">
+        <img id="card-detail-set-icon" alt="Logo dodatku" hidden />
+        <span id="card-detail-set-name"></span>
+      </div>
+      <p class="card-detail-artist" id="card-detail-artist"></p>
+      <dl class="card-detail-meta">
+        <div>
+          <dt>Numer</dt>
+          <dd id="card-detail-number"></dd>
+        </div>
+        <div>
+          <dt>Rzadkość</dt>
+          <dd id="card-detail-rarity"></dd>
+        </div>
+        <div>
+          <dt>Cena [PLN]</dt>
+          <dd id="card-detail-price"></dd>
+        </div>
+        <div>
+          <dt>Ostatnia aktualizacja</dt>
+          <dd id="card-detail-updated"></dd>
+        </div>
+      </dl>
+      <div class="card-detail-actions">
+        <a href="/dashboard" class="button primary" id="detail-add-button">Dodaj do kolekcji</a>
+        <a href="https://kartoteka.shop" class="button secondary" id="detail-buy-button" target="_blank" rel="noopener">Kup na kartoteka.shop</a>
+      </div>
+      <div class="alert" id="card-detail-alert" hidden></div>
+    </div>
+  </div>
+</section>
+
+<section class="panel card-detail-chart-panel">
+  <div class="panel-header">
+    <div>
+      <h2>Historia cen</h2>
+      <p>Śledź, jak zmieniała się wartość tej karty w czasie.</p>
+    </div>
+    <div class="chart-range" role="group" aria-label="Zakres czasowy">
+      <button type="button" class="secondary" data-range="1d">1 dzień</button>
+      <button type="button" class="secondary" data-range="1w">1 tydzień</button>
+      <button type="button" class="secondary active" data-range="1m">1 miesiąc</button>
+    </div>
+  </div>
+  <div class="card-chart-wrapper">
+    <canvas id="card-price-chart" height="220"></canvas>
+    <p class="chart-empty" id="card-chart-empty" hidden>Brak danych historycznych. Dodaj kartę do kolekcji, aby zapełnić wykres.</p>
+  </div>
+</section>
+
+<section class="panel card-detail-related">
+  <div class="panel-header">
+    <div>
+      <h2>Inne karty z tego setu</h2>
+      <p>Poznaj dodatkowe karty z wybranego dodatku.</p>
+    </div>
+  </div>
+  <div class="related-grid" id="related-cards-list"></div>
+  <p class="related-empty" id="related-empty" hidden>Nie znaleziono innych kart z tego dodatku.</p>
+</section>
+{% endblock %}

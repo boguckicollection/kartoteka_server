@@ -42,6 +42,7 @@ def api_client(db_path, monkeypatch):
 
     monkeypatch.setattr("kartoteka.pricing.fetch_card_price", fake_price)
     monkeypatch.setattr("kartoteka.pricing.search_cards", lambda *a, **k: [])
+    monkeypatch.setattr("kartoteka.pricing.list_set_cards", lambda *a, **k: [])
 
     with TestClient(server.app) as client:
         yield client, prices, server
@@ -181,4 +182,77 @@ def test_card_search_endpoint(api_client, monkeypatch):
         headers=headers,
     )
     assert res.status_code == 200
-    assert res.json() == sample
+    results = res.json()
+    assert len(results) == 1
+    assert results[0]["name"] == "Pikachu"
+    assert results[0]["set_name"] == "Base Set"
+    assert results[0]["number"] == "25"
+    assert "set_icon" in results[0]
+
+
+def test_card_info_endpoint(api_client, monkeypatch):
+    client, prices, _ = api_client
+    token = register_and_login(client, username="gary", password="eevee")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    prices["value"] = 19.75
+    payload = {
+        "quantity": 1,
+        "purchase_price": 9.99,
+        "is_reverse": False,
+        "is_holo": False,
+        "card": {
+            "name": "Pikachu",
+            "number": "25",
+            "set_name": "Base Set",
+            "set_code": "base",
+        },
+    }
+    res = client.post("/cards/", json=payload, headers=headers)
+    assert res.status_code == 201
+
+    sample_card = {
+        "name": "Pikachu",
+        "number": "25",
+        "number_display": "25/102",
+        "total": "102",
+        "set_name": "Base Set",
+        "set_code": "base",
+        "rarity": "Common",
+        "artist": "Mitsuhiro Arita",
+        "series": "Base",
+        "image_small": "https://example.com/pikachu-small.png",
+        "image_large": "https://example.com/pikachu-large.png",
+        "set_icon": "https://example.com/base-icon.png",
+    }
+    related_cards = [
+        sample_card,
+        {
+            "name": "Raichu",
+            "number": "26",
+            "number_display": "26/102",
+            "total": "102",
+            "set_name": "Base Set",
+            "set_code": "base",
+            "rarity": "Rare",
+            "image_small": "https://example.com/raichu-small.png",
+        },
+    ]
+
+    monkeypatch.setattr("kartoteka.pricing.search_cards", lambda *a, **k: [sample_card])
+    monkeypatch.setattr("kartoteka.pricing.list_set_cards", lambda *a, **k: related_cards)
+
+    res = client.get(
+        "/cards/info",
+        params={"name": "Pikachu", "number": "25", "set_name": "Base Set"},
+        headers=headers,
+    )
+    assert res.status_code == 200, res.text
+    data = res.json()
+    assert data["card"]["name"] == "Pikachu"
+    assert data["card"]["series"] == "Base"
+    assert data["card"]["price_pln"] == prices["value"]
+    assert len(data["history"]) == 1
+    assert data["history"][0]["price"] == prices["value"]
+    assert data["related"]
+    assert data["related"][0]["name"] == "Raichu"

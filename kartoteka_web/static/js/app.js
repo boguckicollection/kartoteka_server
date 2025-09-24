@@ -129,6 +129,69 @@ function formToJSON(form) {
   return result;
 }
 
+function slugifyIdentifier(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    || "unknown";
+}
+
+function extractCardTotal(card) {
+  if (!card) return "";
+  if (card.total) {
+    return String(card.total);
+  }
+  const display = card.number_display || "";
+  if (display.includes("/")) {
+    const [, totalPart] = display.split("/", 2);
+    return totalPart ? totalPart.trim() : "";
+  }
+  return "";
+}
+
+function buildCardDetailUrl(card) {
+  if (!card) return "/dashboard";
+  const number = encodeURIComponent(card.number || "");
+  const setCode = (card.set_code || "").trim();
+  const setName = card.set_name || "";
+  const slug = setCode ? encodeURIComponent(setCode.toLowerCase()) : encodeURIComponent(slugifyIdentifier(setName));
+  const params = new URLSearchParams();
+  if (card.name) params.set("name", card.name);
+  if (setName) params.set("set_name", setName);
+  const total = extractCardTotal(card);
+  if (total) params.set("total", total);
+  const query = params.toString();
+  return `/cards/${slug}/${number}${query ? `?${query}` : ""}`;
+}
+
+function buildDashboardPrefillUrl(card) {
+  if (!card) return "/dashboard";
+  const params = new URLSearchParams();
+  if (card.name) params.set("name", card.name);
+  if (card.number) params.set("number", card.number);
+  if (card.set_name) params.set("set_name", card.set_name);
+  if (card.set_code) params.set("set_code", card.set_code);
+  const total = extractCardTotal(card);
+  if (total) params.set("total", total);
+  const query = params.toString();
+  return `/dashboard${query ? `?${query}` : ""}#add-card-form`;
+}
+
+function formatCardNumber(card) {
+  if (!card) return "";
+  if (card.number_display) {
+    return card.number_display;
+  }
+  if (card.number && card.total) {
+    return `${card.number}/${card.total}`;
+  }
+  return card.number || "";
+}
+
 async function handleLogin(form) {
   const alertBox = document.getElementById("login-alert");
   showAlert(alertBox, "");
@@ -177,8 +240,9 @@ function renderCollection(entries) {
       typeof entry.current_price === "number"
         ? entry.current_price.toFixed(2)
         : entry.current_price ?? "-";
+    const detailUrl = buildCardDetailUrl(entry.card || {});
     tr.innerHTML = `
-      <td data-label="Nazwa">${entry.card.name}</td>
+      <td data-label="Nazwa"><a class="table-link" href="${detailUrl}">${entry.card.name}</a></td>
       <td data-label="Numer">${entry.card.number}</td>
       <td data-label="Set">${entry.card.set_name}</td>
       <td data-label="Ilość">${entry.quantity}</td>
@@ -251,16 +315,6 @@ function setupCardSearch(form) {
     suggestionsBox.hidden = true;
   };
 
-  const formatNumberDisplay = (card) => {
-    if (card.number_display) {
-      return card.number_display;
-    }
-    if (card.number && card.total) {
-      return `${card.number}/${card.total}`;
-    }
-    return card.number ?? "";
-  };
-
   const applySuggestion = (card) => {
     selectedCard = card;
     nameInput.value = card.name || "";
@@ -290,9 +344,12 @@ function setupCardSearch(form) {
     }
     const fragment = document.createDocumentFragment();
     cards.forEach((card) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "card-suggestion";
+      const item = document.createElement("article");
+      item.className = "card-suggestion";
+
+      const link = document.createElement("a");
+      link.className = "card-suggestion-link";
+      link.href = buildCardDetailUrl(card);
 
       if (card.image_small) {
         const img = document.createElement("img");
@@ -300,13 +357,13 @@ function setupCardSearch(form) {
         img.alt = `Podgląd ${card.name}`;
         img.loading = "lazy";
         img.className = "card-suggestion-thumbnail";
-        button.appendChild(img);
+        link.appendChild(img);
       } else {
         const placeholder = document.createElement("span");
         placeholder.className = "card-suggestion-placeholder";
         placeholder.textContent = "🃏";
         placeholder.setAttribute("aria-hidden", "true");
-        button.appendChild(placeholder);
+        link.appendChild(placeholder);
       }
 
       const info = document.createElement("div");
@@ -317,16 +374,27 @@ function setupCardSearch(form) {
 
       const meta = document.createElement("div");
       meta.className = "card-suggestion-meta";
-      const numberText = formatNumberDisplay(card);
+      const numberText = formatCardNumber(card);
       if (numberText) {
         const numberSpan = document.createElement("span");
         numberSpan.textContent = numberText;
         meta.appendChild(numberSpan);
       }
       if (card.set_name) {
-        const setSpan = document.createElement("span");
-        setSpan.textContent = card.set_name;
-        meta.appendChild(setSpan);
+        const setWrapper = document.createElement("span");
+        setWrapper.className = "card-suggestion-set";
+        if (card.set_icon) {
+          const setImg = document.createElement("img");
+          setImg.src = card.set_icon;
+          setImg.alt = `Logo ${card.set_name}`;
+          setImg.loading = "lazy";
+          setImg.className = "card-suggestion-set-icon";
+          setWrapper.appendChild(setImg);
+        }
+        const setLabel = document.createElement("span");
+        setLabel.textContent = card.set_name;
+        setWrapper.appendChild(setLabel);
+        meta.appendChild(setWrapper);
       }
       if (meta.childElementCount) {
         info.appendChild(meta);
@@ -338,9 +406,21 @@ function setupCardSearch(form) {
         info.appendChild(raritySpan);
       }
 
-      button.appendChild(info);
-      button.addEventListener("click", () => applySuggestion(card));
-      fragment.appendChild(button);
+      link.appendChild(info);
+      item.appendChild(link);
+
+      const addButton = document.createElement("button");
+      addButton.type = "button";
+      addButton.className = "card-suggestion-add";
+      addButton.textContent = "Dodaj";
+      addButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        applySuggestion(card);
+      });
+      item.appendChild(addButton);
+
+      fragment.appendChild(item);
     });
     suggestionsBox.appendChild(fragment);
     suggestionsBox.hidden = false;
@@ -485,10 +565,345 @@ async function deleteEntry(id) {
   await Promise.all([loadCollection(), loadSummary()]);
 }
 
+let cardDetailChart = null;
+let cardDetailHistory = [];
+let cardDetailRange = "1m";
+
+function normaliseHistoryPoints(history) {
+  return (history || [])
+    .map((point) => {
+      const price = Number(point.price);
+      const time = point.recorded_at ? new Date(point.recorded_at) : null;
+      if (!Number.isFinite(price) || !time || Number.isNaN(time.getTime())) {
+        return null;
+      }
+      return { price, time };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.time - b.time);
+}
+
+function filterHistoryByRange(history, range) {
+  if (!Array.isArray(history) || !history.length) return [];
+  let windowMs = 30 * 24 * 60 * 60 * 1000;
+  if (range === "1d") {
+    windowMs = 24 * 60 * 60 * 1000;
+  } else if (range === "1w") {
+    windowMs = 7 * 24 * 60 * 60 * 1000;
+  }
+  const cutoff = Date.now() - windowMs;
+  return history.filter((point) => point.time.getTime() >= cutoff);
+}
+
+function updateDetailChart(points) {
+  const chartCanvas = document.getElementById("card-price-chart");
+  const emptyState = document.getElementById("card-chart-empty");
+  if (!chartCanvas) return;
+  const labels = points.map((point) => point.time.toLocaleDateString());
+  const values = points.map((point) => point.price);
+  if (!cardDetailChart) {
+    cardDetailChart = new Chart(chartCanvas, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Cena (PLN)",
+            data: values,
+            fill: true,
+            tension: 0.3,
+            borderColor: "#333366",
+            backgroundColor: "rgba(51, 51, 102, 0.18)",
+            pointRadius: 3,
+            pointHoverRadius: 5,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: {
+            ticks: { color: "rgba(31, 31, 61, 0.6)" },
+            grid: { display: false },
+          },
+          y: {
+            ticks: { color: "rgba(31, 31, 61, 0.6)" },
+            grid: { color: "rgba(51, 51, 102, 0.08)" },
+          },
+        },
+      },
+    });
+  } else {
+    cardDetailChart.data.labels = labels;
+    cardDetailChart.data.datasets[0].data = values;
+    cardDetailChart.update();
+  }
+  if (emptyState) {
+    emptyState.hidden = points.length > 0;
+  }
+}
+
+function setRangeButtons(range) {
+  document.querySelectorAll(".chart-range [data-range]").forEach((button) => {
+    if (button.dataset.range === range) {
+      button.classList.add("active");
+    } else {
+      button.classList.remove("active");
+    }
+  });
+}
+
+function updateDetailRange(range) {
+  cardDetailRange = range;
+  setRangeButtons(range);
+  const filtered = filterHistoryByRange(cardDetailHistory, range);
+  updateDetailChart(filtered);
+}
+
+function renderRelatedCardsList(cards) {
+  const container = document.getElementById("related-cards-list");
+  const empty = document.getElementById("related-empty");
+  if (!container) return;
+  container.innerHTML = "";
+  if (!Array.isArray(cards) || !cards.length) {
+    if (empty) empty.hidden = false;
+    return;
+  }
+  if (empty) empty.hidden = true;
+  const fragment = document.createDocumentFragment();
+  cards.forEach((card) => {
+    const article = document.createElement("article");
+    article.className = "related-card";
+    const link = document.createElement("a");
+    link.href = buildCardDetailUrl(card);
+
+    if (card.image_small || card.image_large) {
+      const img = document.createElement("img");
+      img.className = "related-card-image";
+      img.src = card.image_small || card.image_large;
+      img.alt = `Podgląd ${card.name}`;
+      img.loading = "lazy";
+      link.appendChild(img);
+    } else {
+      const placeholder = document.createElement("div");
+      placeholder.className = "related-card-image related-card-placeholder";
+      placeholder.textContent = "🃏";
+      placeholder.setAttribute("aria-hidden", "true");
+      link.appendChild(placeholder);
+    }
+
+    const body = document.createElement("div");
+    body.className = "related-card-body";
+
+    if (card.set_name) {
+      const setWrapper = document.createElement("div");
+      setWrapper.className = "related-card-set";
+      if (card.set_icon) {
+        const setImg = document.createElement("img");
+        setImg.src = card.set_icon;
+        setImg.alt = `Logo ${card.set_name}`;
+        setImg.loading = "lazy";
+        setWrapper.appendChild(setImg);
+      }
+      const setName = document.createElement("span");
+      setName.textContent = card.set_name;
+      setWrapper.appendChild(setName);
+      body.appendChild(setWrapper);
+    }
+
+    const title = document.createElement("h3");
+    title.className = "related-card-title";
+    title.textContent = card.name || "";
+    body.appendChild(title);
+
+    const meta = document.createElement("p");
+    meta.className = "related-card-meta";
+    const numberText = formatCardNumber(card);
+    const rarity = card.rarity ? String(card.rarity) : "";
+    meta.textContent = [numberText ? `Nr ${numberText}` : "", rarity].filter(Boolean).join(" • ");
+    body.appendChild(meta);
+
+    link.appendChild(body);
+    article.appendChild(link);
+    fragment.appendChild(article);
+  });
+  container.appendChild(fragment);
+}
+
+async function loadCardDetail(container) {
+  const alertBox = document.getElementById("card-detail-alert");
+  showAlert(alertBox, "");
+  const params = new URLSearchParams();
+  const name = container.dataset.name?.trim();
+  const number = container.dataset.number?.trim();
+  const setCode = container.dataset.setCode?.trim();
+  const setName = container.dataset.setName?.trim();
+  const total = container.dataset.total?.trim();
+  if (name) params.set("name", name);
+  if (number) params.set("number", number);
+  if (setCode) params.set("set_code", setCode);
+  if (setName) params.set("set_name", setName);
+  if (total) params.set("total", total);
+
+  try {
+    const detail = await apiFetch(`/cards/info?${params.toString()}`);
+    const card = detail.card || {};
+    const history = normaliseHistoryPoints(detail.history);
+    cardDetailHistory = history;
+    cardDetailRange = "1m";
+    setRangeButtons(cardDetailRange);
+    updateDetailChart(filterHistoryByRange(cardDetailHistory, cardDetailRange));
+    renderRelatedCardsList(detail.related || []);
+
+    const title = document.getElementById("card-detail-title");
+    if (title) {
+      title.textContent = card.name || "Szczegóły karty";
+    }
+    document.title = `${card.name || "Szczegóły karty"} - Kartoteka`;
+
+    const era = document.getElementById("card-detail-era");
+    if (era) {
+      if (card.series) {
+        era.textContent = card.series;
+        era.hidden = false;
+      } else {
+        era.hidden = true;
+      }
+    }
+
+    const image = document.getElementById("card-detail-image");
+    const placeholder = document.getElementById("card-detail-placeholder");
+    const imageSource = card.image_large || card.image_small;
+    if (image) {
+      if (imageSource) {
+        image.src = imageSource;
+        image.hidden = false;
+        if (placeholder) placeholder.hidden = true;
+      } else {
+        image.hidden = true;
+        if (placeholder) placeholder.hidden = false;
+      }
+    }
+
+    const setIcon = document.getElementById("card-detail-set-icon");
+    if (setIcon) {
+      if (card.set_icon) {
+        setIcon.src = card.set_icon;
+        setIcon.hidden = false;
+      } else {
+        setIcon.hidden = true;
+      }
+    }
+
+    const setNameTarget = document.getElementById("card-detail-set-name");
+    if (setNameTarget) {
+      setNameTarget.textContent = card.set_name || "";
+    }
+
+    const artist = document.getElementById("card-detail-artist");
+    if (artist) {
+      if (card.artist) {
+        artist.textContent = `Ilustrator: ${card.artist}`;
+        artist.hidden = false;
+      } else {
+        artist.textContent = "";
+        artist.hidden = true;
+      }
+    }
+
+    const numberField = document.getElementById("card-detail-number");
+    if (numberField) {
+      numberField.textContent = formatCardNumber(card) || "—";
+    }
+
+    const rarityField = document.getElementById("card-detail-rarity");
+    if (rarityField) {
+      rarityField.textContent = card.rarity || "—";
+    }
+
+    const priceField = document.getElementById("card-detail-price");
+    if (priceField) {
+      priceField.textContent =
+        typeof card.price_pln === "number" && !Number.isNaN(card.price_pln)
+          ? card.price_pln.toFixed(2)
+          : "—";
+    }
+
+    const updatedField = document.getElementById("card-detail-updated");
+    if (updatedField) {
+      if (card.last_price_update) {
+        const updatedDate = new Date(card.last_price_update);
+        updatedField.textContent = Number.isNaN(updatedDate.getTime())
+          ? "—"
+          : updatedDate.toLocaleString();
+      } else {
+        updatedField.textContent = "—";
+      }
+    }
+
+    const addButton = document.getElementById("detail-add-button");
+    if (addButton) {
+      addButton.href = buildDashboardPrefillUrl(card);
+    }
+
+    const buyButton = document.getElementById("detail-buy-button");
+    if (buyButton) {
+      const query = [card.name, card.set_name].filter(Boolean).join(" ");
+      buyButton.href = `https://kartoteka.shop/search?q=${encodeURIComponent(query)}`;
+    }
+
+    showAlert(alertBox, "");
+  } catch (error) {
+    cardDetailHistory = [];
+    updateDetailChart([]);
+    renderRelatedCardsList([]);
+    showAlert(alertBox, error.message);
+  }
+}
+
+function bindCardDetail() {
+  const container = document.getElementById("card-detail-page");
+  if (!container) return;
+  document.querySelectorAll(".chart-range [data-range]").forEach((button) => {
+    button.addEventListener("click", () => {
+      updateDetailRange(button.dataset.range || "1m");
+    });
+  });
+  loadCardDetail(container);
+}
+
+function applyDashboardPrefill(form, cardSearch) {
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has("name") || !params.has("number")) {
+    return;
+  }
+  const name = params.get("name") || "";
+  const number = params.get("number") || "";
+  const setName = params.get("set_name") || "";
+  const setCode = params.get("set_code") || "";
+  const total = params.get("total") || "";
+
+  const nameInput = form.querySelector('input[name="name"]');
+  const numberInput = form.querySelector('input[name="number"]');
+  const setInput = form.querySelector('input[name="set_name"]');
+  const setCodeInput = form.querySelector('input[name="set_code"]');
+
+  if (nameInput) nameInput.value = name;
+  if (numberInput) numberInput.value = total ? `${number}/${total}` : number;
+  if (setInput) setInput.value = setName;
+  if (setCodeInput) setCodeInput.value = setCode;
+
+  cardSearch?.reset?.();
+  window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+}
+
 function bindDashboard() {
   const addForm = document.getElementById("add-card-form");
   if (addForm) {
     const cardSearch = setupCardSearch(addForm);
+    applyDashboardPrefill(addForm, cardSearch);
     addForm.addEventListener("submit", (event) => {
       event.preventDefault();
       addCard(addForm, cardSearch);
@@ -579,14 +994,18 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   const needsDashboard = Boolean(document.getElementById("collection-table"));
   const needsPortfolio = Boolean(document.getElementById("portfolio-overview"));
+  const needsDetail = Boolean(document.getElementById("card-detail-page"));
 
-  if (needsDashboard || needsPortfolio) {
+  if (needsDashboard || needsPortfolio || needsDetail) {
     if (await ensureAuthenticated()) {
       if (needsDashboard) {
         bindDashboard();
       }
       if (needsPortfolio) {
         bindPortfolio();
+      }
+      if (needsDetail) {
+        bindCardDetail();
       }
     }
   }

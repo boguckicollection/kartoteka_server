@@ -12,6 +12,7 @@
   <link rel="manifest" href="{{ url_for('static', path='/manifest.json') }}" />
   <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}" />
   <script defer src="{{ url_for('static', path='/js/app.js') }}"></script>
+  {% block head_extra %}{% endblock %}
 </head>
 <body data-username="{{ username | default('') }}">
   {% set current_path = request.url.path %}
