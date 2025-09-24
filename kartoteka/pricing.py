@@ -156,6 +156,35 @@ def _extract_images(card: dict[str, Any]) -> tuple[Optional[str], Optional[str]]
     return image_small, image_large
 
 
+def _normalize_text_field(value: Any) -> Optional[str]:
+    """Return a readable string representation of ``value`` if possible."""
+
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, dict):
+        for key in ("name", "value", "label", "title", "text"):
+            if key in value:
+                normalized = _normalize_text_field(value.get(key))
+                if normalized:
+                    return normalized
+        for nested in value.values():
+            normalized = _normalize_text_field(nested)
+            if normalized:
+                return normalized
+        return None
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            normalized = _normalize_text_field(item)
+            if normalized:
+                return normalized
+        return None
+    return str(value)
+
+
 def _build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
     """Return a normalised representation of a card payload."""
 
@@ -211,13 +240,13 @@ def _build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
         or card.get("rarityName")
         or None
     )
-    artist = card.get("artist") or card.get("illustrator")
-    series = (
+    artist = _normalize_text_field(card.get("artist") or card.get("illustrator"))
+    series = _normalize_text_field(
         episode.get("series")
         or episode.get("era")
         or card.get("series")
     )
-    release_date = (
+    release_date = _normalize_text_field(
         episode.get("releaseDate")
         or episode.get("release_date")
         or card.get("releaseDate")
