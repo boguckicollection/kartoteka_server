@@ -156,6 +156,19 @@ async def dashboard_page(request: Request) -> HTMLResponse:
     )
 
 
+@app.get("/cards/add", response_class=HTMLResponse)
+async def add_card_page(request: Request) -> HTMLResponse:
+    username, invalid_credentials = await _resolve_request_username(request)
+    if invalid_credentials:
+        return templates.TemplateResponse(
+            "login.html", {"request": request, "username": ""}
+        )
+    return templates.TemplateResponse(
+        "add_card.html",
+        {"request": request, "username": username},
+    )
+
+
 @app.get("/portfolio", response_class=HTMLResponse)
 async def portfolio_page(request: Request) -> HTMLResponse:
     username, invalid_credentials = await _resolve_request_username(request)

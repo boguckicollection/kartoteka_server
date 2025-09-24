@@ -168,8 +168,8 @@ function buildCardDetailUrl(card) {
   return `/cards/${slug}/${number}${query ? `?${query}` : ""}`;
 }
 
-function buildDashboardPrefillUrl(card) {
-  if (!card) return "/dashboard";
+function buildAddCardUrl(card) {
+  if (!card) return "/cards/add";
   const params = new URLSearchParams();
   if (card.name) params.set("name", card.name);
   if (card.number) params.set("number", card.number);
@@ -178,7 +178,7 @@ function buildDashboardPrefillUrl(card) {
   const total = extractCardTotal(card);
   if (total) params.set("total", total);
   const query = params.toString();
-  return `/dashboard${query ? `?${query}` : ""}#add-card-form`;
+  return `/cards/add${query ? `?${query}` : ""}`;
 }
 
 function formatCardNumber(card) {
@@ -296,6 +296,7 @@ async function loadSummary(targetAlert) {
 }
 
 function setupCardSearch(form) {
+  if (!form) return null;
   const nameInput = form.querySelector('input[name="name"]');
   const numberInput = form.querySelector('input[name="number"]');
   const setInput = form.querySelector('input[name="set_name"]');
@@ -303,26 +304,57 @@ function setupCardSearch(form) {
   const rarityInput = form.querySelector('input[name="rarity"]');
   const suggestionsBox = document.getElementById("card-suggestions");
 
-  if (!nameInput || !numberInput || !suggestionsBox) {
+  if (!nameInput || !suggestionsBox) {
     return null;
   }
 
+  const eventTarget = form;
   let selectedCard = null;
   let requestId = 0;
+
+  const clearNumberMetadata = () => {
+    if (numberInput) {
+      delete numberInput.dataset.total;
+    }
+  };
 
   const hideSuggestions = () => {
     suggestionsBox.innerHTML = "";
     suggestionsBox.hidden = true;
   };
 
+  const showSuggestionsMessage = (message) => {
+    suggestionsBox.innerHTML = "";
+    const info = document.createElement("p");
+    info.className = "card-suggestions-empty";
+    info.textContent = message;
+    suggestionsBox.appendChild(info);
+    suggestionsBox.hidden = false;
+  };
+
+  const clearSelection = () => {
+    selectedCard = null;
+    if (rarityInput) {
+      rarityInput.value = "";
+    }
+    clearNumberMetadata();
+    eventTarget.dispatchEvent(new Event("cardsearch:clear"));
+  };
+
   const applySuggestion = (card) => {
     selectedCard = card;
     nameInput.value = card.name || "";
-    numberInput.value = card.number || "";
-    if (card.total) {
-      numberInput.dataset.total = card.total;
-    } else {
-      delete numberInput.dataset.total;
+    if (numberInput) {
+      const display =
+        card.number_display ||
+        (card.number && card.total ? `${card.number}/${card.total}` : card.number) ||
+        "";
+      numberInput.value = display;
+      if (card.total) {
+        numberInput.dataset.total = card.total;
+      } else {
+        clearNumberMetadata();
+      }
     }
     if (setInput) {
       setInput.value = card.set_name || "";
@@ -334,12 +366,13 @@ function setupCardSearch(form) {
       rarityInput.value = card.rarity || "";
     }
     hideSuggestions();
+    eventTarget.dispatchEvent(new CustomEvent("cardsearch:select", { detail: { card } }));
   };
 
   const renderSuggestions = (cards) => {
     suggestionsBox.innerHTML = "";
     if (!Array.isArray(cards) || !cards.length) {
-      suggestionsBox.hidden = true;
+      showSuggestionsMessage("Nie znaleziono kart dla podanych kryteriów.");
       return;
     }
     const fragment = document.createDocumentFragment();
@@ -412,7 +445,7 @@ function setupCardSearch(form) {
       const addButton = document.createElement("button");
       addButton.type = "button";
       addButton.className = "card-suggestion-add";
-      addButton.textContent = "Dodaj";
+      addButton.textContent = "Wybierz";
       addButton.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -438,16 +471,19 @@ function setupCardSearch(form) {
     return { number: trimmed, total: "" };
   };
 
-  const fetchSuggestions = debounce(async () => {
+  const fetchSuggestions = async () => {
     const name = nameInput.value.trim();
-    const { number, total } = parseNumberParts(numberInput.value);
-    const setName = setInput?.value.trim() ?? "";
-    if (!name || !number) {
+    if (!name) {
       hideSuggestions();
-      return;
+      return [];
     }
+    const { number, total } = parseNumberParts(numberInput ? numberInput.value : "");
+    const setName = setInput?.value.trim() ?? "";
 
-    const params = new URLSearchParams({ name, number });
+    const params = new URLSearchParams({ name });
+    if (number) {
+      params.set("number", number);
+    }
     if (total) {
       params.set("total", total);
     }
@@ -459,31 +495,35 @@ function setupCardSearch(form) {
     try {
       const results = await apiFetch(`/cards/search?${params.toString()}`);
       if (currentRequest !== requestId) {
-        return;
+        return [];
       }
       renderSuggestions(results);
+      eventTarget.dispatchEvent(
+        new CustomEvent("cardsearch:results", { detail: { count: results.length } })
+      );
+      return results;
     } catch (error) {
       if (currentRequest !== requestId) {
-        return;
+        return [];
       }
       console.error(error);
-      hideSuggestions();
+      showSuggestionsMessage(error.message || "Nie udało się pobrać wyników.");
+      throw error;
     }
-  }, 300);
-
-  const handlePrimaryInput = () => {
-    selectedCard = null;
-    if (rarityInput) {
-      rarityInput.value = "";
-    }
-    fetchSuggestions();
   };
 
-  nameInput.addEventListener("input", handlePrimaryInput);
-  numberInput.addEventListener("input", handlePrimaryInput);
-  if (setInput) {
-    setInput.addEventListener("input", () => fetchSuggestions());
-  }
+  const search = () => {
+    clearSelection();
+    return fetchSuggestions();
+  };
+
+  const handleInputChange = () => {
+    clearSelection();
+  };
+
+  nameInput.addEventListener("input", handleInputChange);
+  numberInput?.addEventListener("input", handleInputChange);
+  setInput?.addEventListener("input", handleInputChange);
 
   document.addEventListener("click", (event) => {
     if (
@@ -499,12 +539,10 @@ function setupCardSearch(form) {
   return {
     getSelectedCard: () => selectedCard,
     reset: () => {
-      selectedCard = null;
+      clearSelection();
       hideSuggestions();
-      if (rarityInput) {
-        rarityInput.value = "";
-      }
     },
+    search,
   };
 }
 
@@ -512,15 +550,17 @@ async function addCard(form, cardSearch) {
   const alertBox = document.getElementById("add-card-alert");
   showAlert(alertBox, "");
   const selectedCard = cardSearch?.getSelectedCard?.();
+  if (!selectedCard) {
+    showAlert(alertBox, "Najpierw wyszukaj kartę i wybierz ją z listy wyników.");
+    return;
+  }
   const data = formToJSON(form);
-  if (selectedCard) {
-    if (!data.name) data.name = selectedCard.name;
-    if (!data.number) data.number = selectedCard.number;
-    if (!data.set_name) data.set_name = selectedCard.set_name;
-    if (!data.set_code) data.set_code = selectedCard.set_code;
-    if (data.rarity === undefined && selectedCard.rarity) {
-      data.rarity = selectedCard.rarity;
-    }
+  if (!data.name) data.name = selectedCard.name;
+  if (!data.number) data.number = selectedCard.number;
+  if (!data.set_name) data.set_name = selectedCard.set_name;
+  if (!data.set_code) data.set_code = selectedCard.set_code;
+  if (data.rarity === undefined && selectedCard.rarity) {
+    data.rarity = selectedCard.rarity;
   }
   const numberValue = String(data.number ?? "");
   const numberParts = numberValue.includes("/")
@@ -548,7 +588,16 @@ async function addCard(form, cardSearch) {
     });
     form.reset();
     cardSearch?.reset?.();
-    await Promise.all([loadCollection(), loadSummary(alertBox)]);
+    const updates = [];
+    if (document.getElementById("collection-table")) {
+      updates.push(loadCollection());
+    }
+    if (document.getElementById("summary-count")) {
+      updates.push(loadSummary());
+    }
+    if (updates.length) {
+      await Promise.all(updates);
+    }
     showAlert(alertBox, "Karta została dodana do kolekcji.", "success");
   } catch (error) {
     showAlert(alertBox, error.message);
@@ -845,7 +894,7 @@ async function loadCardDetail(container) {
 
     const addButton = document.getElementById("detail-add-button");
     if (addButton) {
-      addButton.href = buildDashboardPrefillUrl(card);
+      addButton.href = buildAddCardUrl(card);
     }
 
     const buyButton = document.getElementById("detail-buy-button");
@@ -874,9 +923,9 @@ function bindCardDetail() {
   loadCardDetail(container);
 }
 
-function applyDashboardPrefill(form, cardSearch) {
+function applyAddCardPrefill(form, cardSearch) {
   const params = new URLSearchParams(window.location.search);
-  if (!params.has("name") || !params.has("number")) {
+  if (!params.has("name")) {
     return;
   }
   const name = params.get("name") || "";
@@ -891,24 +940,20 @@ function applyDashboardPrefill(form, cardSearch) {
   const setCodeInput = form.querySelector('input[name="set_code"]');
 
   if (nameInput) nameInput.value = name;
-  if (numberInput) numberInput.value = total ? `${number}/${total}` : number;
+  if (numberInput) numberInput.value = total && number ? `${number}/${total}` : number;
   if (setInput) setInput.value = setName;
   if (setCodeInput) setCodeInput.value = setCode;
 
   cardSearch?.reset?.();
-  window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+  if (cardSearch?.search) {
+    cardSearch.search().catch((error) => {
+      console.error(error);
+    });
+  }
+  window.history.replaceState({}, document.title, window.location.pathname);
 }
 
 function bindDashboard() {
-  const addForm = document.getElementById("add-card-form");
-  if (addForm) {
-    const cardSearch = setupCardSearch(addForm);
-    applyDashboardPrefill(addForm, cardSearch);
-    addForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-      addCard(addForm, cardSearch);
-    });
-  }
   const refreshBtn = document.getElementById("refresh-collection");
   if (refreshBtn) {
     refreshBtn.addEventListener("click", () => {
@@ -933,6 +978,57 @@ function bindDashboard() {
   }
   loadCollection();
   loadSummary();
+}
+
+function bindAddCardPage() {
+  const page = document.getElementById("add-card-page");
+  if (!page) return;
+  const form = document.getElementById("add-card-form");
+  if (!form) return;
+  const searchButton = document.getElementById("card-search-trigger");
+  const addButton = document.getElementById("card-add-button");
+  const alertBox = document.getElementById("add-card-alert");
+  const cardSearch = setupCardSearch(form);
+  const updateAddButtonState = () => {
+    if (!addButton) return;
+    const selected = cardSearch?.getSelectedCard?.();
+    addButton.disabled = !selected;
+  };
+
+  updateAddButtonState();
+
+  form.addEventListener("cardsearch:select", () => {
+    updateAddButtonState();
+    showAlert(alertBox, "");
+  });
+
+  form.addEventListener("cardsearch:clear", () => {
+    updateAddButtonState();
+  });
+
+  if (searchButton) {
+    searchButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      const nameInput = form.querySelector('input[name="name"]');
+      if (!nameInput || !nameInput.value.trim()) {
+        showAlert(alertBox, "Podaj nazwę karty, aby rozpocząć wyszukiwanie.");
+        return;
+      }
+      showAlert(alertBox, "");
+      try {
+        await cardSearch?.search?.();
+      } catch (error) {
+        showAlert(alertBox, error.message || "Nie udało się wyszukać kart.");
+      }
+    });
+  }
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    addCard(form, cardSearch);
+  });
+
+  applyAddCardPrefill(form, cardSearch);
 }
 
 function bindPortfolio() {
@@ -995,11 +1091,15 @@ window.addEventListener("DOMContentLoaded", async () => {
   const needsDashboard = Boolean(document.getElementById("collection-table"));
   const needsPortfolio = Boolean(document.getElementById("portfolio-overview"));
   const needsDetail = Boolean(document.getElementById("card-detail-page"));
+  const needsAddCard = Boolean(document.getElementById("add-card-page"));
 
-  if (needsDashboard || needsPortfolio || needsDetail) {
+  if (needsDashboard || needsPortfolio || needsDetail || needsAddCard) {
     if (await ensureAuthenticated()) {
       if (needsDashboard) {
         bindDashboard();
+      }
+      if (needsAddCard) {
+        bindAddCardPage();
       }
       if (needsPortfolio) {
         bindPortfolio();

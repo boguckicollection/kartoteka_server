@@ -375,7 +375,7 @@ def fetch_card_price(
 
 def search_cards(
     name: str,
-    number: str,
+    number: str | None = None,
     *,
     set_name: Optional[str] = None,
     total: Optional[str] = None,
@@ -391,18 +391,21 @@ def search_cards(
     form without persisting any information yet.
     """
 
-    if not name or not number:
+    if not name:
         return []
 
     http = session or requests
     rapidapi_key = rapidapi_key if rapidapi_key is not None else RAPIDAPI_KEY
     rapidapi_host = rapidapi_host if rapidapi_host is not None else RAPIDAPI_HOST
 
-    number_part, number_total = _split_number_total(str(number))
+    number_part = ""
+    number_total = ""
+    if number:
+        number_part, number_total = _split_number_total(str(number))
     if total:
         _, forced_total = _split_number_total(str(total))
         number_total = forced_total or number_total
-    number_clean = sanitize_number(number_part)
+    number_clean = sanitize_number(number_part) if number_part else ""
     total_clean = sanitize_number(number_total) if number_total else ""
 
     name_api = normalize(name, keep_spaces=True)
@@ -470,6 +473,8 @@ def search_cards(
             score += 1
         if number_clean and card_number_clean == number_clean:
             score += 3
+        elif not number_clean and card_number_clean:
+            score += 1
         if total_norm and card_total_clean == total_norm:
             score += 1
         if set_norm and set_norm in card_set_norm:
