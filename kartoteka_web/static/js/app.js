@@ -217,19 +217,35 @@ function bindPortfolio() {
   loadSummary(alertBox);
 }
 
-function ensureAuthenticated() {
+async function ensureAuthenticated() {
   const token = getToken();
   if (!token) {
     const alertBox = document.querySelector(".alert");
     if (alertBox) {
       showAlert(alertBox, "Wymagane logowanie.");
     }
+    window.location.href = "/";
     return false;
   }
-  return true;
+
+  try {
+    const user = await apiFetch("/users/me");
+    if (document.body) {
+      document.body.dataset.username = user?.username ?? "";
+    }
+    return true;
+  } catch (error) {
+    clearToken();
+    const alertBox = document.querySelector(".alert");
+    if (alertBox) {
+      showAlert(alertBox, "Sesja wygasła. Zaloguj się ponownie.");
+    }
+    window.location.href = "/";
+    return false;
+  }
 }
 
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
   const loginForm = document.getElementById("login-form");
   if (loginForm) {
     loginForm.addEventListener("submit", (event) => {
@@ -246,15 +262,17 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  if (document.getElementById("collection-table")) {
-    if (ensureAuthenticated()) {
-      bindDashboard();
-    }
-  }
+  const needsDashboard = Boolean(document.getElementById("collection-table"));
+  const needsPortfolio = Boolean(document.getElementById("portfolio-overview"));
 
-  if (document.getElementById("portfolio-overview")) {
-    if (ensureAuthenticated()) {
-      bindPortfolio();
+  if (needsDashboard || needsPortfolio) {
+    if (await ensureAuthenticated()) {
+      if (needsDashboard) {
+        bindDashboard();
+      }
+      if (needsPortfolio) {
+        bindPortfolio();
+      }
     }
   }
 });
