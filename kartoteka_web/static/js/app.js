@@ -495,72 +495,32 @@ function setupCardSearch(form) {
       const item = document.createElement("article");
       item.className = "card-suggestion";
 
+      const cardName = card?.name?.trim() || "Nieznana karta";
+      const extraInfo = [];
+      if (card.set_name) {
+        extraInfo.push(card.set_name);
+      }
+      const cardNumber = formatCardNumber(card);
+      if (cardNumber) {
+        extraInfo.push(cardNumber);
+      }
+      const description = [cardName, ...extraInfo].join(" • ");
+
       const link = document.createElement("a");
       link.className = "card-suggestion-link";
       link.href = buildCardDetailUrl(card);
-
-      if (card.image_small) {
-        const img = document.createElement("img");
-        img.src = card.image_small;
-        img.alt = `Podgląd ${card.name}`;
-        img.loading = "lazy";
-        img.className = "card-suggestion-thumbnail";
-        link.appendChild(img);
-      } else {
-        const placeholder = document.createElement("span");
-        placeholder.className = "card-suggestion-placeholder";
-        placeholder.textContent = "🃏";
-        placeholder.setAttribute("aria-hidden", "true");
-        link.appendChild(placeholder);
-      }
-
-      const info = document.createElement("div");
-      info.className = "card-suggestion-info";
-      const title = document.createElement("strong");
-      title.textContent = card.name || "";
-      info.appendChild(title);
-
-      const meta = document.createElement("div");
-      meta.className = "card-suggestion-meta";
-      const numberText = formatCardNumber(card);
-      if (numberText) {
-        const numberSpan = document.createElement("span");
-        numberSpan.textContent = numberText;
-        meta.appendChild(numberSpan);
-      }
-      if (card.set_name) {
-        const setWrapper = document.createElement("span");
-        setWrapper.className = "card-suggestion-set";
-        if (card.set_icon) {
-          const setImg = document.createElement("img");
-          setImg.src = card.set_icon;
-          setImg.alt = `Logo ${card.set_name}`;
-          setImg.loading = "lazy";
-          setImg.className = "card-suggestion-set-icon";
-          setWrapper.appendChild(setImg);
-        }
-        const setLabel = document.createElement("span");
-        setLabel.textContent = card.set_name;
-        setWrapper.appendChild(setLabel);
-        meta.appendChild(setWrapper);
-      }
-      if (meta.childElementCount) {
-        info.appendChild(meta);
-      }
-      if (card.rarity) {
-        const raritySpan = document.createElement("span");
-        raritySpan.className = "card-suggestion-rarity";
-        raritySpan.textContent = card.rarity;
-        info.appendChild(raritySpan);
-      }
-
-      link.appendChild(info);
+      link.textContent = cardName;
+      link.setAttribute("title", description);
+      link.setAttribute("aria-label", description);
       item.appendChild(link);
 
       const addButton = document.createElement("button");
       addButton.type = "button";
       addButton.className = "card-suggestion-add";
-      addButton.textContent = "Wybierz";
+      const buttonLabel = `Dodaj kartę ${description} do portfela`;
+      addButton.setAttribute("aria-label", buttonLabel);
+      addButton.title = buttonLabel;
+      addButton.textContent = "+";
       addButton.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -572,6 +532,7 @@ function setupCardSearch(form) {
     });
     suggestionsBox.appendChild(fragment);
     suggestionsBox.hidden = false;
+    suggestionsBox.scrollTop = 0;
   };
 
   const parseNumberParts = (value) => {
