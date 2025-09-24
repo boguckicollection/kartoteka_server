@@ -1,27 +1,78 @@
 {% extends "base.html" %}
 {% block title %}Kolekcja - Kartoteka{% endblock %}
 {% block content %}
-<h2>Twoja kolekcja</h2>
-<section class="summary-grid" id="portfolio-summary">
-  <article class="summary-card">
-    <h3>Liczba wpisów</h3>
-    <p id="summary-count">0</p>
-  </article>
-  <article class="summary-card">
-    <h3>Liczba kart</h3>
-    <p id="summary-quantity">0</p>
-  </article>
-  <article class="summary-card">
-    <h3>Wartość [PLN]</h3>
-    <p id="summary-value">0.00</p>
-  </article>
+<section class="page-hero">
+  <div>
+    <p class="eyebrow">Pokemon TCG Manager</p>
+    <h1>Witaj, {{ username or 'Trenerze' }}!</h1>
+    <p>Z poziomu kokpitu błyskawicznie sprawdzisz stan swojej kolekcji, dodasz nowe karty i odświeżysz ich wycenę.</p>
+    <div class="hero-actions">
+      <a class="button primary" href="#add-card-form">Dodaj nową kartę</a>
+      <a class="button secondary" href="#collection-section">Przeglądaj kolekcję</a>
+    </div>
+  </div>
 </section>
 
-<section class="table-wrapper">
-  <header>
-    <h3>Dodaj kartę</h3>
-  </header>
-  <form id="add-card-form">
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Podsumowanie kolekcji</h2>
+      <p>Najważniejsze statystyki Twojego zbioru aktualizowane w czasie rzeczywistym.</p>
+    </div>
+  </div>
+  <div class="stat-grid" id="portfolio-summary">
+    <article class="stat-card">
+      <h3>Liczba wpisów</h3>
+      <p id="summary-count">0</p>
+      <span>Wszystkie pozycje w bazie</span>
+    </article>
+    <article class="stat-card">
+      <h3>Łączna liczba kart</h3>
+      <p id="summary-quantity">0</p>
+      <span>Sumaryczna ilość egzemplarzy</span>
+    </article>
+    <article class="stat-card">
+      <h3>Szacowana wartość [PLN]</h3>
+      <p id="summary-value">0.00</p>
+      <span>Aktualna wycena kolekcji</span>
+    </article>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Akcje szybkie</h2>
+      <p>Skróty, które pozwalają przechodzić do najczęściej wykonywanych zadań.</p>
+    </div>
+  </div>
+  <div class="quick-actions">
+    <a class="action-card" href="#add-card-form">
+      <span class="action-emoji">➕</span>
+      <strong>Dodaj kartę</strong>
+      <span>Rozszerz swoją kolekcję o nowy wpis.</span>
+    </a>
+    <a class="action-card" href="#collection-section">
+      <span class="action-emoji">📚</span>
+      <strong>Zobacz kolekcję</strong>
+      <span>Przeglądaj karty i aktualizuj ich wyceny.</span>
+    </a>
+    <a class="action-card" href="/portfolio">
+      <span class="action-emoji">💰</span>
+      <strong>Sprawdź portfel</strong>
+      <span>Analizuj łączną wartość i ilość kart.</span>
+    </a>
+  </div>
+</section>
+
+<section class="panel" id="add-card-panel">
+  <div class="panel-header">
+    <div>
+      <h2>Dodaj kartę</h2>
+      <p>Uzupełnij szczegóły karty, aby znalazła się w Twojej kolekcji.</p>
+    </div>
+  </div>
+  <form id="add-card-form" class="form-grid">
     <label>
       Nazwa karty
       <input type="text" name="name" required />
@@ -46,36 +97,43 @@
       Cena zakupu
       <input type="number" name="purchase_price" step="0.01" />
     </label>
-    <label>
-      Reverse?
+    <label class="form-checkbox">
       <input type="checkbox" name="is_reverse" />
+      Reverse
     </label>
-    <label>
-      Holo?
+    <label class="form-checkbox">
       <input type="checkbox" name="is_holo" />
+      Holo
     </label>
-    <button type="submit" class="primary">Dodaj do kolekcji</button>
-    <div class="alert" id="add-card-alert" hidden></div>
+    <div class="form-footer">
+      <button type="submit" class="primary">Dodaj do kolekcji</button>
+      <div class="alert" id="add-card-alert" hidden></div>
+    </div>
   </form>
 </section>
 
-<section class="table-wrapper">
-  <header>
-    <h3>Aktualna kolekcja</h3>
-    <button id="refresh-collection" class="primary" type="button">Odśwież</button>
-  </header>
-  <table>
-    <thead>
-      <tr>
-        <th>Nazwa</th>
-        <th>Numer</th>
-        <th>Set</th>
-        <th>Ilość</th>
-        <th>Wartość</th>
-        <th>Akcje</th>
-      </tr>
-    </thead>
-    <tbody id="collection-table"></tbody>
-  </table>
+<section class="panel" id="collection-section">
+  <div class="panel-header">
+    <div>
+      <h2>Aktualna kolekcja</h2>
+      <p>Pełna lista kart z możliwością odświeżania cen i usuwania wpisów.</p>
+    </div>
+    <button id="refresh-collection" class="secondary" type="button">Odśwież dane</button>
+  </div>
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Nazwa</th>
+          <th>Numer</th>
+          <th>Set</th>
+          <th>Ilość</th>
+          <th>Wartość</th>
+          <th>Akcje</th>
+        </tr>
+      </thead>
+      <tbody id="collection-table"></tbody>
+    </table>
+  </div>
 </section>
 {% endblock %}

@@ -4,6 +4,70 @@ const getToken = () => window.localStorage.getItem(TOKEN_KEY);
 const setToken = (token) => window.localStorage.setItem(TOKEN_KEY, token);
 const clearToken = () => window.localStorage.removeItem(TOKEN_KEY);
 
+function updateUserBadge(username) {
+  const display = document.querySelector("[data-username-display]");
+  const logoutButton = document.getElementById("logout-button");
+  const trimmed = username ? String(username).trim() : "";
+  if (display) {
+    display.textContent = trimmed || "Gość";
+    display.dataset.state = trimmed ? "authenticated" : "anonymous";
+  }
+  if (logoutButton) {
+    logoutButton.hidden = !trimmed;
+  }
+}
+
+function setupNavigation() {
+  const nav = document.querySelector("[data-nav]");
+  const toggle = document.querySelector("[data-nav-toggle]");
+  if (nav && toggle) {
+    if (!nav.dataset.open) {
+      nav.dataset.open = "false";
+    }
+    const closeNav = () => {
+      nav.dataset.open = "false";
+      toggle.setAttribute("aria-expanded", "false");
+    };
+    toggle.addEventListener("click", () => {
+      const isOpen = nav.dataset.open === "true";
+      const nextState = String(!isOpen);
+      nav.dataset.open = nextState;
+      toggle.setAttribute("aria-expanded", nextState);
+    });
+    nav.querySelectorAll("a").forEach((link) => {
+      link.addEventListener("click", () => closeNav());
+    });
+    document.addEventListener("click", (event) => {
+      if (!nav.contains(event.target) && !toggle.contains(event.target)) {
+        closeNav();
+      }
+    });
+  }
+
+  const logoutButton = document.getElementById("logout-button");
+  if (logoutButton) {
+    logoutButton.addEventListener("click", () => {
+      clearToken();
+      updateUserBadge("");
+      window.location.href = "/";
+    });
+  }
+
+  const initialUsername = document.body?.dataset.username ?? "";
+  updateUserBadge(initialUsername);
+}
+
+async function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+  try {
+    await navigator.serviceWorker.register("/static/service-worker.js", { scope: "/" });
+  } catch (error) {
+    console.warn("Service worker registration failed", error);
+  }
+}
+
 async function apiFetch(path, options = {}) {
   const headers = options.headers ? { ...options.headers } : {};
   if (!headers["Content-Type"] && options.body) {
@@ -25,10 +89,21 @@ async function apiFetch(path, options = {}) {
   return data;
 }
 
-function showAlert(element, message) {
+function showAlert(element, message, type = "error") {
   if (!element) return;
-  element.textContent = message;
-  element.hidden = !message;
+  if (message) {
+    element.textContent = message;
+    element.hidden = false;
+    if (type === "success") {
+      element.classList.add("success");
+    } else {
+      element.classList.remove("success");
+    }
+  } else {
+    element.textContent = "";
+    element.hidden = true;
+    element.classList.remove("success");
+  }
 }
 
 function formToJSON(form) {
@@ -71,7 +146,7 @@ async function handleRegister(form) {
       method: "POST",
       body: JSON.stringify(payload),
     });
-    showAlert(alertBox, "Konto utworzone. Możesz się zalogować.");
+    showAlert(alertBox, "Konto utworzone. Możesz się zalogować.", "success");
     form.reset();
   } catch (error) {
     showAlert(alertBox, error.message);
@@ -82,17 +157,29 @@ function renderCollection(entries) {
   const body = document.getElementById("collection-table");
   if (!body) return;
   body.innerHTML = "";
+  if (!entries.length) {
+    const emptyRow = document.createElement("tr");
+    emptyRow.innerHTML = `<td colspan="6" class="table-empty">Brak kart w kolekcji. Dodaj pierwszą kartę, aby rozpocząć.</td>`;
+    body.appendChild(emptyRow);
+    return;
+  }
   for (const entry of entries) {
     const tr = document.createElement("tr");
+    const priceValue =
+      typeof entry.current_price === "number"
+        ? entry.current_price.toFixed(2)
+        : entry.current_price ?? "-";
     tr.innerHTML = `
-      <td>${entry.card.name}</td>
-      <td>${entry.card.number}</td>
-      <td>${entry.card.set_name}</td>
-      <td>${entry.quantity}</td>
-      <td>${entry.current_price ?? "-"}</td>
-      <td>
-        <button class="primary" data-action="refresh" data-id="${entry.id}">Cena</button>
-        <button data-action="delete" data-id="${entry.id}">Usuń</button>
+      <td data-label="Nazwa">${entry.card.name}</td>
+      <td data-label="Numer">${entry.card.number}</td>
+      <td data-label="Set">${entry.card.set_name}</td>
+      <td data-label="Ilość">${entry.quantity}</td>
+      <td data-label="Wartość">${priceValue}</td>
+      <td data-label="Akcje">
+        <div class="table-actions">
+          <button class="secondary" data-action="refresh" data-id="${entry.id}">Odśwież cenę</button>
+          <button class="ghost danger" data-action="delete" data-id="${entry.id}">Usuń</button>
+        </div>
       </td>
     `;
     body.appendChild(tr);
@@ -159,6 +246,7 @@ async function addCard(form) {
     });
     form.reset();
     await Promise.all([loadCollection(), loadSummary(alertBox)]);
+    showAlert(alertBox, "Karta została dodana do kolekcji.", "success");
   } catch (error) {
     showAlert(alertBox, error.message);
   }
@@ -233,6 +321,7 @@ async function ensureAuthenticated() {
     if (document.body) {
       document.body.dataset.username = user?.username ?? "";
     }
+    updateUserBadge(user?.username ?? "");
     return true;
   } catch (error) {
     clearToken();
@@ -240,12 +329,14 @@ async function ensureAuthenticated() {
     if (alertBox) {
       showAlert(alertBox, "Sesja wygasła. Zaloguj się ponownie.");
     }
+    updateUserBadge("");
     window.location.href = "/";
     return false;
   }
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
+  setupNavigation();
   const loginForm = document.getElementById("login-form");
   if (loginForm) {
     loginForm.addEventListener("submit", (event) => {
@@ -275,4 +366,8 @@ window.addEventListener("DOMContentLoaded", async () => {
       }
     }
   }
+});
+
+window.addEventListener("load", () => {
+  registerServiceWorker();
 });

@@ -1,23 +1,37 @@
 {% extends "base.html" %}
 {% block title %}Rejestracja - Kartoteka{% endblock %}
 {% block content %}
-<section>
-  <form id="register-form">
-    <h2>Załóż konto</h2>
+<section class="auth-layout">
+  <div class="auth-copy">
+    <p class="eyebrow">Rozpocznij przygodę</p>
+    <h1>Stwórz konto trenera</h1>
+    <p>Dołącz do społeczności kolekcjonerów, aby bez wysiłku dokumentować swoje karty i otrzymywać aktualne wyceny.</p>
+    <ul class="feature-list">
+      <li><span>01</span> Błyskawiczne dodawanie kart wraz z wariantami reverse i holo.</li>
+      <li><span>02</span> Automatyczne liczenie wartości portfela oraz liczby kart.</li>
+      <li><span>03</span> Pełna zgodność z aplikacją mobilną i tryb PWA.</li>
+    </ul>
+  </div>
+  <form id="register-form" class="form-card">
+    <h2>Nowe konto</h2>
+    <p>Uzupełnij dane, aby rozpocząć zarządzanie kolekcją.</p>
     <div class="alert" id="register-alert" hidden></div>
     <label>
       Nazwa użytkownika
-      <input type="text" name="username" required />
+      <input type="text" name="username" autocomplete="username" required />
     </label>
     <label>
       Adres e-mail (opcjonalnie)
-      <input type="email" name="email" />
+      <input type="email" name="email" autocomplete="email" />
     </label>
     <label>
       Hasło
-      <input type="password" name="password" required minlength="6" />
+      <input type="password" name="password" autocomplete="new-password" required minlength="6" />
     </label>
-    <button type="submit" class="primary">Zarejestruj</button>
+    <div class="form-footer">
+      <button type="submit" class="primary">Utwórz konto</button>
+      <p>Masz już konto? <a href="/" class="inline-link">Zaloguj się</a></p>
+    </div>
   </form>
 </section>
 {% endblock %}

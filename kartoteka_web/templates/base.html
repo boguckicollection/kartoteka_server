@@ -3,22 +3,47 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#333366" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>{% block title %}Kartoteka Web{% endblock %}</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', path='/icons/icon-192.png') }}" />
+  <link rel="apple-touch-icon" href="{{ url_for('static', path='/icons/icon-192.png') }}" />
+  <link rel="manifest" href="{{ url_for('static', path='/manifest.json') }}" />
   <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}" />
   <script defer src="{{ url_for('static', path='/js/app.js') }}"></script>
 </head>
 <body data-username="{{ username | default('') }}">
-  <nav>
-    <div class="brand">Kartoteka Web</div>
-    <div class="links">
-      <a href="/">Logowanie</a>
-      <a href="/register">Rejestracja</a>
-      <a href="/dashboard">Kolekcja</a>
-      <a href="/portfolio">Portfel</a>
+  {% set current_path = request.url.path %}
+  <header class="app-header">
+    <div class="brand">
+      <img src="{{ url_for('static', path='/icons/icon-192.png') }}" alt="Kartoteka" />
+      <div class="brand-copy">
+        <span class="brand-title">Kartoteka</span>
+        <span class="brand-subtitle">Pokemon TCG Manager</span>
+      </div>
     </div>
-  </nav>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation" data-nav-toggle>
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+    <nav class="app-nav" id="primary-navigation" data-nav>
+      <a href="/" class="{{ 'active' if current_path == '/' else '' }}">Logowanie</a>
+      <a href="/register" class="{{ 'active' if current_path.startswith('/register') else '' }}">Rejestracja</a>
+      <a href="/dashboard" class="{{ 'active' if current_path.startswith('/dashboard') else '' }}">Kolekcja</a>
+      <a href="/portfolio" class="{{ 'active' if current_path.startswith('/portfolio') else '' }}">Portfel</a>
+    </nav>
+    <div class="header-actions">
+      <span class="user-chip" data-username-display>Gość</span>
+      <button type="button" class="ghost" id="logout-button" hidden>Wyloguj</button>
+    </div>
+  </header>
   <main>
     {% block content %}{% endblock %}
   </main>
+  <footer class="app-footer">
+    <p>&copy; Kartoteka – zarządzaj swoją kolekcją Pokemon TCG gdziekolwiek jesteś.</p>
+  </footer>
 </body>
 </html>
