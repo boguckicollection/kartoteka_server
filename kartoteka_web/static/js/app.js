@@ -4,6 +4,14 @@ const getToken = () => window.localStorage.getItem(TOKEN_KEY);
 const setToken = (token) => window.localStorage.setItem(TOKEN_KEY, token);
 const clearToken = () => window.localStorage.removeItem(TOKEN_KEY);
 
+function debounce(fn, delay = 250) {
+  let timer;
+  return (...args) => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => fn(...args), delay);
+  };
+}
+
 function updateUserBadge(username) {
   const display = document.querySelector("[data-username-display]");
   const logoutButton = document.getElementById("logout-button");
@@ -223,10 +231,221 @@ async function loadSummary(targetAlert) {
   }
 }
 
-async function addCard(form) {
+function setupCardSearch(form) {
+  const nameInput = form.querySelector('input[name="name"]');
+  const numberInput = form.querySelector('input[name="number"]');
+  const setInput = form.querySelector('input[name="set_name"]');
+  const setCodeInput = form.querySelector('input[name="set_code"]');
+  const rarityInput = form.querySelector('input[name="rarity"]');
+  const suggestionsBox = document.getElementById("card-suggestions");
+
+  if (!nameInput || !numberInput || !suggestionsBox) {
+    return null;
+  }
+
+  let selectedCard = null;
+  let requestId = 0;
+
+  const hideSuggestions = () => {
+    suggestionsBox.innerHTML = "";
+    suggestionsBox.hidden = true;
+  };
+
+  const formatNumberDisplay = (card) => {
+    if (card.number_display) {
+      return card.number_display;
+    }
+    if (card.number && card.total) {
+      return `${card.number}/${card.total}`;
+    }
+    return card.number ?? "";
+  };
+
+  const applySuggestion = (card) => {
+    selectedCard = card;
+    nameInput.value = card.name || "";
+    numberInput.value = card.number || "";
+    if (card.total) {
+      numberInput.dataset.total = card.total;
+    } else {
+      delete numberInput.dataset.total;
+    }
+    if (setInput) {
+      setInput.value = card.set_name || "";
+    }
+    if (setCodeInput) {
+      setCodeInput.value = card.set_code || "";
+    }
+    if (rarityInput) {
+      rarityInput.value = card.rarity || "";
+    }
+    hideSuggestions();
+  };
+
+  const renderSuggestions = (cards) => {
+    suggestionsBox.innerHTML = "";
+    if (!Array.isArray(cards) || !cards.length) {
+      suggestionsBox.hidden = true;
+      return;
+    }
+    const fragment = document.createDocumentFragment();
+    cards.forEach((card) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "card-suggestion";
+
+      if (card.image_small) {
+        const img = document.createElement("img");
+        img.src = card.image_small;
+        img.alt = `Podgląd ${card.name}`;
+        img.loading = "lazy";
+        img.className = "card-suggestion-thumbnail";
+        button.appendChild(img);
+      } else {
+        const placeholder = document.createElement("span");
+        placeholder.className = "card-suggestion-placeholder";
+        placeholder.textContent = "🃏";
+        placeholder.setAttribute("aria-hidden", "true");
+        button.appendChild(placeholder);
+      }
+
+      const info = document.createElement("div");
+      info.className = "card-suggestion-info";
+      const title = document.createElement("strong");
+      title.textContent = card.name || "";
+      info.appendChild(title);
+
+      const meta = document.createElement("div");
+      meta.className = "card-suggestion-meta";
+      const numberText = formatNumberDisplay(card);
+      if (numberText) {
+        const numberSpan = document.createElement("span");
+        numberSpan.textContent = numberText;
+        meta.appendChild(numberSpan);
+      }
+      if (card.set_name) {
+        const setSpan = document.createElement("span");
+        setSpan.textContent = card.set_name;
+        meta.appendChild(setSpan);
+      }
+      if (meta.childElementCount) {
+        info.appendChild(meta);
+      }
+      if (card.rarity) {
+        const raritySpan = document.createElement("span");
+        raritySpan.className = "card-suggestion-rarity";
+        raritySpan.textContent = card.rarity;
+        info.appendChild(raritySpan);
+      }
+
+      button.appendChild(info);
+      button.addEventListener("click", () => applySuggestion(card));
+      fragment.appendChild(button);
+    });
+    suggestionsBox.appendChild(fragment);
+    suggestionsBox.hidden = false;
+  };
+
+  const parseNumberParts = (value) => {
+    const trimmed = String(value || "").trim();
+    if (!trimmed) {
+      return { number: "", total: "" };
+    }
+    if (trimmed.includes("/")) {
+      const [num, total] = trimmed.split("/", 2);
+      return { number: num.trim(), total: (total || "").trim() };
+    }
+    return { number: trimmed, total: "" };
+  };
+
+  const fetchSuggestions = debounce(async () => {
+    const name = nameInput.value.trim();
+    const { number, total } = parseNumberParts(numberInput.value);
+    const setName = setInput?.value.trim() ?? "";
+    if (!name || !number) {
+      hideSuggestions();
+      return;
+    }
+
+    const params = new URLSearchParams({ name, number });
+    if (total) {
+      params.set("total", total);
+    }
+    if (setName) {
+      params.set("set_name", setName);
+    }
+
+    const currentRequest = ++requestId;
+    try {
+      const results = await apiFetch(`/cards/search?${params.toString()}`);
+      if (currentRequest !== requestId) {
+        return;
+      }
+      renderSuggestions(results);
+    } catch (error) {
+      if (currentRequest !== requestId) {
+        return;
+      }
+      console.error(error);
+      hideSuggestions();
+    }
+  }, 300);
+
+  const handlePrimaryInput = () => {
+    selectedCard = null;
+    if (rarityInput) {
+      rarityInput.value = "";
+    }
+    fetchSuggestions();
+  };
+
+  nameInput.addEventListener("input", handlePrimaryInput);
+  numberInput.addEventListener("input", handlePrimaryInput);
+  if (setInput) {
+    setInput.addEventListener("input", () => fetchSuggestions());
+  }
+
+  document.addEventListener("click", (event) => {
+    if (
+      !suggestionsBox.contains(event.target) &&
+      event.target !== nameInput &&
+      event.target !== numberInput &&
+      event.target !== setInput
+    ) {
+      hideSuggestions();
+    }
+  });
+
+  return {
+    getSelectedCard: () => selectedCard,
+    reset: () => {
+      selectedCard = null;
+      hideSuggestions();
+      if (rarityInput) {
+        rarityInput.value = "";
+      }
+    },
+  };
+}
+
+async function addCard(form, cardSearch) {
   const alertBox = document.getElementById("add-card-alert");
   showAlert(alertBox, "");
+  const selectedCard = cardSearch?.getSelectedCard?.();
   const data = formToJSON(form);
+  if (selectedCard) {
+    if (!data.name) data.name = selectedCard.name;
+    if (!data.number) data.number = selectedCard.number;
+    if (!data.set_name) data.set_name = selectedCard.set_name;
+    if (!data.set_code) data.set_code = selectedCard.set_code;
+    if (data.rarity === undefined && selectedCard.rarity) {
+      data.rarity = selectedCard.rarity;
+    }
+  }
+  const numberValue = String(data.number ?? "");
+  const numberParts = numberValue.includes("/")
+    ? numberValue.split("/", 1)[0]
+    : numberValue;
   const payload = {
     quantity: Number(data.quantity) || 1,
     purchase_price: data.purchase_price ? Number(data.purchase_price) : undefined,
@@ -234,17 +453,21 @@ async function addCard(form) {
     is_holo: Boolean(data.is_holo),
     card: {
       name: data.name,
-      number: data.number,
+      number: numberParts.trim(),
       set_name: data.set_name,
       set_code: data.set_code || null,
     },
   };
+  if (data.rarity !== undefined) {
+    payload.card.rarity = data.rarity || undefined;
+  }
   try {
     await apiFetch("/cards/", {
       method: "POST",
       body: JSON.stringify(payload),
     });
     form.reset();
+    cardSearch?.reset?.();
     await Promise.all([loadCollection(), loadSummary(alertBox)]);
     showAlert(alertBox, "Karta została dodana do kolekcji.", "success");
   } catch (error) {
@@ -265,9 +488,10 @@ async function deleteEntry(id) {
 function bindDashboard() {
   const addForm = document.getElementById("add-card-form");
   if (addForm) {
+    const cardSearch = setupCardSearch(addForm);
     addForm.addEventListener("submit", (event) => {
       event.preventDefault();
-      addCard(addForm);
+      addCard(addForm, cardSearch);
     });
   }
   const refreshBtn = document.getElementById("refresh-collection");

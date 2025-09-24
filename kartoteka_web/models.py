@@ -36,6 +36,7 @@ class Card(SQLModel, table=True):
     rarity: Optional[str] = None
 
     entries: List["CollectionEntry"] = Relationship(back_populates="card")
+    price_history: List["PriceHistory"] = Relationship(back_populates="card")
 
 
 class CollectionEntry(SQLModel, table=True):
@@ -53,3 +54,16 @@ class CollectionEntry(SQLModel, table=True):
 
     owner: Optional["User"] = Relationship(back_populates="collections")
     card: Optional["Card"] = Relationship(back_populates="entries")
+
+
+class PriceHistory(SQLModel, table=True):
+    """Stored snapshots of card prices for chart generation."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    card_id: int = Field(foreign_key="card.id", index=True)
+    price: float = Field(ge=0)
+    recorded_at: dt.datetime = Field(
+        default_factory=lambda: dt.datetime.now(dt.timezone.utc)
+    )
+
+    card: Optional["Card"] = Relationship(back_populates="price_history")

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import SQLModel, create_engine
+from sqlmodel import SQLModel, create_engine, select
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -41,7 +41,7 @@ def api_client(db_path, monkeypatch):
         return prices["value"]
 
     monkeypatch.setattr("kartoteka.pricing.fetch_card_price", fake_price)
-    monkeypatch.setattr("kartoteka_web.routes.cards.fetch_card_price", fake_price)
+    monkeypatch.setattr("kartoteka.pricing.search_cards", lambda *a, **k: [])
 
     with TestClient(server.app) as client:
         yield client, prices, server
@@ -69,6 +69,15 @@ def test_collection_crud_and_summary(api_client):
     token = register_and_login(client)
     headers = {"Authorization": f"Bearer {token}"}
 
+    from kartoteka_web import database, models
+
+    def history_prices():
+        with database.session_scope() as session:
+            rows = session.exec(
+                select(models.PriceHistory.price).order_by(models.PriceHistory.recorded_at)
+            ).all()
+        return [float(price) for price in rows]
+
     payload = {
         "quantity": 2,
         "purchase_price": 9.99,
@@ -83,6 +92,7 @@ def test_collection_crud_and_summary(api_client):
     entry = res.json()
     assert entry["current_price"] == 15.0
     entry_id = entry["id"]
+    assert history_prices() == [15.0]
 
     res = client.get("/cards/", headers=headers)
     assert res.status_code == 200
@@ -104,12 +114,14 @@ def test_collection_crud_and_summary(api_client):
     res = client.post(f"/cards/{entry_id}/refresh", headers=headers)
     assert res.status_code == 200
     assert res.json()["current_price"] == 20.0
+    assert history_prices() == [15.0, 20.0]
 
     prices["value"] = 25.0
     updated = server._refresh_prices()
     assert updated >= 1
     res = client.get("/cards/", headers=headers)
     assert res.json()[0]["current_price"] == 25.0
+    assert history_prices() == [15.0, 20.0, 25.0]
 
     res = client.delete(f"/cards/{entry_id}", headers=headers)
     assert res.status_code == 204
@@ -137,3 +149,36 @@ def test_requires_authentication(api_client):
 
     res = client.delete(f"/cards/{entry_id}")
     assert res.status_code == 401
+
+
+def test_card_search_endpoint(api_client, monkeypatch):
+    client, _, _ = api_client
+    res = client.get("/cards/search", params={"name": "Pikachu", "number": "25"})
+    assert res.status_code == 401
+
+    token = register_and_login(client, username="brock", password="onix")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    sample = [
+        {
+            "name": "Pikachu",
+            "number": "25",
+            "number_display": "25/102",
+            "total": "102",
+            "set_name": "Base Set",
+            "set_code": "base",
+            "rarity": "Common",
+            "image_small": "https://example.com/pikachu-small.png",
+            "image_large": "https://example.com/pikachu-large.png",
+        }
+    ]
+
+    monkeypatch.setattr("kartoteka.pricing.search_cards", lambda *a, **k: sample)
+
+    res = client.get(
+        "/cards/search",
+        params={"name": "Pikachu", "number": "25"},
+        headers=headers,
+    )
+    assert res.status_code == 200
+    assert res.json() == sample
