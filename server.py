@@ -9,12 +9,15 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
+
+load_dotenv(Path(__file__).resolve().with_name(".env"))
 
 from kartoteka import pricing
 from kartoteka_web import models

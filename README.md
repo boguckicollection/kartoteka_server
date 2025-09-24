@@ -27,6 +27,22 @@ browser.  To start the server locally use uvicorn:
 uvicorn server:app --reload
 ```
 
+### RapidAPI configuration
+
+Price lookups use the same configuration as the desktop app.  Provide a
+RapidAPI host and key either via shell variables (`export RAPIDAPI_HOST=…`,
+`export RAPIDAPI_KEY=…`) or by creating a `.env` file in the project root.
+The repository ships with a `.env.example`; copy it and fill in the desired
+values:
+
+```bash
+cp .env.example .env
+```
+
+Both the Tkinter UI (`python main.py`) and the web server (`uvicorn
+server:app --reload`) load this file automatically on startup, so the
+credentials only need to be set once.
+
 By default the API stores data in `kartoteka.db` (SQLite).  Override the
 location with the `KARTOTEKA_DATABASE_URL` environment variable if you prefer
 a different database path.  Background tasks automatically refresh card prices
