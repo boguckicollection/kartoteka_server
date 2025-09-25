@@ -864,7 +864,7 @@ function setupCardSearch(form) {
     baseResults: [],
     sortMode: sortSelect?.value || "relevance",
     currentPage: 1,
-    pageSize: 20,
+    pageSize: Number.MAX_SAFE_INTEGER,
   };
 
   const buildResultKey = (card) => {
@@ -993,7 +993,7 @@ function setupCardSearch(form) {
       return;
     }
     const safeTotal = Number.isFinite(total) ? Math.max(0, total) : Math.max(0, state.baseResults.length);
-    if (!safeTotal) {
+    if (!safeTotal || safeTotal <= state.pageSize) {
       pagination.hidden = true;
       pageInfo.textContent = "";
       if (prevButton) prevButton.disabled = true;
@@ -1054,6 +1054,29 @@ function setupCardSearch(form) {
       placeholder.setAttribute("aria-hidden", "true");
       media.appendChild(placeholder);
     }
+
+    const addButton = document.createElement("button");
+    addButton.type = "button";
+    addButton.className = "card-search-add-button";
+    addButton.textContent = "+";
+    addButton.title = `Dodaj ${cardName} do kolekcji`;
+    addButton.setAttribute("aria-label", `Dodaj kartę ${cardName} do kolekcji`);
+    addButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (addButton.disabled) {
+        return;
+      }
+      addButton.disabled = true;
+      addButton.dataset.loading = "true";
+      try {
+        await addCard(form, cardSearchApi, card);
+      } finally {
+        addButton.disabled = false;
+        delete addButton.dataset.loading;
+      }
+    });
+    media.appendChild(addButton);
     link.appendChild(media);
 
     const info = document.createElement("div");
@@ -1093,32 +1116,6 @@ function setupCardSearch(form) {
       }
       applySuggestion(card);
     });
-
-    const actions = document.createElement("div");
-    actions.className = "card-search-actions";
-    const addButton = document.createElement("button");
-    addButton.type = "button";
-    addButton.className = "card-search-add-button";
-    addButton.textContent = "+";
-    addButton.title = `Dodaj ${cardName} do kolekcji`;
-    addButton.setAttribute("aria-label", `Dodaj kartę ${cardName} do kolekcji`);
-    addButton.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (addButton.disabled) {
-        return;
-      }
-      addButton.disabled = true;
-      addButton.dataset.loading = "true";
-      try {
-        await addCard(form, cardSearchApi, card);
-      } finally {
-        addButton.disabled = false;
-        delete addButton.dataset.loading;
-      }
-    });
-    actions.appendChild(addButton);
-    item.appendChild(actions);
 
     return item;
   };

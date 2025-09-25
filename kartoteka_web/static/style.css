@@ -985,6 +985,7 @@ body[data-theme="dark"] .home-trends-column li {
   aspect-ratio: 3 / 4;
   border-radius: 16px;
   overflow: hidden;
+  position: relative;
   background: rgba(var(--color-primary-rgb), 0.08);
   display: flex;
   align-items: center;
@@ -1053,7 +1054,7 @@ body[data-theme="dark"] .home-trends-column li {
   height: 42px;
   border-radius: 9999px;
   border: none;
-  background: var(--color-primary);
+  background: var(--color-danger);
   color: #fff;
   font-size: 1.4rem;
   font-weight: 600;
@@ -1062,6 +1063,10 @@ body[data-theme="dark"] .home-trends-column li {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
   box-shadow: 0 18px 32px -26px rgba(17, 22, 63, 0.5);
@@ -1071,6 +1076,7 @@ body[data-theme="dark"] .home-trends-column li {
 .card-search-add-button:focus-visible:not(:disabled) {
   transform: translateY(-1px) scale(1.03);
   box-shadow: 0 22px 40px -24px rgba(17, 22, 63, 0.55);
+  background-color: #b02a37;
 }
 
 .card-search-add-button:disabled {
