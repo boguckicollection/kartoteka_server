@@ -1437,8 +1437,8 @@ function updateDetailChart(points) {
             data: values,
             fill: true,
             tension: 0.3,
-            borderColor: "#333366",
-            backgroundColor: "rgba(51, 51, 102, 0.18)",
+            borderColor: "#007bff",
+            backgroundColor: "rgba(0, 123, 255, 0.18)",
             pointRadius: 3,
             pointHoverRadius: 5,
           },
@@ -1450,12 +1450,12 @@ function updateDetailChart(points) {
         plugins: { legend: { display: false } },
         scales: {
           x: {
-            ticks: { color: "rgba(31, 31, 61, 0.6)" },
+            ticks: { color: "rgba(51, 51, 51, 0.6)" },
             grid: { display: false },
           },
           y: {
-            ticks: { color: "rgba(31, 31, 61, 0.6)" },
-            grid: { color: "rgba(51, 51, 102, 0.08)" },
+            ticks: { color: "rgba(51, 51, 51, 0.6)" },
+            grid: { color: "rgba(224, 224, 224, 0.7)" },
           },
         },
       },
