@@ -33,7 +33,7 @@
     </label>
     <input type="hidden" name="rarity" id="add-card-rarity" />
     <div class="form-footer">
-      <button type="button" class="secondary" id="card-search-trigger">Szukaj</button>
+      <button type="submit" class="secondary" id="card-search-trigger">Szukaj</button>
       <div class="alert" id="add-card-alert" hidden></div>
     </div>
   </form>
@@ -72,6 +72,7 @@
     >
       Poprzednia
     </button>
+    <div id="card-search-page-list" class="card-search-page-list" data-page-list></div>
     <span id="card-search-page-info" class="card-search-page-info" aria-live="polite"></span>
     <button
       type="button"

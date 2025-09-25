@@ -848,6 +848,7 @@ function setupCardSearch(form) {
   const pageInfo = document.getElementById("card-search-page-info");
   const prevButton = pagination?.querySelector('[data-page-action="prev"]') ?? null;
   const nextButton = pagination?.querySelector('[data-page-action="next"]') ?? null;
+  const pageList = pagination?.querySelector('[data-page-list]') ?? null;
   const sortSelect = document.getElementById("card-search-sort");
 
   if (!queryInput || !resultsSection || !resultsContainer) {
@@ -864,7 +865,7 @@ function setupCardSearch(form) {
     baseResults: [],
     sortMode: sortSelect?.value || "relevance",
     currentPage: 1,
-    pageSize: Number.MAX_SAFE_INTEGER,
+    pageSize: 20,
   };
 
   const buildResultKey = (card) => {
@@ -988,16 +989,44 @@ function setupCardSearch(form) {
     return safeTotal > 0 ? Math.ceil(safeTotal / state.pageSize) : 1;
   };
 
+  const renderPageButtons = (totalPages) => {
+    if (!pageList) {
+      return;
+    }
+    pageList.innerHTML = "";
+    if (totalPages <= 0) {
+      return;
+    }
+    const fragment = document.createDocumentFragment();
+    for (let page = 1; page <= totalPages; page += 1) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "card-search-page-number";
+      button.dataset.page = String(page);
+      button.textContent = String(page);
+      if (page === state.currentPage) {
+        button.classList.add("is-active");
+        button.setAttribute("aria-current", "page");
+        button.disabled = true;
+      }
+      fragment.appendChild(button);
+    }
+    pageList.appendChild(fragment);
+  };
+
   const updatePaginationControls = (total = state.baseResults.length) => {
     if (!pagination || !pageInfo) {
       return;
     }
     const safeTotal = Number.isFinite(total) ? Math.max(0, total) : Math.max(0, state.baseResults.length);
-    if (!safeTotal || safeTotal <= state.pageSize) {
+    if (!safeTotal) {
       pagination.hidden = true;
       pageInfo.textContent = "";
       if (prevButton) prevButton.disabled = true;
       if (nextButton) nextButton.disabled = true;
+      if (pageList) {
+        pageList.innerHTML = "";
+      }
       return;
     }
     const totalPages = getTotalPages(safeTotal);
@@ -1012,6 +1041,7 @@ function setupCardSearch(form) {
     if (nextButton) {
       nextButton.disabled = state.currentPage >= totalPages;
     }
+    renderPageButtons(totalPages);
   };
 
   const goToPage = (page) => {
@@ -1273,6 +1303,23 @@ function setupCardSearch(form) {
     } else if (action === "next") {
       goToPage(state.currentPage + 1);
     }
+  });
+
+  pageList?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    const button = target.closest(".card-search-page-number");
+    if (!(button instanceof HTMLElement)) {
+      return;
+    }
+    const page = Number.parseInt(button.dataset.page || "", 10);
+    if (!Number.isFinite(page)) {
+      return;
+    }
+    event.preventDefault();
+    goToPage(page);
   });
 
   updateSortDisabled();
@@ -1886,26 +1933,28 @@ function bindAddCardPage() {
   if (!page) return;
   const form = document.getElementById("add-card-form");
   if (!form) return;
-  const searchButton = document.getElementById("card-search-trigger");
   const alertBox = document.getElementById("add-card-alert");
   const cardSearch = setupCardSearch(form);
 
-  if (searchButton) {
-    searchButton.addEventListener("click", async (event) => {
-      event.preventDefault();
-      const queryInput = form.querySelector('input[name="query"]');
-      if (!queryInput || !queryInput.value.trim()) {
-        showAlert(alertBox, "Wpisz nazwę lub numer karty, aby rozpocząć wyszukiwanie.");
-        return;
-      }
-      showAlert(alertBox, "");
-      try {
-        await cardSearch?.search?.();
-      } catch (error) {
-        showAlert(alertBox, error.message || "Nie udało się wyszukać kart.");
-      }
-    });
-  }
+  const executeSearch = async () => {
+    const queryInput = form.querySelector('input[name="query"]');
+    if (!queryInput || !queryInput.value.trim()) {
+      showAlert(alertBox, "Wpisz nazwę lub numer karty, aby rozpocząć wyszukiwanie.");
+      queryInput?.focus();
+      return;
+    }
+    showAlert(alertBox, "");
+    try {
+      await cardSearch?.search?.();
+    } catch (error) {
+      showAlert(alertBox, error.message || "Nie udało się wyszukać kart.");
+    }
+  };
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    executeSearch();
+  });
 
   applyAddCardPrefill(form, cardSearch);
 }
