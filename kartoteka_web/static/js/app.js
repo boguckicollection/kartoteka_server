@@ -104,6 +104,31 @@ function formatPln(value) {
   return plnFormatter.format(value);
 }
 
+function normalisePriceValue(value) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "string") {
+    let normalised = value.trim();
+    if (!normalised) {
+      return null;
+    }
+    normalised = normalised
+      .replace(/\u00a0/g, "")
+      .replace(/\s+/g, "")
+      .replace(/(pln|zł)\.?/gi, "");
+    const hasComma = normalised.includes(",");
+    const hasDot = normalised.includes(".");
+    if (hasComma && hasDot) {
+      normalised = normalised.replace(/\./g, "");
+    }
+    normalised = normalised.replace(",", ".");
+    const parsed = Number.parseFloat(normalised);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 function formatChangeValue(value) {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return "0,00 zł";
@@ -333,6 +358,39 @@ function buildAddCardUrl(card) {
   if (total) params.set("total", total);
   const query = params.toString();
   return `/cards/add${query ? `?${query}` : ""}`;
+}
+
+function resolveRaritySymbol(rarity) {
+  if (!rarity) {
+    return "";
+  }
+  const value = String(rarity).trim();
+  if (!value) {
+    return "";
+  }
+  const normalised = value.toLowerCase();
+  if (normalised.includes("common")) {
+    return "●";
+  }
+  if (normalised.includes("uncommon")) {
+    return "◆";
+  }
+  if (
+    normalised.includes("rare") ||
+    normalised.includes("promo") ||
+    normalised.includes("secret")
+  ) {
+    return "★";
+  }
+  return "";
+}
+
+function formatRarityLabel(rarity) {
+  if (!rarity) {
+    return "";
+  }
+  const symbol = resolveRaritySymbol(rarity);
+  return symbol ? `${symbol} ${rarity}` : rarity;
 }
 
 function formatCardNumber(card) {
@@ -1499,6 +1557,114 @@ function renderRelatedCardsList(cards) {
   container.appendChild(fragment);
 }
 
+function updateCardDetailImage(image, placeholder, card) {
+  if (!image) {
+    return;
+  }
+  const showPlaceholder = () => {
+    image.hidden = true;
+    image.setAttribute("hidden", "");
+    if (placeholder) {
+      placeholder.hidden = false;
+    }
+  };
+  const showImage = () => {
+    image.hidden = false;
+    image.removeAttribute("hidden");
+    if (placeholder) {
+      placeholder.hidden = true;
+    }
+  };
+  const imageSource = card?.image_large || card?.image_small || "";
+  const cardName = card?.name ? String(card.name).trim() : "";
+  const altText = cardName ? `Podgląd karty ${cardName}` : "Podgląd karty";
+  image.alt = altText;
+  if (!imageSource) {
+    image.removeAttribute("src");
+    image.onload = null;
+    image.onerror = null;
+    showPlaceholder();
+    return;
+  }
+
+  const handleLoad = () => {
+    showImage();
+  };
+  const handleError = () => {
+    image.removeAttribute("src");
+    showPlaceholder();
+  };
+
+  image.onload = handleLoad;
+  image.onerror = handleError;
+
+  if (image.src !== imageSource) {
+    showPlaceholder();
+    image.src = imageSource;
+  }
+
+  if (image.complete && image.naturalWidth > 0) {
+    handleLoad();
+  } else {
+    showPlaceholder();
+  }
+}
+
+async function addDetailCardToCollection(card, button) {
+  const alertBox = document.getElementById("card-detail-alert");
+  showAlert(alertBox, "");
+  if (!card || !card.name || !card.number || !card.set_name) {
+    showAlert(alertBox, "Brakuje danych karty. Spróbuj ponownie później.");
+    return;
+  }
+  try {
+    if (button) {
+      button.dataset.loading = "true";
+      button.disabled = true;
+    }
+    const payload = {
+      quantity: 1,
+      card: {
+        name: card.name,
+        number: card.number,
+        set_name: card.set_name,
+        set_code: card.set_code || null,
+      },
+    };
+    if (card.rarity) {
+      payload.card.rarity = card.rarity;
+    }
+    if (card.image_small) {
+      payload.card.image_small = card.image_small;
+    }
+    if (card.image_large) {
+      payload.card.image_large = card.image_large;
+    }
+    await apiFetch("/cards/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const updates = [];
+    if (document.getElementById("collection-table")) {
+      updates.push(loadCollection());
+    }
+    if (document.getElementById("summary-count")) {
+      updates.push(loadSummary());
+    }
+    if (updates.length) {
+      await Promise.all(updates);
+    }
+    showAlert(alertBox, "Karta została dodana do kolekcji.", "success");
+  } catch (error) {
+    showAlert(alertBox, error.message);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      delete button.dataset.loading;
+    }
+  }
+}
+
 async function loadCardDetail(container) {
   const alertBox = document.getElementById("card-detail-alert");
   showAlert(alertBox, "");
@@ -1516,7 +1682,22 @@ async function loadCardDetail(container) {
 
   try {
     const detail = await apiFetch(`/cards/info?${params.toString()}`);
-    const card = detail.card || {};
+    const card = { ...(detail.card || {}) };
+    if (!card.name && container.dataset.name) {
+      card.name = container.dataset.name.trim();
+    }
+    if (!card.number && container.dataset.number) {
+      card.number = container.dataset.number.trim();
+    }
+    if (!card.set_name && container.dataset.setName) {
+      card.set_name = container.dataset.setName.trim();
+    }
+    if (!card.set_code && container.dataset.setCode) {
+      card.set_code = container.dataset.setCode.trim();
+    }
+    if (!card.total && container.dataset.total) {
+      card.total = container.dataset.total.trim();
+    }
     const history = normaliseHistoryPoints(detail.history);
     cardDetailHistory = history;
     cardDetailRange = "1m";
@@ -1543,17 +1724,7 @@ async function loadCardDetail(container) {
 
     const image = document.getElementById("card-detail-image");
     const placeholder = document.getElementById("card-detail-placeholder");
-    const imageSource = card.image_large || card.image_small;
-    if (image) {
-      if (imageSource) {
-        image.src = imageSource;
-        image.hidden = false;
-        if (placeholder) placeholder.hidden = true;
-      } else {
-        image.hidden = true;
-        if (placeholder) placeholder.hidden = false;
-      }
-    }
+    updateCardDetailImage(image, placeholder, card);
 
     const setIcon = document.getElementById("card-detail-set-icon");
     if (setIcon) {
@@ -1588,16 +1759,15 @@ async function loadCardDetail(container) {
 
     const rarityField = document.getElementById("card-detail-rarity");
     if (rarityField) {
-      rarityField.textContent = card.rarity || "—";
+      const rarityLabel = formatRarityLabel(card.rarity);
+      rarityField.textContent = rarityLabel || "—";
     }
 
     const priceField = document.getElementById("card-detail-price");
     if (priceField) {
-      const numericPrice =
-        typeof card.price_pln === "number"
-          ? card.price_pln
-          : Number.parseFloat(card.price_pln);
-      const formattedPrice = formatPln(numericPrice);
+      const numericPrice = normalisePriceValue(card.price_pln);
+      const formattedPrice =
+        numericPrice !== null ? formatPln(numericPrice) : null;
       priceField.textContent = formattedPrice || "—";
     }
 
@@ -1618,7 +1788,15 @@ async function loadCardDetail(container) {
 
     const addButton = document.getElementById("detail-add-button");
     if (addButton) {
-      addButton.href = buildAddCardUrl(card);
+      const canAdd = Boolean(card.name && card.number && card.set_name);
+      addButton.disabled = !canAdd;
+      addButton.onclick = (event) => {
+        event.preventDefault();
+        if (!canAdd || addButton.dataset.loading === "true") {
+          return;
+        }
+        void addDetailCardToCollection(card, addButton);
+      };
     }
 
     const buyButton = document.getElementById("detail-buy-button");
