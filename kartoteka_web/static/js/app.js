@@ -1,6 +1,6 @@
 const TOKEN_KEY = "kartoteka_token";
 const THEME_KEY = "kartoteka_theme";
-const LIGHT_THEME_COLOR = "#333366";
+const LIGHT_THEME_COLOR = "#ffffff";
 const DARK_THEME_COLOR = "#0c1224";
 
 const getToken = () => window.localStorage.getItem(TOKEN_KEY);
@@ -116,6 +116,19 @@ function formatChangeValue(value) {
     return `-${absolute}`;
   }
   return absolute;
+}
+
+function formatDateRangeLabel(startDate, endDate) {
+  if (!(startDate instanceof Date) || Number.isNaN(startDate.getTime())) {
+    return null;
+  }
+  if (!(endDate instanceof Date) || Number.isNaN(endDate.getTime())) {
+    return startDate.toLocaleDateString("pl-PL");
+  }
+  const options = { day: "2-digit", month: "2-digit" };
+  const startLabel = startDate.toLocaleDateString("pl-PL", options);
+  const endLabel = endDate.toLocaleDateString("pl-PL", options);
+  return startLabel === endLabel ? startLabel : `${startLabel} – ${endLabel}`;
 }
 
 function resolveTrendSymbol(direction) {
@@ -509,12 +522,56 @@ function renderPortfolioPerformance(history) {
   const chartContainer = document.getElementById("portfolio-chart");
   const changeWrapper = document.getElementById("portfolio-change");
   const changeValue = document.getElementById("portfolio-change-value");
+  const latestValueElement = document.getElementById("portfolio-chart-latest");
+  const minValueElement = document.getElementById("portfolio-chart-min");
+  const maxValueElement = document.getElementById("portfolio-chart-max");
+  const rangeElement = document.getElementById("portfolio-chart-range");
+  const totalValueElement = document.getElementById("portfolio-value");
   if (!chartContainer) {
     return;
   }
   chartContainer.innerHTML = "";
   const direction = history?.direction || "flat";
   const deltaValue = typeof history?.change_24h === "number" ? history.change_24h : 0;
+  const latestPortfolioValue =
+    typeof history?.latest_value === "number" ? history.latest_value : null;
+  const applyMeta = ({
+    latest = latestPortfolioValue,
+    min = null,
+    max = null,
+    rangeText = null,
+    directionKey = direction,
+  } = {}) => {
+    const resolvedDirection = directionKey || "flat";
+    if (latestValueElement) {
+      const formatted =
+        typeof latest === "number" && !Number.isNaN(latest) ? formatPln(latest) : null;
+      latestValueElement.textContent = formatted || "-";
+      latestValueElement.dataset.direction = resolvedDirection;
+    }
+    if (minValueElement) {
+      const formatted =
+        typeof min === "number" && !Number.isNaN(min) ? formatPln(min) : null;
+      minValueElement.textContent = formatted || "-";
+    }
+    if (maxValueElement) {
+      const formatted =
+        typeof max === "number" && !Number.isNaN(max) ? formatPln(max) : null;
+      maxValueElement.textContent = formatted || "-";
+    }
+    if (rangeElement) {
+      rangeElement.textContent = rangeText || "Brak danych";
+    }
+    if (totalValueElement) {
+      const formatted =
+        typeof latest === "number" && !Number.isNaN(latest) ? formatPln(latest) : null;
+      if (formatted) {
+        totalValueElement.textContent = formatted;
+      }
+      totalValueElement.dataset.direction = resolvedDirection;
+    }
+  };
+  applyMeta();
   chartContainer.dataset.direction = direction;
   if (changeWrapper) {
     changeWrapper.dataset.direction = direction;
@@ -533,6 +590,7 @@ function renderPortfolioPerformance(history) {
     emptyMessage.className = "portfolio-chart-empty";
     emptyMessage.textContent = "Brak danych do wyświetlenia.";
     chartContainer.appendChild(emptyMessage);
+    applyMeta({ min: null, max: null, rangeText: null, latest: latestPortfolioValue });
     return;
   }
 
@@ -540,9 +598,11 @@ function renderPortfolioPerformance(history) {
     .map((point, index) => {
       const rawTimestamp = point.timestamp || point.date || point.recorded_at || "";
       const parsed = rawTimestamp ? Date.parse(rawTimestamp) : Number.NaN;
+      const date = Number.isNaN(parsed) ? null : new Date(parsed);
       return {
         order: Number.isNaN(parsed) ? index : parsed,
         value: typeof point.value === "number" ? point.value : Number(point.value) || 0,
+        date,
       };
     })
     .sort((a, b) => a.order - b.order);
@@ -550,7 +610,7 @@ function renderPortfolioPerformance(history) {
   const values = numericPoints.map((point) => point.value);
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
-  const range = maxValue - minValue || 1;
+  const range = maxValue - minValue;
   const minY = 10;
   const maxY = 55;
 
@@ -559,7 +619,7 @@ function renderPortfolioPerformance(history) {
   numericPoints.forEach((point, idx) => {
     const ratio = numericPoints.length > 1 ? idx / (numericPoints.length - 1) : 0.5;
     const x = ratio * 100;
-    const normalized = (point.value - minValue) / range;
+    const normalized = range > 0 ? (point.value - minValue) / range : 0.5;
     const y = maxY - normalized * (maxY - minY);
     coords.push({ x, y });
     linePath += `${idx === 0 ? "M" : " L"}${x.toFixed(2)},${y.toFixed(2)}`;
@@ -593,6 +653,17 @@ function renderPortfolioPerformance(history) {
   }
 
   chartContainer.appendChild(svg);
+
+  const firstDatedPoint = numericPoints.find((point) => point.date instanceof Date)?.date;
+  const lastDatedPoint = [...numericPoints]
+    .reverse()
+    .find((point) => point.date instanceof Date)?.date;
+  applyMeta({
+    min: minValue,
+    max: maxValue,
+    rangeText: formatDateRangeLabel(firstDatedPoint, lastDatedPoint),
+    latest: latestPortfolioValue,
+  });
 }
 
 function updateSummary(summary) {
@@ -601,14 +672,24 @@ function updateSummary(summary) {
   const value = document.getElementById("summary-value");
   if (count) count.textContent = summary.total_cards;
   if (quantity) quantity.textContent = summary.total_quantity;
-  if (value) value.textContent = summary.estimated_value.toFixed(2);
+  if (value) {
+    const formatted = formatPln(summary.estimated_value);
+    value.textContent = formatted || summary.estimated_value.toFixed(2);
+  }
 
   const pCount = document.getElementById("portfolio-count");
   const pQuantity = document.getElementById("portfolio-quantity");
   const pValue = document.getElementById("portfolio-value");
   if (pCount) pCount.textContent = summary.total_cards;
   if (pQuantity) pQuantity.textContent = summary.total_quantity;
-  if (pValue) pValue.textContent = summary.estimated_value.toFixed(2);
+  if (pValue) {
+    const formatted = formatPln(summary.estimated_value);
+    if (formatted) {
+      pValue.textContent = formatted;
+    } else {
+      pValue.textContent = summary.estimated_value.toFixed(2);
+    }
+  }
 }
 
 async function loadCollection() {
