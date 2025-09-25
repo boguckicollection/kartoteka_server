@@ -959,10 +959,14 @@ def portfolio_summary(
     ).all()
     total_quantity = sum(entry.quantity for entry in entries)
     estimated_value = sum((entry.current_price or 0) * entry.quantity for entry in entries)
+    aggregated = _aggregate_portfolio_history(entries, session=session)
+    change, direction = _calculate_change(aggregated)
     return schemas.PortfolioSummary(
         total_cards=len(entries),
         total_quantity=total_quantity,
         estimated_value=round(estimated_value, 2),
+        change_24h=round(change, 2),
+        direction=direction,
     )
 
 

@@ -21,6 +21,73 @@
           <span>Adres awatara</span>
           <input type="url" name="avatar_url" autocomplete="url" placeholder="https://…" />
         </label>
+        <fieldset class="avatar-selector">
+          <legend>Awatar Pokemon</legend>
+          <p>Wybierz motyw Pokéball lub podaj własny adres graficzny powyżej.</p>
+          <div class="avatar-options">
+            <label class="avatar-option">
+              <input
+                type="radio"
+                name="avatar_choice"
+                value="{{ url_for('static', path='/icons/avatars/pokeball-classic.svg') }}"
+                data-url="{{ url_for('static', path='/icons/avatars/pokeball-classic.svg') }}"
+              />
+              <span
+                class="avatar-option-visual"
+                style="background-image: url('{{ url_for('static', path='/icons/avatars/pokeball-classic.svg') }}');"
+                aria-hidden="true"
+              ></span>
+              <span class="avatar-option-label">Poké Ball klasyczny</span>
+            </label>
+            <label class="avatar-option">
+              <input
+                type="radio"
+                name="avatar_choice"
+                value="{{ url_for('static', path='/icons/avatars/pokeball-great.svg') }}"
+                data-url="{{ url_for('static', path='/icons/avatars/pokeball-great.svg') }}"
+              />
+              <span
+                class="avatar-option-visual"
+                style="background-image: url('{{ url_for('static', path='/icons/avatars/pokeball-great.svg') }}');"
+                aria-hidden="true"
+              ></span>
+              <span class="avatar-option-label">Great Ball</span>
+            </label>
+            <label class="avatar-option">
+              <input
+                type="radio"
+                name="avatar_choice"
+                value="{{ url_for('static', path='/icons/avatars/pokeball-ultra.svg') }}"
+                data-url="{{ url_for('static', path='/icons/avatars/pokeball-ultra.svg') }}"
+              />
+              <span
+                class="avatar-option-visual"
+                style="background-image: url('{{ url_for('static', path='/icons/avatars/pokeball-ultra.svg') }}');"
+                aria-hidden="true"
+              ></span>
+              <span class="avatar-option-label">Ultra Ball</span>
+            </label>
+            <label class="avatar-option">
+              <input
+                type="radio"
+                name="avatar_choice"
+                value="{{ url_for('static', path='/icons/avatars/pokeball-premier.svg') }}"
+                data-url="{{ url_for('static', path='/icons/avatars/pokeball-premier.svg') }}"
+              />
+              <span
+                class="avatar-option-visual"
+                style="background-image: url('{{ url_for('static', path='/icons/avatars/pokeball-premier.svg') }}');"
+                aria-hidden="true"
+              ></span>
+              <span class="avatar-option-label">Premier Ball</span>
+            </label>
+            <label class="avatar-option" data-custom="true">
+              <input type="radio" name="avatar_choice" value="custom" data-custom="true" data-url="" />
+              <span class="avatar-option-visual" aria-hidden="true">URL</span>
+              <span class="avatar-option-label">Własny link</span>
+            </label>
+          </div>
+        </fieldset>
         <div class="alert" role="status" aria-live="polite" hidden></div>
         <button type="submit" class="button primary">Zapisz profil</button>
       </form>
