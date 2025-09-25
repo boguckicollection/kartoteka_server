@@ -31,25 +31,25 @@
 
 body[data-theme="dark"] {
   color-scheme: dark;
-  --color-primary: #66b0ff;
-  --color-primary-dark: #3385d6;
-  --color-primary-rgb: 102, 176, 255;
-  --color-secondary: #ffd760;
-  --color-accent: #63e6ff;
-  --color-background: #0f1424;
-  --color-surface: rgba(22, 27, 48, 0.9);
-  --color-surface-strong: rgba(28, 34, 60, 0.95);
-  --color-border: rgba(102, 176, 255, 0.2);
-  --color-border-strong: rgba(102, 176, 255, 0.32);
-  --color-text: #f1f3f9;
-  --color-text-muted: rgba(241, 243, 249, 0.72);
-  --shadow-soft: 0 24px 48px -32px rgba(8, 10, 22, 0.75);
-  --shadow-card: 0 20px 45px -28px rgba(8, 10, 22, 0.78);
-  --gradient-start: #0f1424;
-  --gradient-mid: #161d35;
-  --gradient-end: #20263d;
-  --glow-primary: rgba(102, 176, 255, 0.32);
-  --glow-secondary: rgba(255, 215, 96, 0.2);
+  --color-primary: #9aa2b5;
+  --color-primary-dark: #7e8597;
+  --color-primary-rgb: 154, 162, 181;
+  --color-secondary: #c2c8d6;
+  --color-accent: #afb7c9;
+  --color-background: #0e1116;
+  --color-surface: rgba(20, 25, 32, 0.92);
+  --color-surface-strong: rgba(24, 29, 38, 0.96);
+  --color-border: rgba(72, 79, 92, 0.5);
+  --color-border-strong: rgba(96, 104, 119, 0.7);
+  --color-text: #e7eaf0;
+  --color-text-muted: rgba(180, 189, 201, 0.72);
+  --shadow-soft: 0 24px 48px -32px rgba(0, 0, 0, 0.8);
+  --shadow-card: 0 20px 45px -28px rgba(0, 0, 0, 0.75);
+  --gradient-start: #0e1116;
+  --gradient-mid: #141920;
+  --gradient-end: #1a1f27;
+  --glow-primary: rgba(154, 162, 181, 0.28);
+  --glow-secondary: rgba(72, 79, 92, 0.18);
 }
 
 *, *::before, *::after {
@@ -270,7 +270,11 @@ img {
 
 body[data-theme="dark"] .user-avatar {
   color: #0f1424;
-  background: linear-gradient(135deg, rgba(156, 167, 255, 0.85), rgba(156, 167, 255, 0.55));
+  background: linear-gradient(
+    135deg,
+    rgba(var(--color-primary-rgb), 0.85),
+    rgba(var(--color-primary-rgb), 0.55)
+  );
   box-shadow: 0 12px 24px -18px rgba(0, 0, 0, 0.5);
 }
 
@@ -298,12 +302,12 @@ body[data-theme="dark"] .user-avatar {
 }
 
 body[data-theme="dark"] .theme-toggle {
-  background: rgba(156, 167, 255, 0.14);
-  color: var(--color-secondary);
+  background: rgba(var(--color-primary-rgb), 0.14);
+  color: var(--color-primary);
 }
 
 body[data-theme="dark"] .theme-toggle:hover {
-  background: rgba(156, 167, 255, 0.2);
+  background: rgba(var(--color-primary-rgb), 0.2);
 }
 
 #login-button,
@@ -377,13 +381,13 @@ button.ghost:hover {
 
 body[data-theme="dark"] .button.ghost,
 body[data-theme="dark"] button.ghost {
-  border-color: rgba(156, 167, 255, 0.35);
+  border-color: rgba(var(--color-primary-rgb), 0.35);
   color: var(--color-text);
 }
 
 body[data-theme="dark"] .button.ghost:hover,
 body[data-theme="dark"] button.ghost:hover {
-  background: rgba(156, 167, 255, 0.18);
+  background: rgba(var(--color-primary-rgb), 0.18);
 }
 
 .button.danger,
@@ -510,8 +514,8 @@ button.danger:hover {
 }
 
 body[data-theme="dark"] .home-news-tag {
-  background: rgba(156, 167, 255, 0.2);
-  color: var(--color-secondary);
+  background: rgba(var(--color-primary-rgb), 0.22);
+  color: var(--color-primary);
 }
 
 .home-news-card h3 {
@@ -1085,7 +1089,7 @@ body[data-theme="dark"] input,
 body[data-theme="dark"] select,
 body[data-theme="dark"] textarea {
   background: rgba(18, 22, 40, 0.9);
-  border-color: rgba(102, 176, 255, 0.28);
+  border-color: rgba(var(--color-primary-rgb), 0.28);
   color: var(--color-text);
   box-shadow: inset 0 2px 8px rgba(5, 7, 16, 0.4);
 }
@@ -1116,7 +1120,7 @@ input[type="checkbox"] {
 
 body[data-theme="dark"] .form-checkbox {
   background: rgba(18, 22, 40, 0.9);
-  border-color: rgba(102, 176, 255, 0.28);
+  border-color: rgba(var(--color-primary-rgb), 0.28);
 }
 
 .form-footer {
@@ -1194,11 +1198,11 @@ tbody tr:hover {
 
 body[data-theme="dark"] table {
   background: rgba(22, 27, 48, 0.92);
-  border-color: rgba(102, 176, 255, 0.24);
+  border-color: rgba(var(--color-primary-rgb), 0.24);
 }
 
 body[data-theme="dark"] tbody td {
-  border-bottom-color: rgba(102, 176, 255, 0.18);
+  border-bottom-color: rgba(var(--color-primary-rgb), 0.18);
 }
 
 body[data-theme="dark"] tbody tr:hover {
@@ -1273,8 +1277,8 @@ body[data-theme="dark"] tbody tr:hover {
 }
 
 body[data-theme="dark"] .portfolio-change {
-  background: rgba(156, 167, 255, 0.12);
-  border-color: rgba(156, 167, 255, 0.22);
+  background: rgba(var(--color-primary-rgb), 0.12);
+  border-color: rgba(var(--color-primary-rgb), 0.22);
 }
 
 body[data-theme="dark"] .portfolio-change[data-direction='up'] {
@@ -1393,11 +1397,11 @@ body[data-theme="dark"] .portfolio-change[data-direction='down'] {
 }
 
 body[data-theme="dark"] .portfolio-chart-area {
-  fill: rgba(156, 167, 255, 0.14);
+  fill: rgba(var(--color-primary-rgb), 0.14);
 }
 
 body[data-theme="dark"] .portfolio-chart-dot {
-  fill: rgba(156, 167, 255, 0.95);
+  fill: rgba(var(--color-primary-rgb), 0.95);
 }
 
 .portfolio-chart-empty,
@@ -1434,7 +1438,7 @@ body[data-theme="dark"] .portfolio-chart-dot {
 body[data-theme="dark"] .portfolio-card:hover,
 body[data-theme="dark"] .portfolio-card:focus-within {
   box-shadow: 0 30px 56px -32px rgba(0, 0, 0, 0.6);
-  border-color: rgba(156, 167, 255, 0.35);
+  border-color: rgba(var(--color-primary-rgb), 0.32);
 }
 
 .portfolio-card-link {
@@ -1457,7 +1461,7 @@ body[data-theme="dark"] .portfolio-card:focus-within {
 }
 
 body[data-theme="dark"] .portfolio-card-media {
-  background: rgba(156, 167, 255, 0.12);
+  background: rgba(var(--color-primary-rgb), 0.12);
 }
 
 .portfolio-card-image {
@@ -1472,7 +1476,7 @@ body[data-theme="dark"] .portfolio-card-media {
 }
 
 body[data-theme="dark"] .portfolio-card-placeholder {
-  color: rgba(156, 167, 255, 0.32);
+  color: rgba(var(--color-primary-rgb), 0.32);
 }
 
 .portfolio-card-body {
@@ -1502,7 +1506,7 @@ body[data-theme="dark"] .portfolio-card-placeholder {
 }
 
 body[data-theme="dark"] .portfolio-card-set img {
-  border-color: rgba(156, 167, 255, 0.2);
+  border-color: rgba(var(--color-primary-rgb), 0.2);
 }
 
 .portfolio-card-title {
@@ -1558,7 +1562,7 @@ body[data-theme="dark"] .portfolio-card-set img {
 }
 
 body[data-theme="dark"] .portfolio-card-update {
-  color: rgba(242, 244, 255, 0.55);
+  color: rgba(231, 234, 240, 0.55);
 }
 
 .table-responsive a.table-link {
