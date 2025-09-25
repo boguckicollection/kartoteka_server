@@ -99,3 +99,10 @@ def slugify_set_identifier(*, set_code: Optional[str] = None, set_name: Optional
         return "unknown"
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
     return slug or "unknown"
+
+
+def iter_known_sets() -> list[Dict[str, Any]]:
+    """Return metadata for every known set."""
+
+    index_code, _ = _load_indices()
+    return list(index_code.values())
