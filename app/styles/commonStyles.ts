@@ -1,18 +1,18 @@
 import { StyleSheet, ViewStyle, TextStyle } from 'react-native';
 
 export const colors = {
-  primary: '#333366',    // Dark blue
-  secondary: '#FFCC00',  // Pokemon yellow
-  accent: '#7DF9FF',     // Electric blue
-  background: '#F5F5F5', // Light gray
-  backgroundAlt: '#FFFFFF', // White
-  text: '#333366',       // Dark blue text
-  textLight: '#666666',  // Light gray text
-  grey: '#E0E0E0',       // Light grey
-  card: '#FFFFFF',       // White card background
-  success: '#4CAF50',    // Green
-  warning: '#FF9800',    // Orange
-  error: '#F44336',      // Red
+  primary: '#007bff',      // Bright blue for primary actions and links
+  secondary: '#0056b3',    // Darker blue for hover and active states
+  accent: '#63e6ff',       // Light accent blue for highlights
+  background: '#f8f9fa',   // Soft light gray page background
+  backgroundAlt: '#ffffff', // White surfaces such as cards and headers
+  text: '#333333',         // Dark gray for main text and headings
+  textLight: '#6c757d',    // Muted gray for secondary text
+  grey: '#e0e0e0',         // Neutral gray for dividers and borders
+  card: '#ffffff',         // Card backgrounds
+  success: '#4CAF50',      // Green
+  warning: '#FF9800',      // Orange
+  error: '#F44336',        // Red
 };
 
 export const buttonStyles = StyleSheet.create({
