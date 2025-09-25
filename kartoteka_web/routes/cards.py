@@ -385,8 +385,10 @@ def _search_catalogue(
     stmt = stmt.limit(fetch_limit)
     records = session.exec(stmt).all()
 
-    if not records and name_filter_applied:
-        fallback_stmt = select(models.CardRecord)
+    if not records and name_filter_applied and name_norm:
+        fallback_stmt = select(models.CardRecord).where(
+            models.CardRecord.name_normalized.contains(name_norm)
+        )
         if number_clean:
             fallback_stmt = fallback_stmt.where(models.CardRecord.number == number_clean)
         if total_clean:
