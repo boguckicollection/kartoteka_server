@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Ustawienia konta - Kartoteka{% endblock %}
+{% block content %}
+<section class="panel settings-panel" id="settings-page">
+  <div class="panel-header">
+    <div>
+      <h1>Ustawienia konta</h1>
+      <p>Zarządzaj danymi logowania, adresem e-mail i wizerunkiem profilu.</p>
+    </div>
+  </div>
+  <div class="settings-grid">
+    <article class="settings-card">
+      <h2>Dane profilu</h2>
+      <p>Aktualizuj e-mail do powiadomień oraz adres URL awatara wyświetlanego w panelu.</p>
+      <form id="settings-profile-form" class="settings-form" novalidate>
+        <label>
+          <span>E-mail</span>
+          <input type="email" name="email" autocomplete="email" placeholder="np. trener@pokemon.tcg" />
+        </label>
+        <label>
+          <span>Adres awatara</span>
+          <input type="url" name="avatar_url" autocomplete="url" placeholder="https://…" />
+        </label>
+        <div class="alert" role="status" aria-live="polite" hidden></div>
+        <button type="submit" class="button primary">Zapisz profil</button>
+      </form>
+    </article>
+    <article class="settings-card">
+      <h2>Zmień hasło</h2>
+      <p>Użyj silnego, unikalnego hasła. Minimalna długość to 8 znaków.</p>
+      <form id="settings-password-form" class="settings-form" novalidate>
+        <label>
+          <span>Obecne hasło</span>
+          <input type="password" name="current_password" autocomplete="current-password" required />
+        </label>
+        <label>
+          <span>Nowe hasło</span>
+          <input type="password" name="new_password" autocomplete="new-password" minlength="8" required />
+        </label>
+        <div class="alert" role="status" aria-live="polite" hidden></div>
+        <button type="submit" class="button secondary">Aktualizuj hasło</button>
+      </form>
+    </article>
+  </div>
+</section>
+{% endblock %}

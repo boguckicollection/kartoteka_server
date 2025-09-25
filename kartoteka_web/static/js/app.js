@@ -141,27 +141,40 @@ function resolveTrendSymbol(direction) {
   return "→";
 }
 
-function updateUserBadge(username) {
+function updateUserBadge(user) {
+  const payload =
+    typeof user === "string"
+      ? { username: user }
+      : user && typeof user === "object"
+        ? user
+        : { username: "" };
+  const username = payload.username ? String(payload.username).trim() : "";
+  const avatarUrl = payload.avatar_url ? String(payload.avatar_url).trim() : "";
   const display = document.querySelector("[data-username-display]");
   const logoutButton = document.getElementById("logout-button");
-  const trimmed = username ? String(username).trim() : "";
   if (display) {
-    display.textContent = trimmed || "Gość";
-    display.dataset.state = trimmed ? "authenticated" : "anonymous";
+    display.textContent = username || "Gość";
+    display.dataset.state = username ? "authenticated" : "anonymous";
   }
   const avatar = document.querySelector("[data-user-avatar]");
   if (avatar) {
-    const initial = trimmed ? trimmed.charAt(0).toUpperCase() : "G";
-    avatar.textContent = initial;
-    avatar.dataset.state = trimmed ? "authenticated" : "anonymous";
+    const initial = username ? username.charAt(0).toUpperCase() : "G";
+    if (avatarUrl) {
+      avatar.style.backgroundImage = `url(${avatarUrl})`;
+      avatar.textContent = "";
+    } else {
+      avatar.style.backgroundImage = "";
+      avatar.textContent = initial;
+    }
+    avatar.dataset.state = username ? "authenticated" : "anonymous";
   }
   const logout = logoutButton;
   if (logout) {
-    logout.hidden = !trimmed;
+    logout.hidden = !username;
   }
   const loginButton = document.getElementById("login-button");
   if (loginButton) {
-    loginButton.hidden = Boolean(trimmed);
+    loginButton.hidden = Boolean(username);
   }
 }
 
@@ -196,13 +209,14 @@ function setupNavigation() {
   if (logoutButton) {
     logoutButton.addEventListener("click", () => {
       clearToken();
-      updateUserBadge("");
+      updateUserBadge({ username: "" });
       window.location.href = "/login";
     });
   }
 
   const initialUsername = document.body?.dataset.username ?? "";
-  updateUserBadge(initialUsername);
+  const initialAvatar = document.body?.dataset.avatar ?? "";
+  updateUserBadge({ username: initialUsername, avatar_url: initialAvatar });
 }
 
 async function registerServiceWorker() {
@@ -1510,11 +1524,12 @@ async function loadCardDetail(container) {
     updateDetailChart(filterHistoryByRange(cardDetailHistory, cardDetailRange));
     renderRelatedCardsList(detail.related || []);
 
+    const fallbackTitle = container.dataset.name?.trim() || "Szczegóły karty";
     const title = document.getElementById("card-detail-title");
     if (title) {
-      title.textContent = card.name || "Szczegóły karty";
+      title.textContent = card.name || fallbackTitle;
     }
-    document.title = `${card.name || "Szczegóły karty"} - Kartoteka`;
+    document.title = `${card.name || fallbackTitle} - Kartoteka`;
 
     const era = document.getElementById("card-detail-era");
     if (era) {
@@ -1552,7 +1567,7 @@ async function loadCardDetail(container) {
 
     const setNameTarget = document.getElementById("card-detail-set-name");
     if (setNameTarget) {
-      setNameTarget.textContent = card.set_name || "";
+      setNameTarget.textContent = card.set_name || container.dataset.setName || "";
     }
 
     const artist = document.getElementById("card-detail-artist");
@@ -1578,10 +1593,12 @@ async function loadCardDetail(container) {
 
     const priceField = document.getElementById("card-detail-price");
     if (priceField) {
-      priceField.textContent =
-        typeof card.price_pln === "number" && !Number.isNaN(card.price_pln)
-          ? card.price_pln.toFixed(2)
-          : "—";
+      const numericPrice =
+        typeof card.price_pln === "number"
+          ? card.price_pln
+          : Number.parseFloat(card.price_pln);
+      const formattedPrice = formatPln(numericPrice);
+      priceField.textContent = formattedPrice || "—";
     }
 
     const updatedField = document.getElementById("card-detail-updated");
@@ -1590,7 +1607,10 @@ async function loadCardDetail(container) {
         const updatedDate = new Date(card.last_price_update);
         updatedField.textContent = Number.isNaN(updatedDate.getTime())
           ? "—"
-          : updatedDate.toLocaleString();
+          : updatedDate.toLocaleString("pl-PL", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            });
       } else {
         updatedField.textContent = "—";
       }
@@ -1735,6 +1755,92 @@ function bindAddCardPage() {
   applyAddCardPrefill(form, cardSearch);
 }
 
+async function bindSettingsPage() {
+  const page = document.getElementById("settings-page");
+  if (!page) return;
+
+  const profileForm = document.getElementById("settings-profile-form");
+  const passwordForm = document.getElementById("settings-password-form");
+  const profileAlert = profileForm?.querySelector(".alert");
+  const passwordAlert = passwordForm?.querySelector(".alert");
+
+  const applyUserData = (user) => {
+    if (!user) return;
+    const emailInput = profileForm?.querySelector('input[name="email"]');
+    const avatarInput = profileForm?.querySelector('input[name="avatar_url"]');
+    if (emailInput) {
+      emailInput.value = user.email || "";
+    }
+    if (avatarInput) {
+      avatarInput.value = user.avatar_url || "";
+    }
+    if (document.body) {
+      document.body.dataset.username = user.username ?? "";
+      document.body.dataset.avatar = user.avatar_url ?? "";
+    }
+    updateUserBadge({ username: user.username ?? "", avatar_url: user.avatar_url ?? "" });
+  };
+
+  try {
+    const user = await apiFetch("/users/me");
+    applyUserData(user);
+  } catch (error) {
+    if (profileAlert) {
+      showAlert(profileAlert, error.message || "Nie udało się pobrać danych konta.");
+    }
+  }
+
+  if (profileForm) {
+    profileForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      showAlert(profileAlert, "");
+      const payload = formToJSON(profileForm);
+      const body = {
+        email: typeof payload.email === "string" ? payload.email.trim() : undefined,
+        avatar_url:
+          typeof payload.avatar_url === "string" ? payload.avatar_url.trim() : undefined,
+      };
+      try {
+        const user = await apiFetch("/users/me", {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+        applyUserData(user);
+        showAlert(profileAlert, "Dane profilu zostały zapisane.", "success");
+      } catch (error) {
+        showAlert(profileAlert, error.message || "Nie udało się zapisać zmian.");
+      }
+    });
+  }
+
+  if (passwordForm) {
+    passwordForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      showAlert(passwordAlert, "");
+      const payload = formToJSON(passwordForm);
+      const currentPassword = typeof payload.current_password === "string" ? payload.current_password : "";
+      const newPassword = typeof payload.new_password === "string" ? payload.new_password : "";
+      if (!currentPassword || !newPassword) {
+        showAlert(passwordAlert, "Uzupełnij oba pola hasła.");
+        return;
+      }
+      try {
+        await apiFetch("/users/me", {
+          method: "PATCH",
+          body: JSON.stringify({
+            current_password: currentPassword,
+            new_password: newPassword,
+          }),
+        });
+        passwordForm.reset();
+        showAlert(passwordAlert, "Hasło zostało zmienione.", "success");
+      } catch (error) {
+        showAlert(passwordAlert, error.message || "Nie udało się zmienić hasła.");
+      }
+    });
+  }
+}
+
 function bindPortfolio() {
   const alertBox = document.getElementById("portfolio-alert");
   const refreshBtn = document.getElementById("refresh-portfolio");
@@ -1765,8 +1871,9 @@ async function ensureAuthenticated() {
     const user = await apiFetch("/users/me");
     if (document.body) {
       document.body.dataset.username = user?.username ?? "";
+      document.body.dataset.avatar = user?.avatar_url ?? "";
     }
-    updateUserBadge(user?.username ?? "");
+    updateUserBadge({ username: user?.username ?? "", avatar_url: user?.avatar_url ?? "" });
     return true;
   } catch (error) {
     clearToken();
@@ -1774,7 +1881,11 @@ async function ensureAuthenticated() {
     if (alertBox) {
       showAlert(alertBox, "Sesja wygasła. Zaloguj się ponownie.");
     }
-    updateUserBadge("");
+    updateUserBadge({ username: "" });
+    if (document.body) {
+      document.body.dataset.username = "";
+      document.body.dataset.avatar = "";
+    }
     window.location.href = "/login";
     return false;
   }
@@ -1803,8 +1914,9 @@ window.addEventListener("DOMContentLoaded", async () => {
   const needsPortfolio = Boolean(document.getElementById("portfolio-overview"));
   const needsDetail = Boolean(document.getElementById("card-detail-page"));
   const needsAddCard = Boolean(document.getElementById("add-card-page"));
+  const needsSettings = Boolean(document.getElementById("settings-page"));
 
-  if (needsDashboard || needsPortfolio || needsDetail || needsAddCard) {
+  if (needsDashboard || needsPortfolio || needsDetail || needsAddCard || needsSettings) {
     if (await ensureAuthenticated()) {
       if (needsDashboard) {
         bindDashboard();
@@ -1817,6 +1929,9 @@ window.addEventListener("DOMContentLoaded", async () => {
       }
       if (needsDetail) {
         bindCardDetail();
+      }
+      if (needsSettings) {
+        bindSettingsPage();
       }
     }
   }

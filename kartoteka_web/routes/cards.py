@@ -514,21 +514,50 @@ def record_price_history(
     card: models.Card | None,
     price: float | None,
     timestamp: dt.datetime | None = None,
-) -> None:
-    """Persist ``price`` for ``card`` in the history table."""
+) -> bool:
+    """Persist ``price`` for ``card`` in the history table.
+
+    Returns ``True`` when a new row was stored.
+    """
 
     if price is None or card is None or card.id is None:
-        return
+        return False
     try:
         value = round(float(price), 2)
     except (TypeError, ValueError):
-        return
+        return False
+
+    existing = session.exec(
+        select(models.PriceHistory)
+        .where(models.PriceHistory.card_id == card.id)
+        .order_by(models.PriceHistory.recorded_at.desc())
+    ).first()
+    target_timestamp = timestamp or dt.datetime.now(dt.timezone.utc)
+    if existing is not None:
+        same_price = abs(existing.price - value) < 0.005
+
+        def _normalize(ts: dt.datetime | None) -> dt.datetime | None:
+            if ts is None:
+                return None
+            if ts.tzinfo is None:
+                return ts.replace(tzinfo=dt.timezone.utc)
+            return ts
+
+        existing_ts = _normalize(existing.recorded_at)
+        target_ts = _normalize(target_timestamp)
+        same_moment = False
+        if existing_ts and target_ts:
+            same_moment = abs((existing_ts - target_ts).total_seconds()) < 60
+        if same_price and same_moment:
+            return False
+
     history = models.PriceHistory(
         card_id=card.id,
         price=value,
-        recorded_at=timestamp or dt.datetime.now(dt.timezone.utc),
+        recorded_at=target_timestamp,
     )
     session.add(history)
+    return True
 
 
 def _apply_card_images(card: models.Card, card_data: schemas.CardBase) -> bool:
@@ -746,6 +775,7 @@ def card_info(
     resolved_set_name = detail_data.get("set_name") or set_name or ""
     resolved_set_code = detail_data.get("set_code") or set_code or ""
 
+    should_commit = False
     card = _find_card_record(
         session,
         name=detail_data.get("name") or name,
@@ -754,7 +784,31 @@ def card_info(
         set_code=set_utils.clean_code(resolved_set_code) or resolved_set_code,
     )
 
+    if card is None and detail_data.get("name") and resolved_set_name:
+        card = models.Card(
+            name=detail_data.get("name") or name,
+            number=number_value,
+            set_name=resolved_set_name,
+            set_code=set_utils.clean_code(resolved_set_code) or resolved_set_code or None,
+            rarity=detail_data.get("rarity"),
+        )
+        card_data = schemas.CardBase(
+            name=card.name,
+            number=card.number,
+            set_name=card.set_name,
+            set_code=card.set_code,
+            rarity=card.rarity,
+            image_small=detail_data.get("image_small"),
+            image_large=detail_data.get("image_large"),
+        )
+        _apply_card_images(card, card_data)
+        session.add(card)
+        session.flush()
+        session.refresh(card)
+        should_commit = True
+
     history_rows = _load_price_history(session, card)
+    history_needs_reload = False
     history = [
         schemas.PricePoint(price=row.price, recorded_at=row.recorded_at)
         for row in history_rows
@@ -783,7 +837,6 @@ def card_info(
             elif price_value is None:
                 price_value = entry.current_price
 
-    should_commit = False
     if price_value is None:
         fetched_price = pricing.fetch_card_price(
             name=detail_data.get("name") or name,
@@ -809,6 +862,16 @@ def card_info(
 
     detail_data["price_pln"] = price_value
     detail_data["last_price_update"] = last_update
+
+    if card and price_value is not None:
+        timestamp_value = last_update if isinstance(last_update, dt.datetime) else None
+        if timestamp_value is None:
+            timestamp_value = dt.datetime.now(dt.timezone.utc)
+            last_update = timestamp_value
+            detail_data["last_price_update"] = timestamp_value
+        if record_price_history(session, card, price_value, timestamp_value):
+            history_needs_reload = True
+            should_commit = True
 
     limit_value = max(0, min(related_limit, 24))
     related_items: list[schemas.CardSearchResult] = []
@@ -850,6 +913,14 @@ def card_info(
 
     if should_commit:
         session.commit()
+
+    if history_needs_reload and card:
+        history_rows = _load_price_history(session, card)
+
+    history = [
+        schemas.PricePoint(price=row.price, recorded_at=row.recorded_at)
+        for row in (history_rows or [])
+    ]
 
     detail = schemas.CardDetail.model_validate(detail_data)
     return schemas.CardDetailResponse(

@@ -154,6 +154,45 @@ def test_requires_authentication(api_client):
     assert res.status_code == 401
 
 
+def test_user_profile_settings(api_client):
+    client, _prices, _ = api_client
+    token = register_and_login(client, username="leaf", password="bulbasaur")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    res = client.patch(
+        "/users/me",
+        json={
+            "email": "leaf@example.com",
+            "avatar_url": "https://example.com/avatar.png",
+        },
+        headers=headers,
+    )
+    assert res.status_code == 200
+    payload = res.json()
+    assert payload["email"] == "leaf@example.com"
+    assert payload["avatar_url"] == "https://example.com/avatar.png"
+
+    res = client.patch(
+        "/users/me",
+        json={"current_password": "bulbasaur", "new_password": "venusaur123"},
+        headers=headers,
+    )
+    assert res.status_code == 200
+
+    res = client.post(
+        "/users/login",
+        json={"username": "leaf", "password": "venusaur123"},
+    )
+    assert res.status_code == 200
+
+    res = client.patch(
+        "/users/me",
+        json={"current_password": "wrong", "new_password": "anotherpass"},
+        headers=headers,
+    )
+    assert res.status_code == 400
+
+
 def test_card_search_endpoint(api_client, monkeypatch):
     client, _, _ = api_client
     res = client.get("/cards/search", params={"name": "Pikachu", "number": "25"})
@@ -299,3 +338,4 @@ def test_card_detail_page_prefills_dataset(api_client):
     assert 'data-set-code="base"' in html
     assert 'data-set-name="Base Set"' in html
     assert 'data-total="102"' in html
+    assert '<h1 id="card-detail-title">Pikachu</h1>' in html
