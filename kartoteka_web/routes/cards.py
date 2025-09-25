@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime as dt
 import re
-from pathlib import Path
 from collections import defaultdict
 from typing import Any, Iterable, Sequence
 
@@ -17,11 +16,25 @@ from ..auth import get_current_user
 from ..database import get_session
 from ..utils import images as image_utils, sets as set_utils
 from kartoteka import pricing
-from rapidfuzz import fuzz
+from kartoteka_web import catalogue
+
+try:  # pragma: no cover - optional dependency
+    from rapidfuzz import fuzz
+except ModuleNotFoundError:  # pragma: no cover - fallback for tests without rapidfuzz
+    import difflib
+
+    class _FuzzFallback:
+        @staticmethod
+        def WRatio(a: str, b: str) -> float:
+            return difflib.SequenceMatcher(None, a or "", b or "").ratio() * 100
+
+        @staticmethod
+        def partial_ratio(a: str, b: str) -> float:
+            return difflib.SequenceMatcher(None, a or "", b or "").ratio() * 100
+
+    fuzz = _FuzzFallback()  # type: ignore[assignment]
 
 router = APIRouter(prefix="/cards", tags=["cards"])
-
-SET_LOGO_DIR = Path("set_logos")
 
 CARD_NUMBER_PATTERN = re.compile(
     r"(?i)([a-z]{0,5}\d+[a-z0-9]*)(?:\s*/\s*([a-z]{0,5}\d+[a-z0-9]*))?"
@@ -87,41 +100,6 @@ def _parse_card_query(value: str | None) -> tuple[str, str | None, str | None]:
     return name_candidate, number_value, total_value
 
 
-def _resolve_set_icon(set_code: str | None, set_name: str | None) -> str | None:
-    code = set_utils.clean_code(set_code)
-    if not code and set_name:
-        code = set_utils.guess_set_code(set_name)
-    if not code:
-        return None
-    candidate = SET_LOGO_DIR / f"{code}.png"
-    if candidate.exists():
-        return f"/set-logos/{candidate.name}"
-    return None
-
-
-def _enrich_card_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    data = dict(payload)
-    info = set_utils.get_set_info(
-        set_code=data.get("set_code"),
-        set_name=data.get("set_name"),
-    )
-    if info:
-        if info.get("era") and not data.get("series"):
-            data["series"] = info.get("era")
-        if info.get("total") and not data.get("total"):
-            data["total"] = str(info.get("total"))
-        if info.get("code") and not data.get("set_code"):
-            data["set_code"] = info.get("code")
-    local_icon = _resolve_set_icon(data.get("set_code"), data.get("set_name"))
-    if not data.get("set_icon") and local_icon:
-        data["set_icon"] = local_icon
-    return data
-
-
-def _prepare_card_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    return image_utils.cache_card_images(_enrich_card_payload(payload))
-
-
 def _normalise_search_value(value: str | None) -> str:
     return pricing.normalize(value or "") or (value or "").strip().lower()
 
@@ -132,129 +110,7 @@ def _sanitise_optional_number(value: str | None) -> str | None:
 
 
 def _ensure_record_assets(session: Session, record: "models.CardRecord") -> bool:
-    updated = False
-    if record and not record.set_icon:
-        icon = _resolve_set_icon(record.set_code, record.set_name)
-        if icon:
-            record.set_icon = icon
-            updated = True
-    if record and record.image_large and not record.image_small:
-        record.image_small = record.image_large
-        updated = True
-    if updated:
-        record.updated_at = dt.datetime.now(dt.timezone.utc)
-        session.add(record)
-    return updated
-
-
-def _upsert_card_record(session: Session, payload: dict[str, Any]) -> "models.CardRecord" | None:
-    data = _prepare_card_payload(payload)
-    name_value = (data.get("name") or "").strip()
-    number_value = pricing.sanitize_number(str(data.get("number") or ""))
-    if not name_value or not number_value:
-        return None
-
-    set_name_value = (data.get("set_name") or "").strip()
-    number_display = data.get("number_display") or data.get("number") or number_value
-    total_value = _sanitise_optional_number(data.get("total"))
-    set_code_value = data.get("set_code") or None
-    set_code_clean = set_utils.clean_code(set_code_value)
-    now = dt.datetime.now(dt.timezone.utc)
-    set_icon_value = data.get("set_icon") or _resolve_set_icon(set_code_value, set_name_value)
-
-    candidate = None
-    if set_code_clean:
-        candidate = session.exec(
-            select(models.CardRecord).where(
-                (models.CardRecord.number == number_value)
-                & (models.CardRecord.set_code_clean == set_code_clean)
-            )
-        ).first()
-    if candidate is None and set_name_value:
-        candidate = session.exec(
-            select(models.CardRecord).where(
-                (models.CardRecord.number == number_value)
-                & (models.CardRecord.set_name == set_name_value)
-            )
-        ).first()
-    if candidate is None:
-        candidate = session.exec(
-            select(models.CardRecord).where(
-                (models.CardRecord.name == name_value)
-                & (models.CardRecord.number == number_value)
-                & (models.CardRecord.set_name == set_name_value)
-            )
-        ).first()
-
-    name_normalized = _normalise_search_value(name_value)
-    set_name_normalized = (
-        _normalise_search_value(set_name_value) if set_name_value else None
-    )
-
-    if candidate is None:
-        record = models.CardRecord(
-            name=name_value,
-            name_normalized=name_normalized,
-            number=number_value,
-            number_display=number_display,
-            total=total_value,
-            set_name=set_name_value,
-            set_name_normalized=set_name_normalized,
-            set_code=set_code_value,
-            set_code_clean=set_code_clean,
-            rarity=data.get("rarity"),
-            artist=data.get("artist"),
-            series=data.get("series"),
-            release_date=data.get("release_date"),
-            image_small=data.get("image_small"),
-            image_large=data.get("image_large"),
-            set_icon=set_icon_value,
-            created_at=now,
-            updated_at=now,
-        )
-        session.add(record)
-        return record
-
-    updated = False
-
-    def _apply(attr: str, value: Any, allow_none: bool = False) -> None:
-        nonlocal updated
-        if value is None and not allow_none:
-            return
-        if getattr(candidate, attr) != value:
-            setattr(candidate, attr, value)
-            updated = True
-
-    _apply("name", name_value)
-    _apply("name_normalized", name_normalized)
-    _apply("number", number_value)
-    _apply("number_display", number_display, allow_none=True)
-    _apply("total", total_value, allow_none=True)
-    _apply("set_name", set_name_value)
-    _apply("set_name_normalized", set_name_normalized, allow_none=True)
-    if set_code_value is not None:
-        _apply("set_code", set_code_value, allow_none=True)
-    if set_code_clean is not None:
-        _apply("set_code_clean", set_code_clean, allow_none=True)
-    if data.get("rarity"):
-        _apply("rarity", data.get("rarity"), allow_none=True)
-    if data.get("artist"):
-        _apply("artist", data.get("artist"), allow_none=True)
-    if data.get("series"):
-        _apply("series", data.get("series"), allow_none=True)
-    if data.get("release_date"):
-        _apply("release_date", data.get("release_date"), allow_none=True)
-    if data.get("image_small"):
-        _apply("image_small", data.get("image_small"), allow_none=True)
-    if data.get("image_large"):
-        _apply("image_large", data.get("image_large"), allow_none=True)
-    if set_icon_value:
-        _apply("set_icon", set_icon_value, allow_none=True)
-
-    if updated:
-        candidate.updated_at = now
-        session.add(candidate)
-    return candidate
+    return catalogue.ensure_record_assets(session, record)
 
 
 def _record_to_search_schema(record: "models.CardRecord") -> schemas.CardSearchResult:
@@ -808,7 +664,11 @@ def search_cards_endpoint(
         )
         stored = False
         for payload in api_results:
-            if _upsert_card_record(session, payload):
+            record, changed = catalogue.upsert_card_record(session, payload)
+            if record:
+                if _ensure_record_assets(session, record):
+                    changed = True
+            if changed:
                 stored = True
         if stored:
             session.commit()
@@ -885,7 +745,11 @@ def card_info(
     if record is None:
         stored = False
         for payload in _fetch_remote_results():
-            if _upsert_card_record(session, payload):
+            candidate, changed = catalogue.upsert_card_record(session, payload)
+            if candidate:
+                if _ensure_record_assets(session, candidate):
+                    changed = True
+            if changed:
                 stored = True
         if stored:
             session.commit()
@@ -918,7 +782,11 @@ def card_info(
     if needs_refresh:
         stored = False
         for payload in _fetch_remote_results():
-            if _upsert_card_record(session, payload):
+            candidate, changed = catalogue.upsert_card_record(session, payload)
+            if candidate:
+                if _ensure_record_assets(session, candidate):
+                    changed = True
+            if changed:
                 stored = True
         if stored:
             session.commit()
@@ -1022,7 +890,20 @@ def card_info(
             elif price_value is None:
                 price_value = entry.current_price
 
-    if price_value is None:
+    now = dt.datetime.now(dt.timezone.utc)
+    last_reference = last_update or record.price_updated_at
+    normalized_last: dt.datetime | None = None
+    if isinstance(last_reference, dt.datetime):
+        normalized_last = (
+            last_reference
+            if last_reference.tzinfo
+            else last_reference.replace(tzinfo=dt.timezone.utc)
+        )
+    needs_price_refresh = price_value is None or normalized_last is None
+    if not needs_price_refresh and normalized_last is not None:
+        needs_price_refresh = (now - normalized_last) >= dt.timedelta(days=1)
+
+    if needs_price_refresh:
         fetched_price = pricing.fetch_card_price(
             name=detail_data.get("name") or name,
             number=number_value,
@@ -1031,13 +912,14 @@ def card_info(
         )
         if fetched_price is not None:
             price_value = fetched_price
-            last_update = dt.datetime.now(dt.timezone.utc)
+            last_update = now
             record.price_pln = float(fetched_price)
-            record.price_updated_at = last_update
-            record.updated_at = last_update
+            record.price_updated_at = now
+            record.updated_at = now
             session.add(record)
             should_commit = True
-    else:
+
+    if price_value is not None:
         if record.price_pln != price_value or record.price_updated_at != last_update:
             record.price_pln = price_value
             record.price_updated_at = last_update
@@ -1068,7 +950,11 @@ def card_info(
             if lookup_code:
                 api_related = pricing.list_set_cards(lookup_code, limit=limit_value + 1)
                 for item in api_related:
-                    if _upsert_card_record(session, item):
+                    candidate, changed = catalogue.upsert_card_record(session, item)
+                    if candidate:
+                        if _ensure_record_assets(session, candidate):
+                            changed = True
+                    if changed:
                         stored_related = True
             if stored_related:
                 session.commit()
@@ -1203,7 +1089,9 @@ def add_card(
     catalog_payload.setdefault("set_name", set_name_value)
     catalog_payload.setdefault("set_code", set_code_value)
     catalog_payload.setdefault("rarity", rarity_value)
-    _upsert_card_record(session, catalog_payload)
+    catalog_record_candidate, _ = catalogue.upsert_card_record(session, catalog_payload)
+    if catalog_record_candidate:
+        _ensure_record_assets(session, catalog_record_candidate)
 
     catalog_record = _locate_catalogue_record(
         session,
@@ -1380,7 +1268,9 @@ def refresh_entry_price(
         "image_small": card.image_small,
         "image_large": card.image_large,
     }
-    _upsert_card_record(session, catalog_payload)
+    catalog_candidate, _ = catalogue.upsert_card_record(session, catalog_payload)
+    if catalog_candidate:
+        _ensure_record_assets(session, catalog_candidate)
 
     catalog_record = _locate_catalogue_record(
         session,

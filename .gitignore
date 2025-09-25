@@ -5,4 +5,5 @@ card_prices.csv
 ceny_kart_*.xlsx
 name
 last_location.txt
+last_catalogue_sync.txt
 card_images/

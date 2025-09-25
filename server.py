@@ -21,7 +21,7 @@ from sqlmodel import select
 load_dotenv(Path(__file__).resolve().with_name(".env"))
 
 from kartoteka import pricing
-from kartoteka_web import models
+from kartoteka_web import catalogue, models
 from kartoteka_web.auth import get_current_user, oauth2_scheme
 from kartoteka_web.database import init_db, session_scope
 from kartoteka_web.routes import cards, users
@@ -98,17 +98,39 @@ async def _price_update_loop() -> None:
             logger.info("Background price refresh updated %s entries", updated)
 
 
+def _refresh_catalogue(force: bool = False) -> int:
+    with session_scope() as session:
+        return catalogue.refresh_catalogue(session, force=force)
+
+
+async def _catalogue_update_loop() -> None:
+    while True:
+        try:
+            await asyncio.sleep(_seconds_until_next_midnight())
+        except asyncio.CancelledError:
+            raise
+        updated = await asyncio.to_thread(_refresh_catalogue)
+        if updated:
+            logger.info("Background catalogue refresh changed %s records", updated)
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    task = asyncio.create_task(_price_update_loop())
-    app.state.price_task = task
+    await asyncio.to_thread(_refresh_catalogue)
+    price_task = asyncio.create_task(_price_update_loop())
+    catalogue_task = asyncio.create_task(_catalogue_update_loop())
+    app.state.price_task = price_task
+    app.state.catalogue_task = catalogue_task
     try:
         yield
     finally:
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
+        for task in (getattr(app.state, "price_task", None), getattr(app.state, "catalogue_task", None)):
+            if task is None:
+                continue
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
