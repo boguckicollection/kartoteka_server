@@ -1004,18 +1004,24 @@ function setupCardSearch(form) {
     }
   };
 
-  const updatePaginationControls = (total) => {
+  const getTotalPages = (total = state.baseResults.length) => {
+    const safeTotal = Number.isFinite(total) ? Math.max(0, total) : Math.max(0, state.baseResults.length);
+    return safeTotal > 0 ? Math.ceil(safeTotal / state.pageSize) : 1;
+  };
+
+  const updatePaginationControls = (total = state.baseResults.length) => {
     if (!pagination || !pageInfo) {
       return;
     }
-    if (!total) {
+    const safeTotal = Number.isFinite(total) ? Math.max(0, total) : Math.max(0, state.baseResults.length);
+    if (!safeTotal) {
       pagination.hidden = true;
       pageInfo.textContent = "";
       if (prevButton) prevButton.disabled = true;
       if (nextButton) nextButton.disabled = true;
       return;
     }
-    const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
+    const totalPages = getTotalPages(safeTotal);
     if (state.currentPage > totalPages) {
       state.currentPage = totalPages;
     }
@@ -1029,6 +1035,17 @@ function setupCardSearch(form) {
     }
   };
 
+  const goToPage = (page) => {
+    const totalPages = getTotalPages();
+    const nextPage = Math.min(Math.max(1, page), totalPages);
+    if (nextPage === state.currentPage) {
+      renderResults();
+      return;
+    }
+    state.currentPage = nextPage;
+    renderResults();
+  };
+
   const createResultItem = (card) => {
     const item = document.createElement("article");
     item.className = "card-search-item";
@@ -1036,35 +1053,6 @@ function setupCardSearch(form) {
     item.setAttribute("role", "listitem");
 
     const cardName = card?.name?.trim() || "Nieznana karta";
-
-    const addButton = document.createElement("button");
-    addButton.type = "button";
-    addButton.className = "card-search-add";
-    addButton.innerHTML = "<span aria-hidden=\"true\">+</span>";
-    const addLabelParts = [`Dodaj kartę ${cardName} do kolekcji`];
-    if (card.set_name) {
-      addLabelParts.push(`z zestawu ${card.set_name}`);
-    }
-    const addLabel = addLabelParts.join(" ");
-    addButton.setAttribute("aria-label", addLabel);
-    addButton.title = addLabel;
-    addButton.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (addButton.dataset.loading === "true") return;
-      addButton.dataset.loading = "true";
-      addButton.disabled = true;
-      try {
-        applySuggestion(card);
-        await addCard(form, cardSearchApi, card);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        addButton.disabled = false;
-        delete addButton.dataset.loading;
-      }
-    });
-    item.appendChild(addButton);
 
     const link = document.createElement("a");
     link.className = "card-search-link";
@@ -1125,7 +1113,7 @@ function setupCardSearch(form) {
   const renderResults = () => {
     const sorted = getSortedResults();
     const total = sorted.length;
-    const totalPages = total ? Math.ceil(total / state.pageSize) : 1;
+    const totalPages = getTotalPages(total);
     if (state.currentPage > totalPages) {
       state.currentPage = totalPages;
     }
@@ -1287,14 +1275,25 @@ function setupCardSearch(form) {
     renderResults();
   });
 
-  prevButton?.addEventListener("click", () => {
-    state.currentPage = Math.max(1, state.currentPage - 1);
-    renderResults();
-  });
-
-  nextButton?.addEventListener("click", () => {
-    state.currentPage += 1;
-    renderResults();
+  pagination?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    const button = target.closest("[data-page-action]");
+    if (!(button instanceof HTMLElement)) {
+      return;
+    }
+    const action = button.dataset.pageAction;
+    if (!action) {
+      return;
+    }
+    event.preventDefault();
+    if (action === "prev") {
+      goToPage(state.currentPage - 1);
+    } else if (action === "next") {
+      goToPage(state.currentPage + 1);
+    }
   });
 
   updateSortDisabled();
@@ -1902,25 +1901,8 @@ function bindAddCardPage() {
   const form = document.getElementById("add-card-form");
   if (!form) return;
   const searchButton = document.getElementById("card-search-trigger");
-  const addButton = document.getElementById("card-add-button");
   const alertBox = document.getElementById("add-card-alert");
   const cardSearch = setupCardSearch(form);
-  const updateAddButtonState = () => {
-    if (!addButton) return;
-    const selected = cardSearch?.getSelectedCard?.();
-    addButton.disabled = !selected;
-  };
-
-  updateAddButtonState();
-
-  form.addEventListener("cardsearch:select", () => {
-    updateAddButtonState();
-    showAlert(alertBox, "");
-  });
-
-  form.addEventListener("cardsearch:clear", () => {
-    updateAddButtonState();
-  });
 
   if (searchButton) {
     searchButton.addEventListener("click", async (event) => {
@@ -1938,11 +1920,6 @@ function bindAddCardPage() {
       }
     });
   }
-
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    addCard(form, cardSearch);
-  });
 
   applyAddCardPrefill(form, cardSearch);
 }
