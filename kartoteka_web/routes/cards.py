@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 from pathlib import Path
 from collections import defaultdict
 from typing import Any, Iterable, Sequence
@@ -16,10 +17,74 @@ from ..auth import get_current_user
 from ..database import get_session
 from ..utils import images as image_utils, sets as set_utils
 from kartoteka import pricing
+from rapidfuzz import fuzz
 
 router = APIRouter(prefix="/cards", tags=["cards"])
 
 SET_LOGO_DIR = Path("set_logos")
+
+CARD_NUMBER_PATTERN = re.compile(
+    r"(?i)([a-z]{0,5}\d+[a-z0-9]*)(?:\s*/\s*([a-z]{0,5}\d+[a-z0-9]*))?"
+)
+
+
+def _compose_query(*parts: str | None) -> str:
+    return " ".join(part.strip() for part in parts if part and part.strip())
+
+
+def _prepare_query_text(value: str) -> str:
+    def _spaces(match: re.Match[str]) -> str:
+        return " " * len(match.group(0))
+
+    text = re.sub(r"(?i)\bno\.?\s*", _spaces, value)
+    text = text.replace("#", " ").replace("№", " ")
+    return text
+
+
+def _is_probable_card_number(value: str) -> bool:
+    if not value:
+        return False
+    digits = sum(char.isdigit() for char in value)
+    letters = sum(char.isalpha() for char in value)
+    if digits == 0:
+        return False
+    if "/" in value:
+        return True
+    if digits >= letters:
+        return True
+    return value[-1].isdigit()
+
+
+def _parse_card_query(value: str | None) -> tuple[str, str | None, str | None]:
+    text = (value or "").strip()
+    if not text:
+        return "", None, None
+
+    search_text = _prepare_query_text(text)
+    match_info: tuple[int, int, str, str | None] | None = None
+
+    for match in CARD_NUMBER_PATTERN.finditer(search_text):
+        raw_number = match.group(1) or ""
+        raw_total = match.group(2) or ""
+        clean_number = re.sub(r"[^0-9a-zA-Z]", "", raw_number)
+        clean_total = re.sub(r"[^0-9a-zA-Z]", "", raw_total)
+        if not clean_number or not _is_probable_card_number(clean_number):
+            continue
+        number_clean = pricing.sanitize_number(clean_number)
+        total_clean = pricing.sanitize_number(clean_total) if clean_total else ""
+        if not number_clean:
+            continue
+        start, end = match.span()
+        match_info = (start, end, number_clean, total_clean or None)
+
+    if match_info is None:
+        return text, None, None
+
+    start, end, number_value, total_value = match_info
+    name_candidate = f"{text[:start]} {text[end:]}".strip()
+    if not name_candidate:
+        name_candidate = text
+    return name_candidate, number_value, total_value
 
 
 def _resolve_set_icon(set_code: str | None, set_name: str | None) -> str | None:
@@ -231,34 +296,129 @@ def _record_to_detail_payload(record: "models.CardRecord") -> dict[str, Any]:
     }
 
 
+def _score_card_record(
+    record: "models.CardRecord",
+    *,
+    query_text: str,
+    number_clean: str | None = None,
+    set_norm: str = "",
+    total_clean: str | None = None,
+) -> float:
+    query_norm = pricing.normalize(query_text or "", keep_spaces=True)
+    candidate_parts = [
+        record.name or "",
+        record.number_display or record.number or "",
+        record.set_name or "",
+    ]
+    candidate_label = " ".join(part for part in candidate_parts if part).strip()
+    candidate_norm = pricing.normalize(candidate_label, keep_spaces=True)
+    name_norm = record.name_normalized or pricing.normalize(record.name or "")
+
+    scores: list[float] = []
+    if query_norm and candidate_norm:
+        scores.append(float(fuzz.WRatio(query_norm, candidate_norm)))
+        scores.append(float(fuzz.partial_ratio(query_norm, candidate_norm)))
+    if query_norm and name_norm:
+        scores.append(float(fuzz.partial_ratio(query_norm, name_norm)))
+    if not scores and query_norm:
+        scores.append(float(fuzz.partial_ratio(query_norm, pricing.normalize(record.name or ""))))
+
+    base_score = max(scores) if scores else 0.0
+    bonus = 0.0
+
+    if number_clean:
+        record_number = record.number or ""
+        if record_number == number_clean:
+            bonus += 30.0
+        elif record_number.startswith(number_clean):
+            bonus += 10.0
+
+    if total_clean:
+        record_total = pricing.sanitize_number(str(record.total or ""))
+        if record_total == total_clean:
+            bonus += 5.0
+
+    if set_norm:
+        record_set_norm = record.set_name_normalized or pricing.normalize(record.set_name or "")
+        if record_set_norm == set_norm:
+            bonus += 15.0
+        elif record_set_norm and set_norm in record_set_norm:
+            bonus += 5.0
+
+    return base_score + bonus
+
+
 def _search_catalogue(
     session: Session,
     *,
+    query: str,
     name: str,
     number: str | None = None,
     total: str | None = None,
     set_name: str | None = None,
     limit: int = 50,
 ) -> list["models.CardRecord"]:
-    name_norm = _normalise_search_value(name)
-    if not name_norm:
-        return []
-    stmt = select(models.CardRecord).where(
-        models.CardRecord.name_normalized.contains(name_norm)
-    )
+    search_term = name or query
+    name_norm = _normalise_search_value(search_term)
     number_clean = _sanitise_optional_number(number)
+    total_clean = _sanitise_optional_number(total)
+    set_norm = _normalise_search_value(set_name) if set_name else ""
+    query_norm = pricing.normalize(query or search_term or "", keep_spaces=True)
+
+    stmt = select(models.CardRecord)
+    name_filter_applied = False
+
+    if name_norm:
+        prefix = name_norm[:3] if len(name_norm) > 3 else name_norm
+        if prefix:
+            stmt = stmt.where(models.CardRecord.name_normalized.contains(prefix))
+            name_filter_applied = True
+
     if number_clean:
         stmt = stmt.where(models.CardRecord.number == number_clean)
-    total_clean = _sanitise_optional_number(total)
     if total_clean:
         stmt = stmt.where(models.CardRecord.total == total_clean)
-    if set_name:
-        set_norm = _normalise_search_value(set_name)
+    if set_norm:
+        stmt = stmt.where(models.CardRecord.set_name_normalized.contains(set_norm))
+
+    fetch_limit = max(1, min(max(limit * 4, 100), 500))
+    stmt = stmt.limit(fetch_limit)
+    records = session.exec(stmt).all()
+
+    if not records and name_filter_applied:
+        fallback_stmt = select(models.CardRecord)
+        if number_clean:
+            fallback_stmt = fallback_stmt.where(models.CardRecord.number == number_clean)
+        if total_clean:
+            fallback_stmt = fallback_stmt.where(models.CardRecord.total == total_clean)
         if set_norm:
-            stmt = stmt.where(models.CardRecord.set_name_normalized.contains(set_norm))
-    stmt = stmt.order_by(models.CardRecord.set_name, models.CardRecord.number)
-    stmt = stmt.limit(max(1, limit))
-    return session.exec(stmt).all()
+            fallback_stmt = fallback_stmt.where(
+                models.CardRecord.set_name_normalized.contains(set_norm)
+            )
+        records = session.exec(fallback_stmt.limit(fetch_limit)).all()
+
+    scored = [
+        (
+            _score_card_record(
+                record,
+                query_text=query_norm or search_term,
+                number_clean=number_clean,
+                set_norm=set_norm,
+                total_clean=total_clean,
+            ),
+            record,
+        )
+        for record in records
+    ]
+    scored.sort(
+        key=lambda item: (
+            -item[0],
+            item[1].set_name or "",
+            item[1].number or "",
+            item[1].name or "",
+        )
+    )
+    return [record for _score, record in scored[: max(1, limit)]]
 
 
 def _select_best_record(
@@ -596,21 +756,39 @@ def _serialize_entries(
 
 @router.get("/search", response_model=list[schemas.CardSearchResult])
 def search_cards_endpoint(
-    name: str,
+    query: str | None = None,
+    name: str | None = None,
     number: str | None = None,
     total: str | None = None,
     set_name: str | None = None,
-    limit: int = 10,
+    limit: int = 200,
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
     del current_user  # Only used to enforce authentication via dependency.
-    cleaned_limit = max(1, min(limit, 100))
+
+    parsed_name = ""
+    parsed_number: str | None = None
+    parsed_total: str | None = None
+    if query:
+        parsed_name, parsed_number, parsed_total = _parse_card_query(query)
+
+    name_value = (name or parsed_name or "").strip()
+    number_value = number or parsed_number
+    total_value = total or parsed_total
+    search_query = query or _compose_query(name_value, number_value, set_name)
+    if not (search_query or name_value):
+        return []
+    if not name_value:
+        name_value = search_query
+
+    cleaned_limit = max(1, min(limit, 500))
     records = _search_catalogue(
         session,
-        name=name,
-        number=number,
-        total=total,
+        query=search_query,
+        name=name_value,
+        number=number_value,
+        total=total_value,
         set_name=set_name,
         limit=cleaned_limit,
     )
@@ -620,9 +798,9 @@ def search_cards_endpoint(
 
     if not records:
         api_results = pricing.search_cards(
-            name=name,
-            number=number,
-            total=total,
+            name=name_value,
+            number=number_value,
+            total=total_value,
             set_name=set_name,
             limit=cleaned_limit,
         )
@@ -634,9 +812,10 @@ def search_cards_endpoint(
             session.commit()
             records = _search_catalogue(
                 session,
-                name=name,
-                number=number,
-                total=total,
+                query=search_query,
+                name=name_value,
+                number=number_value,
+                total=total_value,
                 set_name=set_name,
                 limit=cleaned_limit,
             )
@@ -661,11 +840,12 @@ def card_info(
     related_limit: int = 6,
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
-):
+): 
     del current_user
 
     number_clean = pricing.sanitize_number(str(number))
     total_clean = pricing.sanitize_number(str(total)) if total else None
+    search_query = _compose_query(name, number, set_name)
 
     remote_results: list[dict[str, Any]] = []
 
@@ -691,6 +871,7 @@ def card_info(
     if record is None:
         records = _search_catalogue(
             session,
+            query=search_query,
             name=name,
             number=number,
             total=total,
@@ -716,6 +897,7 @@ def card_info(
             if record is None:
                 records = _search_catalogue(
                     session,
+                    query=search_query,
                     name=name,
                     number=number,
                     total=total,
@@ -748,6 +930,7 @@ def card_info(
             if record is None:
                 records = _search_catalogue(
                     session,
+                    query=search_query,
                     name=name,
                     number=number,
                     total=total,

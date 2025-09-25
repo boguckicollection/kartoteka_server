@@ -1043,6 +1043,43 @@ body[data-theme="dark"] .home-trends-column li {
   filter: drop-shadow(0 2px 6px rgba(17, 22, 63, 0.25));
 }
 
+.card-search-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.card-search-add-button {
+  width: 42px;
+  height: 42px;
+  border-radius: 9999px;
+  border: none;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 1.4rem;
+  font-weight: 600;
+  font-family: inherit;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  box-shadow: 0 18px 32px -26px rgba(17, 22, 63, 0.5);
+}
+
+.card-search-add-button:hover:not(:disabled),
+.card-search-add-button:focus-visible:not(:disabled) {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 22px 40px -24px rgba(17, 22, 63, 0.55);
+}
+
+.card-search-add-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  transform: none;
+  box-shadow: none;
+}
+
 .card-search-pagination {
   display: flex;
   align-items: center;
