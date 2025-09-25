@@ -16,6 +16,7 @@ class Token(SQLModel):
 class UserBase(SQLModel):
     username: str
     email: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 
 class UserCreate(UserBase):
@@ -30,6 +31,13 @@ class UserLogin(SQLModel):
 class UserRead(UserBase):
     id: int
     created_at: dt.datetime
+
+
+class UserUpdate(SQLModel):
+    email: Optional[str] = None
+    avatar_url: Optional[str] = None
+    current_password: Optional[str] = None
+    new_password: Optional[str] = None
 
 
 class CardBase(SQLModel):

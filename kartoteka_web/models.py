@@ -13,6 +13,7 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)
     email: Optional[str] = Field(default=None, index=True)
+    avatar_url: Optional[str] = Field(default=None)
     hashed_password: str
     created_at: dt.datetime = Field(
         default_factory=lambda: dt.datetime.now(dt.timezone.utc)

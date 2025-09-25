@@ -16,22 +16,27 @@
   <div class="card-detail-main">
     <div class="card-detail-media">
       <div class="card-detail-image" id="card-image-container">
-        <img id="card-detail-image" alt="Podgląd karty" loading="lazy" hidden />
+        <img
+          id="card-detail-image"
+          alt="Podgląd karty {{ card_name or '' }}"
+          loading="lazy"
+          hidden
+        />
         <div class="card-detail-placeholder" id="card-detail-placeholder">🃏</div>
       </div>
     </div>
     <div class="card-detail-info">
       <p class="card-detail-era" id="card-detail-era" hidden></p>
-      <h1 id="card-detail-title">Szczegóły karty</h1>
+      <h1 id="card-detail-title">{{ card_name or 'Szczegóły karty' }}</h1>
       <div class="card-detail-set">
         <img id="card-detail-set-icon" alt="Logo dodatku" hidden />
-        <span id="card-detail-set-name"></span>
+        <span id="card-detail-set-name">{{ card_set_name or '' }}</span>
       </div>
       <p class="card-detail-artist" id="card-detail-artist"></p>
       <dl class="card-detail-meta">
         <div>
           <dt>Numer</dt>
-          <dd id="card-detail-number"></dd>
+          <dd id="card-detail-number">{{ card_number or '' }}</dd>
         </div>
         <div>
           <dt>Rzadkość</dt>
