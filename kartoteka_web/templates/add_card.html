@@ -6,8 +6,8 @@
     <p class="eyebrow">Rozszerz swoją kolekcję</p>
     <h1>Wyszukaj kartę w bazie</h1>
     <p>
-      Aby dodać nowy wpis do kolekcji najpierw wyszukaj kartę po nazwie, numerze lub
-      zestawie, a następnie potwierdź dodanie do zbioru.
+      Aby wyszukać kartę w bazie podaj jej nazwę, numer lub zestaw, a następnie wybierz
+      interesujący Cię wynik z listy.
     </p>
   </div>
 </section>
@@ -15,7 +15,7 @@
 <section class="panel" id="add-card-page">
   <div class="panel-header">
     <div>
-      <h2>Znajdź kartę i dodaj do kolekcji</h2>
+      <h2>Znajdź kartę w bazie</h2>
       <p>Podaj szczegóły karty – wymagane jest co najmniej pole nazwy.</p>
     </div>
   </div>
@@ -32,30 +32,9 @@
       Set (opcjonalnie)
       <input type="text" name="set_name" id="add-card-set" autocomplete="off" />
     </label>
-    <label>
-      Kod setu (opcjonalnie)
-      <input type="text" name="set_code" id="add-card-set-code" autocomplete="off" />
-    </label>
-    <label>
-      Ilość
-      <input type="number" name="quantity" value="1" min="1" />
-    </label>
-    <label>
-      Cena zakupu
-      <input type="number" name="purchase_price" step="0.01" />
-    </label>
-    <label class="form-checkbox">
-      <input type="checkbox" name="is_reverse" />
-      Reverse
-    </label>
-    <label class="form-checkbox">
-      <input type="checkbox" name="is_holo" />
-      Holo
-    </label>
     <input type="hidden" name="rarity" id="add-card-rarity" />
     <div class="form-footer">
       <button type="button" class="secondary" id="card-search-trigger">Szukaj</button>
-      <button type="submit" class="primary" id="card-add-button" disabled>Dodaj do kolekcji</button>
       <div class="alert" id="add-card-alert" hidden></div>
     </div>
   </form>
@@ -63,10 +42,10 @@
 
 <section class="panel card-search-results-panel" id="card-search-results-section" hidden>
   <div class="panel-header card-search-results-header">
-    <div>
-      <h2>Wyniki wyszukiwania</h2>
-      <p>Wybierz kartę z listy, aby uzupełnić formularz i dodać ją do kolekcji.</p>
-    </div>
+      <div>
+        <h2>Wyniki wyszukiwania</h2>
+        <p>Otwórz kartę z listy, aby zobaczyć jej szczegóły.</p>
+      </div>
     <div class="card-search-controls">
       <label class="card-search-sort">
         Sortuj według
