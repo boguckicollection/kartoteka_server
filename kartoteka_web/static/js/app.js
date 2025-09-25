@@ -1,7 +1,7 @@
 const TOKEN_KEY = "kartoteka_token";
 const THEME_KEY = "kartoteka_theme";
 const LIGHT_THEME_COLOR = "#ffffff";
-const DARK_THEME_COLOR = "#0c1224";
+const DARK_THEME_COLOR = "#090c15";
 
 const getToken = () => window.localStorage.getItem(TOKEN_KEY);
 const setToken = (token) => window.localStorage.setItem(TOKEN_KEY, token);
@@ -192,6 +192,11 @@ function updateUserBadge(user) {
       avatar.textContent = initial;
     }
     avatar.dataset.state = username ? "authenticated" : "anonymous";
+  }
+  const profileLink = document.querySelector("[data-user-profile-link]");
+  if (profileLink) {
+    profileLink.dataset.state = username ? "authenticated" : "anonymous";
+    profileLink.setAttribute("aria-disabled", username ? "false" : "true");
   }
   const logout = logoutButton;
   if (logout) {
@@ -552,11 +557,12 @@ function renderPortfolio(entries) {
     } else {
       value.textContent = "Wartość sztuki: -";
     }
+    const direction = entry.change_direction || "flat";
+    value.dataset.direction = direction;
     body.appendChild(value);
 
     const changeContainer = document.createElement("div");
     changeContainer.className = "portfolio-card-trend";
-    const direction = entry.change_direction || "flat";
     changeContainer.dataset.direction = direction;
     const changeValue =
       typeof entry.change_24h === "number" ? entry.change_24h : 0;
@@ -641,6 +647,10 @@ function renderPortfolioPerformance(history) {
         totalValueElement.textContent = formatted;
       }
       totalValueElement.dataset.direction = resolvedDirection;
+    }
+    const summaryValueElement = document.getElementById("summary-value");
+    if (summaryValueElement) {
+      summaryValueElement.dataset.direction = resolvedDirection;
     }
   };
   applyMeta();
@@ -742,11 +752,14 @@ function updateSummary(summary) {
   const count = document.getElementById("summary-count");
   const quantity = document.getElementById("summary-quantity");
   const value = document.getElementById("summary-value");
+  const rawDirection = summary && typeof summary.direction === "string" ? summary.direction : "";
+  const direction = rawDirection === "up" || rawDirection === "down" ? rawDirection : "flat";
   if (count) count.textContent = summary.total_cards;
   if (quantity) quantity.textContent = summary.total_quantity;
   if (value) {
     const formatted = formatPln(summary.estimated_value);
     value.textContent = formatted || summary.estimated_value.toFixed(2);
+    value.dataset.direction = direction;
   }
 
   const pCount = document.getElementById("portfolio-count");
@@ -761,6 +774,7 @@ function updateSummary(summary) {
     } else {
       pValue.textContent = summary.estimated_value.toFixed(2);
     }
+    pValue.dataset.direction = direction;
   }
 }
 
@@ -1941,17 +1955,65 @@ async function bindSettingsPage() {
   const passwordForm = document.getElementById("settings-password-form");
   const profileAlert = profileForm?.querySelector(".alert");
   const passwordAlert = passwordForm?.querySelector(".alert");
+  const emailInput = profileForm?.querySelector('input[name="email"]');
+  const avatarInput = profileForm?.querySelector('input[name="avatar_url"]');
+  const avatarChoices = profileForm
+    ? Array.from(profileForm.querySelectorAll('input[name="avatar_choice"]'))
+    : [];
+
+  const syncAvatarChoices = (value) => {
+    if (!avatarChoices.length) return;
+    const target = typeof value === "string" ? value.trim() : "";
+    let matchedRadio = null;
+    for (const radio of avatarChoices) {
+      const radioUrl = (radio.dataset.url || "").trim();
+      const isCustom = radio.dataset.custom === "true";
+      if (!isCustom && target && radioUrl === target) {
+        matchedRadio = radio;
+        break;
+      }
+    }
+    avatarChoices.forEach((radio) => {
+      const isCustom = radio.dataset.custom === "true";
+      if (matchedRadio) {
+        radio.checked = radio === matchedRadio;
+      } else {
+        radio.checked = isCustom;
+      }
+    });
+  };
+
+  if (avatarInput && avatarChoices.length) {
+    avatarInput.addEventListener("input", () => {
+      syncAvatarChoices(avatarInput.value);
+    });
+    avatarChoices.forEach((radio) => {
+      radio.addEventListener("change", () => {
+        const isCustom = radio.dataset.custom === "true";
+        const url = (radio.dataset.url || "").trim();
+        if (!avatarInput) return;
+        if (isCustom) {
+          if (!avatarInput.value) {
+            avatarInput.value = "";
+          }
+          avatarInput.focus();
+        } else {
+          avatarInput.value = url;
+          avatarInput.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      });
+    });
+  }
 
   const applyUserData = (user) => {
     if (!user) return;
-    const emailInput = profileForm?.querySelector('input[name="email"]');
-    const avatarInput = profileForm?.querySelector('input[name="avatar_url"]');
     if (emailInput) {
       emailInput.value = user.email || "";
     }
     if (avatarInput) {
       avatarInput.value = user.avatar_url || "";
     }
+    syncAvatarChoices(user.avatar_url || "");
     if (document.body) {
       document.body.dataset.username = user.username ?? "";
       document.body.dataset.avatar = user.avatar_url ?? "";

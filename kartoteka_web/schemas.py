@@ -130,6 +130,8 @@ class PortfolioSummary(SQLModel):
     total_cards: int
     total_quantity: int
     estimated_value: float
+    change_24h: float = 0.0
+    direction: str = "flat"
 
 
 class PortfolioHistoryPoint(SQLModel):

@@ -31,16 +31,17 @@
     </button>
     <nav class="app-nav" id="primary-navigation" data-nav>
       <a href="/" class="{{ 'active' if current_path == '/' else '' }}">Strona główna</a>
-      <a href="/dashboard" class="{{ 'active' if current_path.startswith('/dashboard') else '' }}">Konto</a>
-      <a href="/portfolio" class="{{ 'active' if current_path.startswith('/portfolio') else '' }}">Portfel</a>
-      <a href="/settings" class="{{ 'active' if current_path.startswith('/settings') else '' }}">Ustawienia</a>
-  </nav>
+      <a href="/dashboard" class="{{ 'active' if current_path.startswith('/dashboard') else '' }}">Panel</a>
+      <a href="/portfolio" class="{{ 'active' if current_path.startswith('/portfolio') else '' }}">Portfolio</a>
+    </nav>
     <div class="header-actions">
       <button type="button" class="theme-toggle" data-theme-toggle aria-label="Przełącz motyw">
         <span aria-hidden="true">🌙</span>
       </button>
-      <span class="user-name" data-username-display>Gość</span>
-      <div class="user-avatar" data-user-avatar aria-hidden="true">G</div>
+      <a href="/settings" class="user-profile" data-user-profile-link data-state="anonymous" aria-disabled="true">
+        <span class="user-name" data-username-display>Gość</span>
+        <span class="user-avatar" data-user-avatar aria-hidden="true">G</span>
+      </a>
       <a href="/login" class="ghost" id="login-button">Zaloguj</a>
       <button type="button" class="ghost" id="logout-button" hidden>Wyloguj</button>
     </div>
