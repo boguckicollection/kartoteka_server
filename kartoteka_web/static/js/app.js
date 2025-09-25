@@ -838,10 +838,7 @@ async function loadPortfolioCards(targetAlert) {
 
 function setupCardSearch(form) {
   if (!form) return null;
-  const nameInput = form.querySelector('input[name="name"]');
-  const numberInput = form.querySelector('input[name="number"]');
-  const setInput = form.querySelector('input[name="set_name"]');
-  const setCodeInput = form.querySelector('input[name="set_code"]');
+  const queryInput = form.querySelector('input[name="query"]');
   const rarityInput = form.querySelector('input[name="rarity"]');
   const resultsSection = document.getElementById("card-search-results-section");
   const resultsContainer = document.getElementById("card-search-results");
@@ -853,7 +850,7 @@ function setupCardSearch(form) {
   const nextButton = pagination?.querySelector('[data-page-action="next"]') ?? null;
   const sortSelect = document.getElementById("card-search-sort");
 
-  if (!nameInput || !resultsSection || !resultsContainer) {
+  if (!queryInput || !resultsSection || !resultsContainer) {
     return null;
   }
 
@@ -868,12 +865,6 @@ function setupCardSearch(form) {
     sortMode: sortSelect?.value || "relevance",
     currentPage: 1,
     pageSize: 20,
-  };
-
-  const clearNumberMetadata = () => {
-    if (numberInput) {
-      delete numberInput.dataset.total;
-    }
   };
 
   const buildResultKey = (card) => {
@@ -922,18 +913,6 @@ function setupCardSearch(form) {
       statusMessage.hidden = true;
       delete statusMessage.dataset.state;
     }
-  };
-
-  const parseNumberParts = (value) => {
-    const trimmed = String(value || "").trim();
-    if (!trimmed) {
-      return { number: "", total: "" };
-    }
-    if (trimmed.includes("/")) {
-      const [num, total] = trimmed.split("/", 2);
-      return { number: num.trim(), total: (total || "").trim() };
-    }
-    return { number: trimmed, total: "" };
   };
 
   const compareText = (left, right) =>
@@ -1107,6 +1086,40 @@ function setupCardSearch(form) {
     link.appendChild(info);
     item.appendChild(link);
 
+    item.addEventListener("click", (event) => {
+      const target = event.target;
+      if (target instanceof HTMLElement && target.closest(".card-search-add-button")) {
+        return;
+      }
+      applySuggestion(card);
+    });
+
+    const actions = document.createElement("div");
+    actions.className = "card-search-actions";
+    const addButton = document.createElement("button");
+    addButton.type = "button";
+    addButton.className = "card-search-add-button";
+    addButton.textContent = "+";
+    addButton.title = `Dodaj ${cardName} do kolekcji`;
+    addButton.setAttribute("aria-label", `Dodaj kartę ${cardName} do kolekcji`);
+    addButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (addButton.disabled) {
+        return;
+      }
+      addButton.disabled = true;
+      addButton.dataset.loading = "true";
+      try {
+        await addCard(form, cardSearchApi, card);
+      } finally {
+        addButton.disabled = false;
+        delete addButton.dataset.loading;
+      }
+    });
+    actions.appendChild(addButton);
+    item.appendChild(actions);
+
     return item;
   };
 
@@ -1145,7 +1158,6 @@ function setupCardSearch(form) {
     if (rarityInput) {
       rarityInput.value = "";
     }
-    clearNumberMetadata();
     updateSelectionHighlight();
     eventTarget.dispatchEvent(new Event("cardsearch:clear"));
   };
@@ -1153,25 +1165,9 @@ function setupCardSearch(form) {
   const applySuggestion = (card) => {
     selectedCard = card;
     selectedKey = buildResultKey(card);
-    nameInput.value = card.name || "";
-    if (numberInput) {
-      const display =
-        card.number_display ||
-        (card.number && card.total ? `${card.number}/${card.total}` : card.number) ||
-        "";
-      numberInput.value = display;
-      if (card.total) {
-        numberInput.dataset.total = card.total;
-      } else {
-        clearNumberMetadata();
-      }
-    }
-    if (setInput) {
-      setInput.value = card.set_name || "";
-    }
-    if (setCodeInput) {
-      setCodeInput.value = card.set_code || "";
-    }
+    const numberLabel = formatCardNumber(card) || card.number || "";
+    const queryParts = [card.name || "", numberLabel].filter(Boolean);
+    queryInput.value = queryParts.join(" ").trim();
     if (rarityInput) {
       rarityInput.value = card.rarity || "";
     }
@@ -1180,8 +1176,8 @@ function setupCardSearch(form) {
   };
 
   const fetchSuggestions = async () => {
-    const name = nameInput.value.trim();
-    if (!name) {
+    const query = queryInput.value.trim();
+    if (!query) {
       state.baseResults = [];
       state.currentPage = 1;
       updateSummary(0);
@@ -1196,19 +1192,7 @@ function setupCardSearch(form) {
       return [];
     }
 
-    const { number, total } = parseNumberParts(numberInput ? numberInput.value : "");
-    const setName = setInput?.value.trim() ?? "";
-
-    const params = new URLSearchParams({ name, limit: "100" });
-    if (number) {
-      params.set("number", number);
-    }
-    if (total) {
-      params.set("total", total);
-    }
-    if (setName) {
-      params.set("set_name", setName);
-    }
+    const params = new URLSearchParams({ query, limit: "500" });
 
     const currentRequest = ++requestId;
     state.currentPage = 1;
@@ -1265,9 +1249,7 @@ function setupCardSearch(form) {
     clearSelection();
   };
 
-  nameInput.addEventListener("input", handleInputChange);
-  numberInput?.addEventListener("input", handleInputChange);
-  setInput?.addEventListener("input", handleInputChange);
+  queryInput.addEventListener("input", handleInputChange);
 
   sortSelect?.addEventListener("change", () => {
     state.sortMode = sortSelect.value || "relevance";
@@ -1849,15 +1831,22 @@ function applyAddCardPrefill(form, cardSearch) {
   const setCode = params.get("set_code") || "";
   const total = params.get("total") || "";
 
-  const nameInput = form.querySelector('input[name="name"]');
-  const numberInput = form.querySelector('input[name="number"]');
-  const setInput = form.querySelector('input[name="set_name"]');
-  const setCodeInput = form.querySelector('input[name="set_code"]');
-
-  if (nameInput) nameInput.value = name;
-  if (numberInput) numberInput.value = total && number ? `${number}/${total}` : number;
-  if (setInput) setInput.value = setName;
-  if (setCodeInput) setCodeInput.value = setCode;
+  const queryInput = form.querySelector('input[name="query"]');
+  if (queryInput) {
+    const identifier = [
+      name,
+      total && number ? `${number}/${total}` : number,
+      setName,
+    ]
+      .filter((part) => part && part.trim())
+      .join(" ")
+      .trim();
+    if (identifier) {
+      queryInput.value = identifier;
+    } else if (name) {
+      queryInput.value = name;
+    }
+  }
 
   cardSearch?.reset?.();
   if (cardSearch?.search) {
@@ -1907,9 +1896,9 @@ function bindAddCardPage() {
   if (searchButton) {
     searchButton.addEventListener("click", async (event) => {
       event.preventDefault();
-      const nameInput = form.querySelector('input[name="name"]');
-      if (!nameInput || !nameInput.value.trim()) {
-        showAlert(alertBox, "Podaj nazwę karty, aby rozpocząć wyszukiwanie.");
+      const queryInput = form.querySelector('input[name="query"]');
+      if (!queryInput || !queryInput.value.trim()) {
+        showAlert(alertBox, "Wpisz nazwę lub numer karty, aby rozpocząć wyszukiwanie.");
         return;
       }
       showAlert(alertBox, "");

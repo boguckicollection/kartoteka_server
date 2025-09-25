@@ -6,8 +6,8 @@
     <p class="eyebrow">Rozszerz swoją kolekcję</p>
     <h1>Wyszukaj kartę w bazie</h1>
     <p>
-      Aby wyszukać kartę w bazie podaj jej nazwę, numer lub zestaw, a następnie wybierz
-      interesujący Cię wynik z listy.
+      Aby wyszukać kartę w bazie, wpisz jej nazwę lub nazwę z numerem w polu poniżej, a następnie
+      wybierz interesujący Cię wynik z listy.
     </p>
   </div>
 </section>
@@ -16,21 +16,20 @@
   <div class="panel-header">
     <div>
       <h2>Znajdź kartę w bazie</h2>
-      <p>Podaj szczegóły karty – wymagane jest co najmniej pole nazwy.</p>
+      <p>Wpisz nazwę karty – możesz dodać numer, aby szybciej odnaleźć konkretny egzemplarz.</p>
     </div>
   </div>
   <form id="add-card-form" class="form-grid" autocomplete="off">
     <label>
-      Nazwa karty
-      <input type="text" name="name" id="add-card-name" autocomplete="off" required />
-    </label>
-    <label>
-      Numer (opcjonalnie)
-      <input type="text" name="number" id="add-card-number" autocomplete="off" />
-    </label>
-    <label>
-      Set (opcjonalnie)
-      <input type="text" name="set_name" id="add-card-set" autocomplete="off" />
+      Nazwa lub numer karty
+      <input
+        type="text"
+        name="query"
+        id="add-card-query"
+        autocomplete="off"
+        placeholder="np. Giovanni's Charisma 78/132"
+        required
+      />
     </label>
     <input type="hidden" name="rarity" id="add-card-rarity" />
     <div class="form-footer">

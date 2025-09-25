@@ -234,6 +234,37 @@ def test_card_search_endpoint(api_client, monkeypatch):
     assert results[0]["image_small"] == sample[0]["image_small"]
 
 
+def test_card_search_query_parameter(api_client):
+    client, _prices, _ = api_client
+    token = register_and_login(client, username="gio", password="charisma")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    from kartoteka import pricing
+    from kartoteka_web import database, models
+
+    with database.session_scope() as session:
+        record = models.CardRecord(
+            name="Giovanni's Charisma",
+            name_normalized=pricing.normalize("Giovanni's Charisma"),
+            number=pricing.sanitize_number("78"),
+            number_display="78/132",
+            total="132",
+            set_name="Gym Challenge",
+            set_name_normalized=pricing.normalize("Gym Challenge"),
+            set_code="gym",
+            set_code_clean="gym",
+        )
+        session.add(record)
+        session.commit()
+
+    res = client.get("/cards/search", params={"query": "giovani 78"}, headers=headers)
+    assert res.status_code == 200, res.text
+    payload = res.json()
+    assert payload, payload
+    assert payload[0]["name"] == "Giovanni's Charisma"
+    assert payload[0]["number"] == "78"
+
+
 def test_card_info_endpoint(api_client, monkeypatch):
     client, prices, _ = api_client
     token = register_and_login(client, username="gary", password="eevee")
