@@ -114,23 +114,49 @@ async def _catalogue_update_loop() -> None:
             logger.info("Background catalogue refresh changed %s records", updated)
 
 
+async def _run_background(task: asyncio.Task[Any] | None) -> None:
+    if task is None:
+        return
+    if not isinstance(task, asyncio.Task):
+        return
+    task_name = task.get_name() if hasattr(task, "get_name") else repr(task)
+    try:
+        if task.done():
+            await task
+            return
+        task.cancel()
+        await task
+    except asyncio.CancelledError:
+        pass
+    except Exception:  # pragma: no cover - shutdown logging only
+        logger.exception("Background task %s raised during shutdown", task_name)
+
+
+async def _start_catalogue_bootstrap() -> None:
+    try:
+        await asyncio.to_thread(_refresh_catalogue)
+    except Exception:  # pragma: no cover - defensive guard for startup
+        logger.exception("Initial catalogue refresh failed")
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    await asyncio.to_thread(_refresh_catalogue)
+    bootstrap_task = asyncio.create_task(_start_catalogue_bootstrap())
     price_task = asyncio.create_task(_price_update_loop())
     catalogue_task = asyncio.create_task(_catalogue_update_loop())
     app.state.price_task = price_task
     app.state.catalogue_task = catalogue_task
+    app.state.bootstrap_task = bootstrap_task
     try:
         yield
     finally:
-        for task in (getattr(app.state, "price_task", None), getattr(app.state, "catalogue_task", None)):
-            if task is None:
-                continue
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
+        for task in (
+            getattr(app.state, "price_task", None),
+            getattr(app.state, "catalogue_task", None),
+            getattr(app.state, "bootstrap_task", None),
+        ):
+            await _run_background(task)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
