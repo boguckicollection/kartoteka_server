@@ -483,7 +483,30 @@ def _aggregate_portfolio_history(
                 history_records = _load_price_history(session, card)
         for timestamp, price in _entry_price_points(entry, history_records or []):
             combined[timestamp] += price * quantity
-    return sorted((ts, round(value, 2)) for ts, value in combined.items())
+    points = sorted((ts, round(value, 2)) for ts, value in combined.items())
+    if not points:
+        return []
+
+    latest_timestamp = points[-1][0]
+    if latest_timestamp.tzinfo is None:
+        latest_reference = latest_timestamp.replace(tzinfo=dt.timezone.utc)
+    else:
+        latest_reference = latest_timestamp
+    window_start = latest_reference - dt.timedelta(days=7)
+
+    filtered: list[tuple[dt.datetime, float]] = []
+    for timestamp, value in points:
+        if timestamp.tzinfo is None:
+            timestamp_ref = timestamp.replace(tzinfo=dt.timezone.utc)
+        else:
+            timestamp_ref = timestamp
+        if timestamp_ref >= window_start:
+            filtered.append((timestamp, value))
+
+    if not filtered:
+        filtered.append(points[-1])
+
+    return filtered
 
 
 def record_price_history(
