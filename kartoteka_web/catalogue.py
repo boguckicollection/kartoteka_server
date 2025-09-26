@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any, Iterable, Tuple
 
+from sqlalchemy import text
 from sqlmodel import Session, select
 
 from kartoteka import pricing
@@ -118,6 +119,32 @@ def _sanitise_optional_number(value: str | None) -> str | None:
     return cleaned or None
 
 
+def _sync_cardrecord_search_entry(
+    session: Session,
+    *,
+    card_id: int,
+    name_normalized: str,
+    set_name_normalized: str | None,
+) -> None:
+    session.exec(
+        text("DELETE FROM cardrecord_search WHERE card_id = :card_id").bindparams(
+            card_id=card_id
+        )
+    )
+    session.exec(
+        text(
+            """
+            INSERT INTO cardrecord_search (card_id, name_normalized, set_name_normalized)
+            VALUES (:card_id, :name_normalized, :set_name_normalized)
+            """
+        ).bindparams(
+            card_id=card_id,
+            name_normalized=name_normalized,
+            set_name_normalized=set_name_normalized,
+        )
+    )
+
+
 def ensure_record_assets(session: Session, record: "models.CardRecord") -> bool:
     updated = False
     if record and not record.set_icon:
@@ -200,9 +227,18 @@ def upsert_card_record(
             updated_at=now,
         )
         session.add(record)
+        session.flush()
+        if record.id is not None:
+            _sync_cardrecord_search_entry(
+                session,
+                card_id=record.id,
+                name_normalized=record.name_normalized,
+                set_name_normalized=record.set_name_normalized,
+            )
         return record, True
 
     updated = False
+    fts_fields_updated = False
 
     def _apply(attr: str, value: Any, allow_none: bool = False) -> None:
         nonlocal updated
@@ -213,12 +249,18 @@ def upsert_card_record(
             updated = True
 
     _apply("name", name_value)
+    previous_name_norm = candidate.name_normalized
     _apply("name_normalized", name_normalized)
+    if previous_name_norm != candidate.name_normalized:
+        fts_fields_updated = True
     _apply("number", number_value)
     _apply("number_display", number_display, allow_none=True)
     _apply("total", total_value, allow_none=True)
     _apply("set_name", set_name_value)
+    previous_set_norm = candidate.set_name_normalized
     _apply("set_name_normalized", set_name_normalized, allow_none=True)
+    if previous_set_norm != candidate.set_name_normalized:
+        fts_fields_updated = True
     if set_code_value is not None:
         _apply("set_code", set_code_value, allow_none=True)
     if set_code_clean is not None:
@@ -241,6 +283,14 @@ def upsert_card_record(
     if updated:
         candidate.updated_at = now
         session.add(candidate)
+        session.flush()
+        if candidate.id is not None and fts_fields_updated:
+            _sync_cardrecord_search_entry(
+                session,
+                card_id=candidate.id,
+                name_normalized=candidate.name_normalized,
+                set_name_normalized=candidate.set_name_normalized,
+            )
     return candidate, updated
 
 
