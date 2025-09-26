@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 
 SET_LOGO_DIR = Path("set_logos")
 CATALOGUE_MARKER_FILE = Path("last_catalogue_sync.txt")
+CATALOGUE_PROGRESS_FILE = Path("last_catalogue_set.txt")
 CATALOGUE_REFRESH_INTERVAL = dt.timedelta(days=1)
+CATALOGUE_REQUEST_LIMIT = 1500
 
 
 def _read_marker() -> dt.datetime | None:
@@ -42,6 +44,29 @@ def _write_marker(timestamp: dt.datetime) -> None:
         CATALOGUE_MARKER_FILE.write_text(timestamp.isoformat(), encoding="utf-8")
     except OSError:
         logger.debug("Unable to write catalogue marker", exc_info=True)
+
+
+def _read_progress_marker() -> str | None:
+    """Return the last fully processed set code, if available."""
+
+    try:
+        raw = CATALOGUE_PROGRESS_FILE.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return raw or None
+
+
+def _write_progress_marker(set_code: str | None) -> None:
+    """Persist the last fully processed set code for incremental syncs."""
+
+    try:
+        if not set_code:
+            if CATALOGUE_PROGRESS_FILE.exists():
+                CATALOGUE_PROGRESS_FILE.unlink()
+            return
+        CATALOGUE_PROGRESS_FILE.write_text(set_code, encoding="utf-8")
+    except OSError:
+        logger.debug("Unable to write catalogue progress marker", exc_info=True)
 
 
 def _should_refresh(now: dt.datetime, *, force: bool = False) -> bool:
@@ -249,10 +274,53 @@ def refresh_catalogue(session: Session, *, now: dt.datetime | None = None, force
     else:
         return 0
 
+    set_codes = list(iter_known_set_codes())
+    total_sets = len(set_codes)
+    last_processed = _read_progress_marker()
+    start_index = 0
+    if last_processed:
+        try:
+            start_index = set_codes.index(last_processed) + 1
+        except ValueError:
+            start_index = 0
+    if start_index >= total_sets:
+        start_index = 0
+
+    if start_index:
+        next_set = set_codes[start_index]
+        logger.info(
+            "Resuming catalogue sync from set %s (%s/%s)",
+            next_set,
+            start_index + 1,
+            total_sets,
+        )
+
     total_changed = 0
-    for set_code in iter_known_set_codes():
+    requests_used = 0
+    processed_sets = 0
+    last_completed_set: str | None = None
+    for position, set_code in enumerate(set_codes[start_index:], start=start_index):
+        if requests_used >= CATALOGUE_REQUEST_LIMIT:
+            logger.info(
+                "Reached catalogue request limit (%s/%s); pausing sync",
+                requests_used,
+                CATALOGUE_REQUEST_LIMIT,
+            )
+            break
+
+        logger.info(
+            "Synchronising set %s (%s/%s) [request %s/%s]",
+            set_code,
+            position + 1,
+            total_sets,
+            requests_used + 1,
+            CATALOGUE_REQUEST_LIMIT,
+        )
         cards = pricing.list_set_cards(set_code, limit=0)
         if not cards:
+            requests_used += 1
+            processed_sets += 1
+            last_completed_set = set_code
             continue
         changed_for_set = 0
         for payload in cards:
@@ -268,8 +336,47 @@ def refresh_catalogue(session: Session, *, now: dt.datetime | None = None, force
             total_changed += changed_for_set
         else:
             session.rollback()
+        requests_used += 1
+        processed_sets += 1
+        last_completed_set = set_code
 
-    _write_marker(now)
-    logger.info("Catalogue synchronisation completed with %s updated records", total_changed)
+    completed_all_sets = (start_index + processed_sets) >= total_sets and (
+        requests_used < CATALOGUE_REQUEST_LIMIT or processed_sets == total_sets
+    )
+
+    if completed_all_sets:
+        _write_progress_marker(None)
+        _write_marker(now)
+        logger.info(
+            "Catalogue synchronisation completed with %s updated records using %s requests",
+            total_changed,
+            requests_used,
+        )
+    elif last_completed_set:
+        _write_progress_marker(last_completed_set)
+        remaining_sets = max(total_sets - (start_index + processed_sets), 0)
+        next_message = ""
+        if remaining_sets:
+            next_index = start_index + processed_sets
+            if next_index < total_sets:
+                next_message = f" Next run will start with set {set_codes[next_index]}."
+        logger.info(
+            "Catalogue synchronisation paused after set %s (%s processed, %s updated, %s/%s requests used).%s",
+            last_completed_set,
+            processed_sets,
+            total_changed,
+            requests_used,
+            CATALOGUE_REQUEST_LIMIT,
+            next_message,
+        )
+    elif total_sets == 0:
+        _write_progress_marker(None)
+        _write_marker(now)
+        logger.info(
+            "Catalogue synchronisation completed with %s updated records using %s requests",
+            total_changed,
+            requests_used,
+        )
+
     return total_changed
 
