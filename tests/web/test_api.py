@@ -449,3 +449,13 @@ def test_card_detail_page_prefills_dataset(api_client):
     assert 'data-set-name="Base Set"' in html
     assert 'data-total="102"' in html
     assert '<h1 id="card-detail-title">Pikachu</h1>' in html
+
+
+def test_card_detail_page_missing_catalogue_returns_404(api_client):
+    client, _prices, _server = api_client
+    token = register_and_login(client, username="misty", password="staryu")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    res = client.get("/cards/base/25", headers=headers)
+    assert res.status_code == 404
+    assert "Nie znaleziono karty" in res.text
