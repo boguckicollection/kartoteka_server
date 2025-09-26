@@ -168,6 +168,21 @@ img {
   align-items: center;
   gap: 24px;
   z-index: 5;
+  transform: translateY(0);
+  opacity: 1;
+  transition: transform 0.35s ease, opacity 0.25s ease;
+  will-change: transform, opacity;
+}
+
+.app-header[data-header-visible='false'] {
+  transform: translateY(calc(-100% - 32px));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-header[data-header-visible='true'] {
+  transform: translateY(0);
+  opacity: 1;
 }
 
 .brand {

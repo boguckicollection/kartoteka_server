@@ -314,6 +314,58 @@ function setupNavigation() {
   updateUserBadge({ username: initialUsername, avatar_url: initialAvatar });
 }
 
+function setupHeaderVisibility() {
+  const header = document.querySelector("header.app-header");
+  if (!header) {
+    return;
+  }
+
+  const setHeaderVisibility = (visible) => {
+    header.dataset.headerVisible = visible ? "true" : "false";
+  };
+
+  setHeaderVisibility(true);
+
+  let lastKnownScrollY = window.scrollY;
+  let ticking = false;
+  const threshold = 4;
+
+  const updateVisibility = () => {
+    const currentScrollY = Math.max(window.scrollY, 0);
+    const atTop = currentScrollY <= 0;
+
+    if (atTop) {
+      setHeaderVisibility(true);
+    } else if (currentScrollY > lastKnownScrollY + threshold) {
+      setHeaderVisibility(false);
+    } else if (currentScrollY < lastKnownScrollY - threshold) {
+      setHeaderVisibility(true);
+    }
+
+    lastKnownScrollY = currentScrollY;
+    ticking = false;
+  };
+
+  const requestTick = () => {
+    if (!ticking) {
+      window.requestAnimationFrame(updateVisibility);
+      ticking = true;
+    }
+  };
+
+  const resetVisibility = () => {
+    lastKnownScrollY = window.scrollY;
+    setHeaderVisibility(true);
+    requestTick();
+  };
+
+  window.addEventListener("scroll", requestTick, { passive: true });
+  window.addEventListener("resize", resetVisibility);
+  window.addEventListener("orientationchange", resetVisibility);
+
+  requestTick();
+}
+
 async function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) {
     return;
@@ -2532,6 +2584,7 @@ async function ensureAuthenticated() {
 window.addEventListener("DOMContentLoaded", async () => {
   setupThemeToggle();
   setupNavigation();
+  setupHeaderVisibility();
   const loginForm = document.getElementById("login-form");
   if (loginForm) {
     loginForm.addEventListener("submit", (event) => {
