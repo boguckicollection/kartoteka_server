@@ -35,6 +35,32 @@ def init_db() -> None:
 
     SQLModel.metadata.create_all(engine)
 
+    # Ensure the FTS index used for catalogue search exists and is synchronised
+    # with the current dataset. ``exec_driver_sql`` is required so SQLite can
+    # execute the ``CREATE VIRTUAL TABLE`` statement directly without SQLAlchemy
+    # attempting to introspect it.
+    with engine.connect() as connection:
+        connection.exec_driver_sql(
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS cardrecord_search
+            USING fts5(
+                card_id UNINDEXED,
+                name_normalized,
+                set_name_normalized
+            )
+            """
+        )
+        connection.exec_driver_sql(
+            """
+            INSERT INTO cardrecord_search (card_id, name_normalized, set_name_normalized)
+            SELECT cardrecord.id, cardrecord.name_normalized, cardrecord.set_name_normalized
+            FROM cardrecord
+            WHERE cardrecord.id NOT IN (
+                SELECT card_id FROM cardrecord_search
+            )
+            """
+        )
+
 
 def get_session() -> Iterator[Session]:
     """FastAPI dependency returning a new SQLModel session."""

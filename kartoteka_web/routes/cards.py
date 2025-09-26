@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
-from .. import models, schemas
+from .. import database, models, schemas
 from ..auth import get_current_user
 from ..database import get_session
 from ..utils import images as image_utils, sets as set_utils
@@ -203,6 +203,33 @@ def _score_card_record(
     return base_score + bonus
 
 
+def _build_fts_match_query(*values: str) -> str:
+    tokens: list[str] = []
+    for value in values:
+        if not value:
+            continue
+        for token in re.findall(r"[0-9a-z]+", value):
+            if token and token not in tokens:
+                tokens.append(token)
+    return " ".join(f"{token}*" for token in tokens)
+
+
+def _fetch_cardrecord_candidate_ids(match_query: str, limit: int) -> list[int]:
+    if not match_query or limit <= 0:
+        return []
+    with database.engine.connect() as connection:
+        rows = connection.exec_driver_sql(
+            """
+            SELECT card_id
+            FROM cardrecord_search
+            WHERE cardrecord_search MATCH ?
+            LIMIT ?
+            """,
+            (match_query, limit),
+        )
+        return [int(row[0]) for row in rows if row[0] is not None]
+
+
 def _search_catalogue(
     session: Session,
     *,
@@ -220,38 +247,41 @@ def _search_catalogue(
     set_norm = _normalise_search_value(set_name) if set_name else ""
     query_norm = pricing.normalize(query or search_term or "", keep_spaces=True)
 
-    stmt = select(models.CardRecord)
+    base_stmt = select(models.CardRecord)
+    if number_clean:
+        base_stmt = base_stmt.where(models.CardRecord.number == number_clean)
+    if total_clean:
+        base_stmt = base_stmt.where(models.CardRecord.total == total_clean)
+    if set_norm:
+        base_stmt = base_stmt.where(
+            models.CardRecord.set_name_normalized.contains(set_norm)
+        )
+
+    fetch_limit = max(1, min(max(limit * 4, 100), 500))
+
+    records: list[models.CardRecord] = []
     name_filter_applied = False
 
     if name_norm:
-        prefix = name_norm[:3] if len(name_norm) > 3 else name_norm
-        if prefix:
-            stmt = stmt.where(models.CardRecord.name_normalized.contains(prefix))
-            name_filter_applied = True
+        match_query = _build_fts_match_query(name_norm, query_norm, set_norm)
+        candidate_ids = _fetch_cardrecord_candidate_ids(match_query, fetch_limit)
+        if candidate_ids:
+            ids_stmt = base_stmt.where(models.CardRecord.id.in_(candidate_ids))
+            records = session.exec(ids_stmt).all()
 
-    if number_clean:
-        stmt = stmt.where(models.CardRecord.number == number_clean)
-    if total_clean:
-        stmt = stmt.where(models.CardRecord.total == total_clean)
-    if set_norm:
-        stmt = stmt.where(models.CardRecord.set_name_normalized.contains(set_norm))
-
-    fetch_limit = max(1, min(max(limit * 4, 100), 500))
-    stmt = stmt.limit(fetch_limit)
-    records = session.exec(stmt).all()
+    if not records:
+        stmt = base_stmt
+        if name_norm:
+            prefix = name_norm[:3] if len(name_norm) > 3 else name_norm
+            if prefix:
+                stmt = stmt.where(models.CardRecord.name_normalized.contains(prefix))
+                name_filter_applied = True
+        records = session.exec(stmt.limit(fetch_limit)).all()
 
     if not records and name_filter_applied and name_norm:
-        fallback_stmt = select(models.CardRecord).where(
+        fallback_stmt = base_stmt.where(
             models.CardRecord.name_normalized.contains(name_norm)
         )
-        if number_clean:
-            fallback_stmt = fallback_stmt.where(models.CardRecord.number == number_clean)
-        if total_clean:
-            fallback_stmt = fallback_stmt.where(models.CardRecord.total == total_clean)
-        if set_norm:
-            fallback_stmt = fallback_stmt.where(
-                models.CardRecord.set_name_normalized.contains(set_norm)
-            )
         records = session.exec(fallback_stmt.limit(fetch_limit)).all()
 
     scored = [
