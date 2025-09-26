@@ -332,6 +332,22 @@ async def card_detail_page(request: Request, set_identifier: str, number: str) -
     resolved_total = total
 
     identifier = set_utils.clean_code(set_identifier) or set_identifier.strip().lower()
+    identifier_guess = (
+        set_identifier.replace("-", " ").replace("_", " ").strip()
+    )
+    set_info = set_utils.get_set_info(set_code=identifier)
+    if not set_info and identifier_guess and identifier_guess != set_identifier:
+        set_info = set_utils.get_set_info(set_name=identifier_guess)
+    if not set_info:
+        set_info = set_utils.get_set_info(set_name=set_identifier)
+
+    if set_info:
+        if not resolved_set_name:
+            resolved_set_name = set_info.get("name") or ""
+        if not resolved_set_code and set_info.get("code"):
+            resolved_set_code = set_info.get("code") or ""
+        if not resolved_total and set_info.get("total"):
+            resolved_total = str(set_info.get("total"))
 
     with session_scope() as session:
         record = None
@@ -353,6 +369,19 @@ async def card_detail_page(request: Request, set_identifier: str, number: str) -
             if record is None and candidates:
                 record = candidates[0]
 
+        if record is None and resolved_number:
+            record = cards._locate_catalogue_record(
+                session,
+                name=resolved_name or "",
+                number=resolved_number,
+                set_code=resolved_set_code or identifier,
+                set_name=(
+                    resolved_set_name
+                    or (set_info.get("name") if set_info else None)
+                    or (identifier_guess or None)
+                ),
+            )
+
         if record:
             resolved_name = resolved_name or record.name
             resolved_set_name = resolved_set_name or (record.set_name or "")
@@ -364,6 +393,11 @@ async def card_detail_page(request: Request, set_identifier: str, number: str) -
                 resolved_total = record.total
             if not resolved_number:
                 resolved_number = record.number
+
+    if not resolved_name:
+        raise HTTPException(
+            status_code=404, detail="Nie znaleziono karty w katalogu."
+        )
 
     if resolved_set_code and not resolved_set_name:
         info = set_utils.get_set_info(set_code=resolved_set_code)

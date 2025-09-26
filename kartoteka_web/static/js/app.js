@@ -2287,7 +2287,24 @@ async function loadCardDetail(container) {
     cardDetailHistory = [];
     updateDetailChart([]);
     renderRelatedCardsList([]);
-    showAlert(alertBox, error.message);
+    const fallbackTitle =
+      container.dataset.name?.trim() ||
+      (container.dataset.number?.trim()
+        ? `Karta ${container.dataset.number.trim()}`
+        : "Szczegóły karty");
+    const titleElement = document.getElementById("card-detail-title");
+    if (titleElement) {
+      titleElement.textContent = fallbackTitle;
+    }
+    document.title = `${fallbackTitle} - Kartoteka`;
+
+    const addButton = document.getElementById("detail-add-button");
+    if (addButton) {
+      addButton.disabled = true;
+      addButton.dataset.loading = "false";
+    }
+
+    showAlert(alertBox, error.message || "Nie udało się załadować danych karty.");
   }
 }
 
