@@ -298,6 +298,7 @@ def refresh_catalogue(session: Session, *, now: dt.datetime | None = None, force
     total_changed = 0
     requests_used = 0
     processed_sets = 0
+    processed_cards = 0
     last_completed_set: str | None = None
     for position, set_code in enumerate(set_codes[start_index:], start=start_index):
         if requests_used >= CATALOGUE_REQUEST_LIMIT:
@@ -305,6 +306,14 @@ def refresh_catalogue(session: Session, *, now: dt.datetime | None = None, force
                 "Reached catalogue request limit (%s/%s); pausing sync",
                 requests_used,
                 CATALOGUE_REQUEST_LIMIT,
+            )
+            remaining_sets = max(total_sets - (start_index + processed_sets), 0)
+            logger.info(
+                "Catalogue progress: %s/%s sets, %s cards processed, %s sets remaining",
+                processed_sets,
+                total_sets,
+                processed_cards,
+                remaining_sets,
             )
             break
 
@@ -317,10 +326,20 @@ def refresh_catalogue(session: Session, *, now: dt.datetime | None = None, force
             CATALOGUE_REQUEST_LIMIT,
         )
         cards = pricing.list_set_cards(set_code, limit=0)
+        card_count = len(cards or [])
         if not cards:
             requests_used += 1
             processed_sets += 1
+            processed_cards += card_count
             last_completed_set = set_code
+            remaining_sets = max(total_sets - (start_index + processed_sets), 0)
+            logger.info(
+                "Catalogue progress: %s/%s sets, %s cards processed, %s sets remaining",
+                processed_sets,
+                total_sets,
+                processed_cards,
+                remaining_sets,
+            )
             continue
         changed_for_set = 0
         for payload in cards:
@@ -338,7 +357,16 @@ def refresh_catalogue(session: Session, *, now: dt.datetime | None = None, force
             session.rollback()
         requests_used += 1
         processed_sets += 1
+        processed_cards += card_count
         last_completed_set = set_code
+        remaining_sets = max(total_sets - (start_index + processed_sets), 0)
+        logger.info(
+            "Catalogue progress: %s/%s sets, %s cards processed, %s sets remaining",
+            processed_sets,
+            total_sets,
+            processed_cards,
+            remaining_sets,
+        )
 
     completed_all_sets = (start_index + processed_sets) >= total_sets and (
         requests_used < CATALOGUE_REQUEST_LIMIT or processed_sets == total_sets
