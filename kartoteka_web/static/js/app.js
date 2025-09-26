@@ -1,7 +1,15 @@
 const TOKEN_KEY = "kartoteka_token";
 const THEME_KEY = "kartoteka_theme";
-const LIGHT_THEME_COLOR = "#ffffff";
-const DARK_THEME_COLOR = "#090c15";
+const LIGHT_THEME_COLOR = "#f9fafb";
+const DARK_THEME_COLOR = "#05060f";
+const DEFAULT_CHART_PALETTE = {
+  line: "#6fd3ff",
+  fill: "rgba(111, 211, 255, 0.22)",
+  grid: "rgba(111, 211, 255, 0.16)",
+  text: "rgba(226, 232, 240, 0.72)",
+};
+
+let cardDetailChart = null;
 
 const getToken = () => window.localStorage.getItem(TOKEN_KEY);
 const setToken = (token) => window.localStorage.setItem(TOKEN_KEY, token);
@@ -48,6 +56,7 @@ function applyTheme(theme) {
       icon.textContent = normalized === "dark" ? "☀️" : "🌙";
     }
   }
+  refreshDetailChartTheme();
 }
 
 function determineTheme() {
@@ -88,6 +97,62 @@ function setupThemeToggle() {
       applyTheme(event.matches ? "dark" : "light");
     });
   }
+}
+
+function readCssCustomProperty(name, fallback) {
+  try {
+    const styles = window.getComputedStyle(document.documentElement);
+    const value = styles.getPropertyValue(name);
+    return value ? value.trim() : fallback;
+  } catch (error) {
+    console.warn("Unable to read CSS variable", name, error);
+    return fallback;
+  }
+}
+
+function getChartPalette() {
+  return {
+    line: readCssCustomProperty("--chart-line", DEFAULT_CHART_PALETTE.line),
+    fill: readCssCustomProperty("--chart-fill", DEFAULT_CHART_PALETTE.fill),
+    grid: readCssCustomProperty("--chart-grid", DEFAULT_CHART_PALETTE.grid),
+    text: readCssCustomProperty("--chart-text", DEFAULT_CHART_PALETTE.text),
+  };
+}
+
+function applyChartPalette(chart, palette = getChartPalette()) {
+  if (!chart || !palette) {
+    return;
+  }
+  const dataset = chart.data?.datasets?.[0];
+  if (dataset) {
+    dataset.borderColor = palette.line;
+    dataset.backgroundColor = palette.fill;
+    dataset.pointBackgroundColor = palette.line;
+    dataset.pointBorderColor = palette.fill;
+    dataset.pointHoverBackgroundColor = palette.line;
+    dataset.pointHoverBorderColor = palette.fill;
+  }
+  const scales = chart.options?.scales;
+  if (scales?.x?.ticks) {
+    scales.x.ticks.color = palette.text;
+  }
+  if (scales?.x?.grid) {
+    scales.x.grid.color = palette.grid;
+  }
+  if (scales?.y?.ticks) {
+    scales.y.ticks.color = palette.text;
+  }
+  if (scales?.y?.grid) {
+    scales.y.grid.color = palette.grid;
+  }
+}
+
+function refreshDetailChartTheme() {
+  if (!cardDetailChart) {
+    return;
+  }
+  applyChartPalette(cardDetailChart);
+  cardDetailChart.update("none");
 }
 
 const plnFormatter = new Intl.NumberFormat("pl-PL", {
@@ -1713,7 +1778,6 @@ async function deleteEntry(id) {
   await Promise.all([loadCollection(), loadSummary()]);
 }
 
-let cardDetailChart = null;
 let cardDetailHistory = [];
 let cardDetailRange = "1m";
 
@@ -1767,6 +1831,7 @@ function updateDetailChart(points) {
   if (!chartCanvas) return;
   const labels = points.map((point) => point.time.toLocaleDateString());
   const values = points.map((point) => point.price);
+  const palette = getChartPalette();
   if (!cardDetailChart) {
     cardDetailChart = new Chart(chartCanvas, {
       type: "line",
@@ -1778,8 +1843,12 @@ function updateDetailChart(points) {
             data: values,
             fill: true,
             tension: 0.3,
-            borderColor: "#007bff",
-            backgroundColor: "rgba(0, 123, 255, 0.18)",
+            borderColor: palette.line,
+            backgroundColor: palette.fill,
+            pointBackgroundColor: palette.line,
+            pointBorderColor: palette.fill,
+            pointHoverBackgroundColor: palette.line,
+            pointHoverBorderColor: palette.fill,
             pointRadius: 3,
             pointHoverRadius: 5,
           },
@@ -1791,19 +1860,21 @@ function updateDetailChart(points) {
         plugins: { legend: { display: false } },
         scales: {
           x: {
-            ticks: { color: "rgba(51, 51, 51, 0.6)" },
-            grid: { display: false },
+            ticks: { color: palette.text },
+            grid: { display: false, color: palette.grid },
           },
           y: {
-            ticks: { color: "rgba(51, 51, 51, 0.6)" },
-            grid: { color: "rgba(224, 224, 224, 0.7)" },
+            ticks: { color: palette.text },
+            grid: { color: palette.grid },
           },
         },
       },
     });
+    applyChartPalette(cardDetailChart, palette);
   } else {
     cardDetailChart.data.labels = labels;
     cardDetailChart.data.datasets[0].data = values;
+    applyChartPalette(cardDetailChart, palette);
     cardDetailChart.update();
   }
   if (emptyState) {
