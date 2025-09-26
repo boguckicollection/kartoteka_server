@@ -693,57 +693,313 @@ function renderPortfolioPerformance(history) {
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   const range = maxValue - minValue;
-  const minY = 10;
-  const maxY = 55;
+  const datedPoints = numericPoints.filter((point) => point.date instanceof Date);
+  let minTime = Number.POSITIVE_INFINITY;
+  let maxTime = Number.NEGATIVE_INFINITY;
+  datedPoints.forEach((point) => {
+    if (!(point.date instanceof Date)) {
+      return;
+    }
+    const time = point.date.getTime();
+    if (time < minTime) {
+      minTime = time;
+    }
+    if (time > maxTime) {
+      maxTime = time;
+    }
+  });
+  const hasValidTimeRange = Number.isFinite(minTime) && Number.isFinite(maxTime) && maxTime > minTime;
+  if (!Number.isFinite(minTime)) {
+    minTime = Number.NaN;
+  }
+  if (!Number.isFinite(maxTime)) {
+    maxTime = Number.NaN;
+  }
+
+  const viewBoxWidth = 120;
+  const viewBoxHeight = 70;
+  const padding = { top: 8, right: 6, bottom: 10, left: 14 };
+  const chartWidth = viewBoxWidth - padding.left - padding.right;
+  const chartHeight = viewBoxHeight - padding.top - padding.bottom;
+  const chartLeft = padding.left;
+  const chartRight = padding.left + chartWidth;
+  const chartTop = padding.top;
+  const chartBottom = padding.top + chartHeight;
 
   const coords = [];
   let linePath = "";
   numericPoints.forEach((point, idx) => {
-    const ratio = numericPoints.length > 1 ? idx / (numericPoints.length - 1) : 0.5;
-    const x = ratio * 100;
+    let ratio = numericPoints.length > 1 ? idx / (numericPoints.length - 1) : 0.5;
+    if (point.date instanceof Date && Number.isFinite(minTime) && Number.isFinite(maxTime)) {
+      if (hasValidTimeRange) {
+        ratio = (point.date.getTime() - minTime) / (maxTime - minTime);
+      } else {
+        ratio = 0.5;
+      }
+    }
+    const clampedRatio = Math.min(1, Math.max(0, ratio));
+    const x = chartLeft + clampedRatio * chartWidth;
     const normalized = range > 0 ? (point.value - minValue) / range : 0.5;
-    const y = maxY - normalized * (maxY - minY);
-    coords.push({ x, y });
+    const y = chartBottom - normalized * chartHeight;
+    const coord = { x, y, value: point.value, date: point.date };
+    coords.push(coord);
     linePath += `${idx === 0 ? "M" : " L"}${x.toFixed(2)},${y.toFixed(2)}`;
   });
 
-  const areaPath = `${linePath} L 100 ${maxY} L 0 ${maxY} Z`;
+  const firstCoord = coords[0];
+  const lastCoord = coords[coords.length - 1];
+  const resolvedAreaStartX = lastCoord ? lastCoord.x.toFixed(2) : chartRight.toFixed(2);
+  const resolvedAreaEndX = firstCoord ? firstCoord.x.toFixed(2) : chartLeft.toFixed(2);
+  const areaPath = `${linePath} L ${resolvedAreaStartX} ${chartBottom.toFixed(2)} L ${resolvedAreaEndX} ${chartBottom.toFixed(2)} Z`;
 
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 100 60");
+  svg.setAttribute("viewBox", `0 0 ${viewBoxWidth} ${viewBoxHeight}`);
   svg.setAttribute("preserveAspectRatio", "none");
   svg.classList.add("portfolio-chart-svg");
+
+  const firstDatedPoint = numericPoints.find((point) => point.date instanceof Date)?.date ?? null;
+  const lastDatedPoint = [...numericPoints]
+    .reverse()
+    .find((point) => point.date instanceof Date)?.date ?? null;
+  const rangeLabel = formatDateRangeLabel(firstDatedPoint, lastDatedPoint);
+
+  const chartId = chartContainer.id || "portfolio-chart";
+  const titleId = `${chartId}-title`;
+  const descId = `${chartId}-desc`;
+  const svgTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
+  svgTitle.id = titleId;
+  svgTitle.textContent = "Historia wartości portfela";
+  const svgDesc = document.createElementNS("http://www.w3.org/2000/svg", "desc");
+  svgDesc.id = descId;
+  const minLabel = formatPln(minValue) || `${minValue.toFixed(2)} zł`;
+  const maxLabel = formatPln(maxValue) || `${maxValue.toFixed(2)} zł`;
+  const latestLabel =
+    typeof latestPortfolioValue === "number" && !Number.isNaN(latestPortfolioValue)
+      ? formatPln(latestPortfolioValue)
+      : "brak danych";
+  svgDesc.textContent = `Zakres dat: ${rangeLabel || "brak danych"}. Zakres wartości: od ${minLabel} do ${maxLabel}. Ostatnia znana wartość: ${latestLabel}.`;
+  svg.appendChild(svgTitle);
+  svg.appendChild(svgDesc);
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-labelledby", `${titleId} ${descId}`);
 
   const area = document.createElementNS("http://www.w3.org/2000/svg", "path");
   area.setAttribute("d", areaPath);
   area.classList.add("portfolio-chart-area");
   svg.appendChild(area);
 
+  const gridGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  gridGroup.classList.add("portfolio-chart-grid");
+
+  const yTicksCount = 4;
+  const yTicks = [];
+  for (let i = 0; i <= yTicksCount; i += 1) {
+    const ratio = i / yTicksCount;
+    const value = range > 0 ? minValue + range * ratio : minValue;
+    const y = chartBottom - ratio * chartHeight;
+    yTicks.push({ ratio, value, y });
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", chartLeft.toFixed(2));
+    line.setAttribute("x2", chartRight.toFixed(2));
+    line.setAttribute("y1", y.toFixed(2));
+    line.setAttribute("y2", y.toFixed(2));
+    line.classList.add("portfolio-chart-grid-line", "portfolio-chart-grid-line--horizontal");
+    gridGroup.appendChild(line);
+  }
+
+  const xTicks = [];
+  if (datedPoints.length) {
+    const uniqueDays = new Map();
+    datedPoints.forEach((point) => {
+      if (!(point.date instanceof Date)) return;
+      const day = new Date(point.date.getFullYear(), point.date.getMonth(), point.date.getDate());
+      const key = day.getTime();
+      if (!uniqueDays.has(key)) {
+        uniqueDays.set(key, day);
+      }
+    });
+    const sortedDays = Array.from(uniqueDays.values()).sort((a, b) => a.getTime() - b.getTime());
+    const maxTicks = 6;
+    const step = sortedDays.length > maxTicks ? Math.ceil(sortedDays.length / maxTicks) : 1;
+    for (let i = 0; i < sortedDays.length; i += step) {
+      const day = sortedDays[i];
+      const time = day.getTime();
+      const ratio = hasValidTimeRange
+        ? (time - minTime) / (maxTime - minTime)
+        : 0.5;
+      xTicks.push({
+        position: Math.min(1, Math.max(0, ratio)),
+        label: day.toLocaleDateString("pl-PL"),
+      });
+    }
+    const lastDay = sortedDays[sortedDays.length - 1];
+    if (lastDay) {
+      const lastLabel = lastDay.toLocaleDateString("pl-PL");
+      const existingLast = xTicks[xTicks.length - 1];
+      if (!existingLast || existingLast.label !== lastLabel) {
+        const ratio = hasValidTimeRange
+          ? (lastDay.getTime() - minTime) / (maxTime - minTime)
+          : 0.5;
+        xTicks.push({ position: Math.min(1, Math.max(0, ratio)), label: lastLabel });
+      }
+    }
+  } else {
+    const fallbackTickCount = Math.min(numericPoints.length, 4);
+    for (let i = 0; i < fallbackTickCount; i += 1) {
+      const ratio = fallbackTickCount > 1 ? i / (fallbackTickCount - 1) : 0.5;
+      const index = Math.min(
+        numericPoints.length - 1,
+        Math.max(0, Math.round(ratio * (numericPoints.length - 1)))
+      );
+      const point = numericPoints[index];
+      const label = point?.date instanceof Date
+        ? point.date.toLocaleDateString("pl-PL")
+        : `#${index + 1}`;
+      xTicks.push({ position: ratio, label });
+    }
+  }
+
+  const verticalLinePositions = new Set();
+  xTicks.forEach((tick) => {
+    const x = chartLeft + tick.position * chartWidth;
+    const rounded = Number(x.toFixed(2));
+    if (Math.abs(rounded - chartLeft) < 0.01 || Math.abs(rounded - chartRight) < 0.01) {
+      return;
+    }
+    const key = rounded.toFixed(2);
+    if (verticalLinePositions.has(key)) {
+      return;
+    }
+    verticalLinePositions.add(key);
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", rounded.toFixed(2));
+    line.setAttribute("x2", rounded.toFixed(2));
+    line.setAttribute("y1", chartTop.toFixed(2));
+    line.setAttribute("y2", chartBottom.toFixed(2));
+    line.classList.add("portfolio-chart-grid-line", "portfolio-chart-grid-line--vertical");
+    gridGroup.appendChild(line);
+  });
+
+  svg.appendChild(gridGroup);
+
   const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
   line.setAttribute("d", linePath);
   line.classList.add("portfolio-chart-line");
   svg.appendChild(line);
 
-  const lastCoord = coords[coords.length - 1];
-  if (lastCoord) {
-    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    dot.setAttribute("cx", lastCoord.x.toFixed(2));
-    dot.setAttribute("cy", lastCoord.y.toFixed(2));
-    dot.setAttribute("r", "1.4");
-    dot.classList.add("portfolio-chart-dot");
-    svg.appendChild(dot);
-  }
+  const pointsGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  pointsGroup.classList.add("portfolio-chart-points");
+
+  const tooltip = document.createElement("div");
+  tooltip.className = "portfolio-chart-tooltip";
+  tooltip.setAttribute("role", "tooltip");
+  tooltip.id = `${chartId}-tooltip`;
+  tooltip.hidden = true;
+  tooltip.dataset.visible = "false";
+  const tooltipDate = document.createElement("span");
+  tooltipDate.className = "portfolio-chart-tooltip-date";
+  const tooltipValue = document.createElement("span");
+  tooltipValue.className = "portfolio-chart-tooltip-value";
+  tooltip.appendChild(tooltipDate);
+  tooltip.appendChild(tooltipValue);
+
+  const updateTooltipPosition = (coord) => {
+    const svgRect = svg.getBoundingClientRect();
+    const containerRect = chartContainer.getBoundingClientRect();
+    const offsetX = svgRect.left - containerRect.left;
+    const offsetY = svgRect.top - containerRect.top;
+    const pxX = offsetX + (coord.x / viewBoxWidth) * svgRect.width;
+    const pxY = offsetY + (coord.y / viewBoxHeight) * svgRect.height;
+    tooltip.style.left = `${pxX}px`;
+    tooltip.style.top = `${pxY}px`;
+  };
+
+  const showTooltip = (coord) => {
+    const dateLabel = coord.date instanceof Date ? coord.date.toLocaleDateString("pl-PL") : "Brak daty";
+    const valueLabel = formatPln(coord.value) || `${coord.value.toFixed(2)} zł`;
+    tooltipDate.textContent = dateLabel;
+    tooltipValue.textContent = valueLabel;
+    tooltip.hidden = false;
+    tooltip.dataset.visible = "true";
+    updateTooltipPosition(coord);
+  };
+
+  const hideTooltip = () => {
+    tooltip.hidden = true;
+    tooltip.dataset.visible = "false";
+  };
+
+  coords.forEach((coord) => {
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", coord.x.toFixed(2));
+    circle.setAttribute("cy", coord.y.toFixed(2));
+    circle.setAttribute("r", "1.8");
+    circle.classList.add("portfolio-chart-point", "portfolio-chart-dot");
+    const dateLabel = coord.date instanceof Date ? coord.date.toLocaleDateString("pl-PL") : "Brak daty";
+    const valueLabel = formatPln(coord.value) || `${coord.value.toFixed(2)} zł`;
+    circle.setAttribute("tabindex", "0");
+    circle.setAttribute("focusable", "true");
+    circle.setAttribute("role", "img");
+    circle.setAttribute("aria-label", `${dateLabel}: ${valueLabel}`);
+    circle.setAttribute("aria-describedby", tooltip.id);
+    circle.addEventListener("mouseenter", () => showTooltip(coord));
+    circle.addEventListener("mouseleave", hideTooltip);
+    circle.addEventListener("focus", () => showTooltip(coord));
+    circle.addEventListener("blur", hideTooltip);
+    circle.addEventListener("mousemove", () => updateTooltipPosition(coord));
+    pointsGroup.appendChild(circle);
+  });
+
+  svg.appendChild(pointsGroup);
+  svg.addEventListener("mouseleave", hideTooltip);
+
+  const yAxisGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  yAxisGroup.classList.add("portfolio-chart-axis", "portfolio-chart-axis--y");
+  const yAxisLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  yAxisLine.setAttribute("x1", chartLeft.toFixed(2));
+  yAxisLine.setAttribute("x2", chartLeft.toFixed(2));
+  yAxisLine.setAttribute("y1", chartTop.toFixed(2));
+  yAxisLine.setAttribute("y2", chartBottom.toFixed(2));
+  yAxisGroup.appendChild(yAxisLine);
+  yTicks.forEach((tick) => {
+    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("x", (chartLeft - 2).toFixed(2));
+    label.setAttribute("y", tick.y.toFixed(2));
+    label.setAttribute("text-anchor", "end");
+    label.setAttribute("dominant-baseline", "middle");
+    label.classList.add("portfolio-chart-axis-label", "portfolio-chart-axis-label--y");
+    label.textContent = formatPln(tick.value) || `${tick.value.toFixed(2)} zł`;
+    yAxisGroup.appendChild(label);
+  });
+  svg.appendChild(yAxisGroup);
+
+  const xAxisGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  xAxisGroup.classList.add("portfolio-chart-axis", "portfolio-chart-axis--x");
+  const xAxisLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  xAxisLine.setAttribute("x1", chartLeft.toFixed(2));
+  xAxisLine.setAttribute("x2", chartRight.toFixed(2));
+  xAxisLine.setAttribute("y1", chartBottom.toFixed(2));
+  xAxisLine.setAttribute("y2", chartBottom.toFixed(2));
+  xAxisGroup.appendChild(xAxisLine);
+  xTicks.forEach((tick) => {
+    const x = chartLeft + tick.position * chartWidth;
+    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("x", x.toFixed(2));
+    label.setAttribute("y", (chartBottom + 4).toFixed(2));
+    label.setAttribute("text-anchor", "middle");
+    label.setAttribute("dominant-baseline", "hanging");
+    label.classList.add("portfolio-chart-axis-label", "portfolio-chart-axis-label--x");
+    label.textContent = tick.label;
+    xAxisGroup.appendChild(label);
+  });
+  svg.appendChild(xAxisGroup);
 
   chartContainer.appendChild(svg);
-
-  const firstDatedPoint = numericPoints.find((point) => point.date instanceof Date)?.date;
-  const lastDatedPoint = [...numericPoints]
-    .reverse()
-    .find((point) => point.date instanceof Date)?.date;
+  chartContainer.appendChild(tooltip);
   applyMeta({
     min: minValue,
     max: maxValue,
-    rangeText: formatDateRangeLabel(firstDatedPoint, lastDatedPoint),
+    rangeText: rangeLabel,
     latest: latestPortfolioValue,
   });
 }
