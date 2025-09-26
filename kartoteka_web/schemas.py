@@ -70,6 +70,13 @@ class CardSearchResult(SQLModel):
     release_date: Optional[str] = None
 
 
+class CardSearchResponse(SQLModel):
+    items: List[CardSearchResult] = Field(default_factory=list)
+    total: int = 0
+    page: int = 1
+    page_size: int = 0
+
+
 class PricePoint(SQLModel):
     price: float
     recorded_at: dt.datetime

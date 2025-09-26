@@ -7,6 +7,7 @@ import re
 from typing import Any, Iterable, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
@@ -239,7 +240,8 @@ def _search_catalogue(
     total: str | None = None,
     set_name: str | None = None,
     limit: int = 50,
-) -> list["models.CardRecord"]:
+    offset: int = 0,
+) -> tuple[list["models.CardRecord"], int]:
     search_term = name or query
     name_norm = _normalise_search_value(search_term)
     number_clean = _sanitise_optional_number(number)
@@ -247,42 +249,61 @@ def _search_catalogue(
     set_norm = _normalise_search_value(set_name) if set_name else ""
     query_norm = pricing.normalize(query or search_term or "", keep_spaces=True)
 
-    base_stmt = select(models.CardRecord)
+    base_filters: list[Any] = []
     if number_clean:
-        base_stmt = base_stmt.where(models.CardRecord.number == number_clean)
+        base_filters.append(models.CardRecord.number == number_clean)
     if total_clean:
-        base_stmt = base_stmt.where(models.CardRecord.total == total_clean)
+        base_filters.append(models.CardRecord.total == total_clean)
     if set_norm:
-        base_stmt = base_stmt.where(
-            models.CardRecord.set_name_normalized.contains(set_norm)
-        )
+        base_filters.append(models.CardRecord.set_name_normalized.contains(set_norm))
 
-    fetch_limit = max(1, min(max(limit * 4, 100), 500))
+    fetch_limit = max(offset + limit, limit * 4, 100)
+    fetch_limit = max(1, min(fetch_limit, 500))
 
     records: list[models.CardRecord] = []
     name_filter_applied = False
+    count_filters: list[Any] = []
 
     if name_norm:
         match_query = _build_fts_match_query(name_norm, query_norm, set_norm)
         candidate_ids = _fetch_cardrecord_candidate_ids(match_query, fetch_limit)
         if candidate_ids:
-            ids_stmt = base_stmt.where(models.CardRecord.id.in_(candidate_ids))
+            filters = [*base_filters, models.CardRecord.id.in_(candidate_ids)]
+            ids_stmt = select(models.CardRecord)
+            if filters:
+                ids_stmt = ids_stmt.where(*filters)
+            count_filters = filters
             records = session.exec(ids_stmt).all()
 
     if not records:
-        stmt = base_stmt
+        filters = [*base_filters]
         if name_norm:
             prefix = name_norm[:3] if len(name_norm) > 3 else name_norm
             if prefix:
-                stmt = stmt.where(models.CardRecord.name_normalized.contains(prefix))
+                filters.append(models.CardRecord.name_normalized.contains(prefix))
                 name_filter_applied = True
+        stmt = select(models.CardRecord)
+        if filters:
+            stmt = stmt.where(*filters)
+        count_filters = filters
         records = session.exec(stmt.limit(fetch_limit)).all()
 
     if not records and name_filter_applied and name_norm:
-        fallback_stmt = base_stmt.where(
-            models.CardRecord.name_normalized.contains(name_norm)
-        )
+        filters = [*base_filters, models.CardRecord.name_normalized.contains(name_norm)]
+        fallback_stmt = select(models.CardRecord).where(*filters)
+        count_filters = filters
         records = session.exec(fallback_stmt.limit(fetch_limit)).all()
+
+    if not count_filters:
+        count_filters = base_filters
+
+    count_stmt = select(func.count()).select_from(models.CardRecord)
+    if count_filters:
+        count_stmt = count_stmt.where(*count_filters)
+    total_count = session.exec(count_stmt).one()
+    if isinstance(total_count, tuple):
+        total_count = total_count[0]
+    total_count = int(total_count or 0)
 
     scored = [
         (
@@ -305,7 +326,11 @@ def _search_catalogue(
             item[1].name or "",
         )
     )
-    return [record for _score, record in scored[: max(1, limit)]]
+    paginated = [
+        record
+        for _score, record in scored[offset : offset + max(1, limit)]
+    ]
+    return paginated, total_count
 
 
 def _select_best_record(
@@ -718,14 +743,16 @@ def _serialize_entries(
     return [_serialize_entry(entry, session=session) for entry in entries]
 
 
-@router.get("/search", response_model=list[schemas.CardSearchResult])
+@router.get("/search", response_model=schemas.CardSearchResponse)
 def search_cards_endpoint(
     query: str | None = None,
     name: str | None = None,
     number: str | None = None,
     total: str | None = None,
     set_name: str | None = None,
-    limit: int = 200,
+    page: int = 1,
+    page_size: int = 20,
+    limit: int | None = None,
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
@@ -740,25 +767,46 @@ def search_cards_endpoint(
     name_value = (name or parsed_name or "").strip()
     number_value = number or parsed_number
     total_value = total or parsed_total
+    if limit is not None and limit > 0:
+        page_size = limit
+
+    cleaned_page_size = max(1, min(page_size, 200))
+    requested_page = max(1, page)
     search_query = query or _compose_query(name_value, number_value, set_name)
     if not (search_query or name_value):
-        return []
+        return schemas.CardSearchResponse(
+            items=[],
+            total=0,
+            page=1,
+            page_size=cleaned_page_size,
+        )
     if not name_value:
         name_value = search_query
 
-    cleaned_limit = max(1, min(limit, 500))
-    records = _search_catalogue(
-        session,
-        query=search_query,
-        name=name_value,
-        number=number_value,
-        total=total_value,
-        set_name=set_name,
-        limit=cleaned_limit,
-    )
-    updated = False
-    for record in records:
-        updated = _ensure_record_assets(session, record) or updated
+    def _run_search(page_index: int) -> tuple[list[models.CardRecord], int, int]:
+        safe_page = max(1, page_index)
+        page_offset = (safe_page - 1) * cleaned_page_size
+        results, total_count = _search_catalogue(
+            session,
+            query=search_query,
+            name=name_value,
+            number=number_value,
+            total=total_value,
+            set_name=set_name,
+            limit=cleaned_page_size,
+            offset=page_offset,
+        )
+        return results, total_count, safe_page
+
+    def _apply_assets(records: Sequence[models.CardRecord]) -> None:
+        updated = False
+        for record in records:
+            updated = _ensure_record_assets(session, record) or updated
+        if updated:
+            session.commit()
+
+    records, total_count, resolved_page = _run_search(requested_page)
+    _apply_assets(records)
 
     if not records:
         api_results = pricing.search_cards(
@@ -766,7 +814,7 @@ def search_cards_endpoint(
             number=number_value,
             total=total_value,
             set_name=set_name,
-            limit=cleaned_limit,
+            limit=cleaned_page_size,
         )
         stored = False
         for payload in api_results:
@@ -778,24 +826,27 @@ def search_cards_endpoint(
                 stored = True
         if stored:
             session.commit()
-            records = _search_catalogue(
-                session,
-                query=search_query,
-                name=name_value,
-                number=number_value,
-                total=total_value,
-                set_name=set_name,
-                limit=cleaned_limit,
-            )
-            updated = False
-            for record in records:
-                updated = _ensure_record_assets(session, record) or updated
+            records, total_count, resolved_page = _run_search(resolved_page)
+            _apply_assets(records)
         else:
             records = []
-    elif updated:
-        session.commit()
+            total_count = 0
 
-    return [_record_to_search_schema(record) for record in records]
+    total_pages = (total_count + cleaned_page_size - 1) // cleaned_page_size if total_count else 0
+    if total_pages and resolved_page > total_pages:
+        resolved_page = max(1, total_pages)
+        records, total_count, resolved_page = _run_search(resolved_page)
+        _apply_assets(records)
+    elif total_count == 0:
+        resolved_page = 1
+
+    items = [_record_to_search_schema(record) for record in records]
+    return schemas.CardSearchResponse(
+        items=items,
+        total=total_count,
+        page=resolved_page,
+        page_size=cleaned_page_size,
+    )
 
 
 @router.get("/info", response_model=schemas.CardDetailResponse)
@@ -837,7 +888,7 @@ def card_info(
         set_name=set_name,
     )
     if record is None:
-        records = _search_catalogue(
+        records, _total = _search_catalogue(
             session,
             query=search_query,
             name=name,
@@ -867,7 +918,7 @@ def card_info(
                 set_name=set_name,
             )
             if record is None:
-                records = _search_catalogue(
+                records, _total = _search_catalogue(
                     session,
                     query=search_query,
                     name=name,
@@ -904,7 +955,7 @@ def card_info(
                 set_name=set_name,
             )
             if record is None:
-                records = _search_catalogue(
+                records, _total = _search_catalogue(
                     session,
                     query=search_query,
                     name=name,

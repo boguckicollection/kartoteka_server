@@ -1263,7 +1263,8 @@ function setupCardSearch(form) {
   let cardSearchApi = null;
 
   const state = {
-    baseResults: [],
+    items: [],
+    total: 0,
     sortMode: sortSelect?.value || "relevance",
     currentPage: 1,
     pageSize: 20,
@@ -1357,7 +1358,7 @@ function setupCardSearch(form) {
   };
 
   const getSortedResults = () => {
-    const base = [...state.baseResults];
+    const base = [...state.items];
     const comparator = state.sortMode ? comparators[state.sortMode] : null;
     if (comparator) {
       base.sort(comparator);
@@ -1381,12 +1382,12 @@ function setupCardSearch(form) {
 
   const updateSortDisabled = () => {
     if (sortSelect) {
-      sortSelect.disabled = state.baseResults.length <= 1;
+      sortSelect.disabled = state.total <= 1;
     }
   };
 
-  const getTotalPages = (total = state.baseResults.length) => {
-    const safeTotal = Number.isFinite(total) ? Math.max(0, total) : Math.max(0, state.baseResults.length);
+  const getTotalPages = (total = state.total) => {
+    const safeTotal = Number.isFinite(total) ? Math.max(0, total) : Math.max(0, state.total);
     return safeTotal > 0 ? Math.ceil(safeTotal / state.pageSize) : 1;
   };
 
@@ -1415,11 +1416,11 @@ function setupCardSearch(form) {
     pageList.appendChild(fragment);
   };
 
-  const updatePaginationControls = (total = state.baseResults.length) => {
+  const updatePaginationControls = (total = state.total) => {
     if (!pagination || !pageInfo) {
       return;
     }
-    const safeTotal = Number.isFinite(total) ? Math.max(0, total) : Math.max(0, state.baseResults.length);
+    const safeTotal = Number.isFinite(total) ? Math.max(0, total) : Math.max(0, state.total);
     if (!safeTotal) {
       pagination.hidden = true;
       pageInfo.textContent = "";
@@ -1450,10 +1451,13 @@ function setupCardSearch(form) {
     const nextPage = Math.min(Math.max(1, page), totalPages);
     if (nextPage === state.currentPage) {
       renderResults();
-      return;
+      return Promise.resolve(state.items);
     }
     state.currentPage = nextPage;
-    renderResults();
+    return loadResults(nextPage).catch((error) => {
+      console.error(error);
+      return [];
+    });
   };
 
   const createResultItem = (card) => {
@@ -1553,30 +1557,19 @@ function setupCardSearch(form) {
 
   const renderResults = () => {
     const sorted = getSortedResults();
-    const total = sorted.length;
-    const totalPages = getTotalPages(total);
-    if (state.currentPage > totalPages) {
-      state.currentPage = totalPages;
-    }
-    if (state.currentPage < 1) {
-      state.currentPage = 1;
-    }
-    const startIndex = total ? (state.currentPage - 1) * state.pageSize : 0;
-    const pageItems = total ? sorted.slice(startIndex, startIndex + state.pageSize) : [];
-
     resultsContainer.innerHTML = "";
-    if (!pageItems.length) {
+    if (!sorted.length) {
       resultsContainer.hidden = true;
     } else {
       const fragment = document.createDocumentFragment();
-      pageItems.forEach((card) => {
+      sorted.forEach((card) => {
         fragment.appendChild(createResultItem(card));
       });
       resultsContainer.hidden = false;
       resultsContainer.appendChild(fragment);
     }
 
-    updatePaginationControls(total);
+    updatePaginationControls(state.total);
     updateSelectionHighlight();
   };
 
@@ -1603,10 +1596,11 @@ function setupCardSearch(form) {
     eventTarget.dispatchEvent(new CustomEvent("cardsearch:select", { detail: { card } }));
   };
 
-  const fetchSuggestions = async () => {
+  const loadResults = async (page = 1) => {
     const query = queryInput.value.trim();
     if (!query) {
-      state.baseResults = [];
+      state.items = [];
+      state.total = 0;
       state.currentPage = 1;
       updateSummary(0);
       updateStatus("");
@@ -1620,10 +1614,14 @@ function setupCardSearch(form) {
       return [];
     }
 
-    const params = new URLSearchParams({ query, limit: "500" });
+    const params = new URLSearchParams({
+      query,
+      page: String(Math.max(1, page)),
+      page_size: String(state.pageSize),
+    });
 
     const currentRequest = ++requestId;
-    state.currentPage = 1;
+    state.currentPage = Math.max(1, page);
     state.sortMode = sortSelect?.value || state.sortMode || "relevance";
     if (resultsSection) {
       resultsSection.hidden = false;
@@ -1636,29 +1634,47 @@ function setupCardSearch(form) {
     updateSortDisabled();
 
     try {
-      const results = await apiFetch(`/cards/search?${params.toString()}`);
+      const payload = await apiFetch(`/cards/search?${params.toString()}`);
       if (currentRequest !== requestId) {
         return [];
       }
 
-      state.baseResults = Array.isArray(results) ? results : [];
+      const responseItems = Array.isArray(payload?.items) ? payload.items : [];
+      const responseTotal = Number.isFinite(payload?.total)
+        ? Math.max(0, Number(payload.total))
+        : responseItems.length;
+      const responsePageSize = Number.isFinite(payload?.page_size)
+        ? Math.max(1, Number(payload.page_size))
+        : state.pageSize;
+      const responsePage = Number.isFinite(payload?.page)
+        ? Math.max(1, Number(payload.page))
+        : state.currentPage;
+
+      state.pageSize = responsePageSize;
+      state.currentPage = responsePage;
+      state.items = responseItems;
+      state.total = responseTotal;
+
       renderResults();
       updateSortDisabled();
-      updateSummary(state.baseResults.length);
-      if (!state.baseResults.length) {
+      updateSummary(state.total);
+      if (!state.total) {
         updateStatus("Nie znaleziono kart dla podanych kryteriów.");
+      } else if (!state.items.length) {
+        updateStatus("Brak wyników na tej stronie.", "info");
       } else {
         updateStatus("");
       }
       eventTarget.dispatchEvent(
-        new CustomEvent("cardsearch:results", { detail: { count: state.baseResults.length } })
+        new CustomEvent("cardsearch:results", { detail: { count: state.total } })
       );
-      return state.baseResults;
+      return state.items;
     } catch (error) {
       if (currentRequest !== requestId) {
         return [];
       }
-      state.baseResults = [];
+      state.items = [];
+      state.total = 0;
       renderResults();
       updateSummary(0);
       updateStatus(error.message || "Nie udało się pobrać wyników.", "error");
@@ -1670,7 +1686,7 @@ function setupCardSearch(form) {
 
   const search = () => {
     clearSelection();
-    return fetchSuggestions();
+    return loadResults(1);
   };
 
   const handleInputChange = () => {
@@ -1700,9 +1716,9 @@ function setupCardSearch(form) {
     }
     event.preventDefault();
     if (action === "prev") {
-      goToPage(state.currentPage - 1);
+      void goToPage(state.currentPage - 1);
     } else if (action === "next") {
-      goToPage(state.currentPage + 1);
+      void goToPage(state.currentPage + 1);
     }
   });
 
@@ -1720,7 +1736,7 @@ function setupCardSearch(form) {
       return;
     }
     event.preventDefault();
-    goToPage(page);
+    void goToPage(page);
   });
 
   updateSortDisabled();
@@ -1733,7 +1749,8 @@ function setupCardSearch(form) {
     },
     reset: () => {
       clearSelection();
-      state.baseResults = [];
+      state.items = [];
+      state.total = 0;
       state.currentPage = 1;
       updateSummary(0);
       updateStatus("");

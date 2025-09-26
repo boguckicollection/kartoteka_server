@@ -240,12 +240,16 @@ def test_card_search_endpoint(api_client, monkeypatch):
     )
     assert res.status_code == 200
     results = res.json()
-    assert len(results) == 1
-    assert results[0]["name"] == "Pikachu"
-    assert results[0]["set_name"] == "Base Set"
-    assert results[0]["number"] == "25"
-    assert "set_icon" in results[0]
-    assert results[0]["image_small"] == sample[0]["image_small"]
+    assert results["total"] == 1
+    assert results["page"] == 1
+    assert results["page_size"] >= 1
+    assert len(results["items"]) == 1
+    item = results["items"][0]
+    assert item["name"] == "Pikachu"
+    assert item["set_name"] == "Base Set"
+    assert item["number"] == "25"
+    assert "set_icon" in item
+    assert item["image_small"] == sample[0]["image_small"]
 
 
 def test_card_search_query_parameter(api_client):
@@ -274,9 +278,10 @@ def test_card_search_query_parameter(api_client):
     res = client.get("/cards/search", params={"query": "giovani 78"}, headers=headers)
     assert res.status_code == 200, res.text
     payload = res.json()
-    assert payload, payload
-    assert payload[0]["name"] == "Giovanni's Charisma"
-    assert payload[0]["number"] == "78"
+    assert payload["items"], payload
+    assert payload["total"] >= 1
+    assert payload["items"][0]["name"] == "Giovanni's Charisma"
+    assert payload["items"][0]["number"] == "78"
 
 
 def test_card_info_endpoint(api_client, monkeypatch):
