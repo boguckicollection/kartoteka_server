@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime as dt
 import re
-from collections import defaultdict
 from typing import Any, Iterable, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -442,6 +441,41 @@ def _entry_price_points(
     return points
 
 
+def _normalize_daily_points(
+    points: Sequence[tuple[dt.datetime, float]] | None,
+) -> list[tuple[dt.datetime, float]]:
+    if not points:
+        return []
+
+    has_timezone = any(timestamp.tzinfo is not None for timestamp, _ in points)
+
+    def _normalize_timestamp(value: dt.datetime) -> dt.datetime:
+        if not has_timezone:
+            return value
+        if value.tzinfo is None:
+            return value.replace(tzinfo=dt.timezone.utc)
+        return value.astimezone(dt.timezone.utc)
+
+    daily: dict[dt.date, tuple[dt.datetime, float]] = {}
+    for timestamp, price in points:
+        normalized_ts = _normalize_timestamp(timestamp)
+        day = normalized_ts.date()
+        stored = daily.get(day)
+        if stored is None or normalized_ts >= stored[0]:
+            daily[day] = (normalized_ts, float(price))
+
+    timezone = dt.timezone.utc if has_timezone else None
+    normalized_points = [
+        (
+            dt.datetime.combine(day, dt.time.min, tzinfo=timezone),
+            value,
+        )
+        for day, (_, value) in daily.items()
+    ]
+    normalized_points.sort(key=lambda item: item[0])
+    return normalized_points
+
+
 def _calculate_change(
     points: Sequence[tuple[dt.datetime, float]] | None,
 ) -> tuple[float, str]:
@@ -477,9 +511,10 @@ def _serialize_entry(
         history_records = getattr(card, "price_history", None)
         if history_records is None and session is not None:
             history_records = _load_price_history(session, card)
-    points = _entry_price_points(entry, history_records or [])
-    change, direction = _calculate_change(points)
-    schema.change_24h = round(change, 2) if points else 0.0
+    raw_points = _entry_price_points(entry, history_records or [])
+    daily_points = _normalize_daily_points(raw_points)
+    change, direction = _calculate_change(daily_points)
+    schema.change_24h = round(change, 2) if daily_points else 0.0
     schema.change_direction = direction
     return schema
 
@@ -488,7 +523,11 @@ def _aggregate_portfolio_history(
     entries: Sequence[models.CollectionEntry],
     session: Session | None = None,
 ) -> list[tuple[dt.datetime, float]]:
-    combined: dict[dt.datetime, float] = defaultdict(float)
+    entry_day_values: list[dict[dt.date, float]] = []
+    entry_quantities: list[float] = []
+    all_days: set[dt.date] = set()
+    has_timezone = False
+
     for entry in entries:
         quantity = entry.quantity or 0
         if quantity <= 0:
@@ -499,13 +538,42 @@ def _aggregate_portfolio_history(
             history_records = getattr(card, "price_history", None)
             if history_records is None and session is not None:
                 history_records = _load_price_history(session, card)
-        for timestamp, price in _entry_price_points(entry, history_records or []):
-            combined[timestamp] += price * quantity
-    points = sorted((ts, round(value, 2)) for ts, value in combined.items())
-    if not points:
+        raw_points = _entry_price_points(entry, history_records or [])
+        daily_points = _normalize_daily_points(raw_points)
+        if not daily_points:
+            continue
+        day_map: dict[dt.date, float] = {}
+        for timestamp, price in daily_points:
+            if timestamp.tzinfo is not None:
+                has_timezone = True
+            day_map[timestamp.date()] = float(price)
+            all_days.add(timestamp.date())
+        entry_day_values.append(day_map)
+        entry_quantities.append(float(quantity))
+
+    if not all_days:
         return []
 
-    latest_timestamp = points[-1][0]
+    sorted_days = sorted(all_days)
+    timezone = dt.timezone.utc if has_timezone else None
+    last_prices: list[float | None] = [None] * len(entry_day_values)
+    aggregated: list[tuple[dt.datetime, float]] = []
+
+    for day in sorted_days:
+        total = 0.0
+        for idx, day_map in enumerate(entry_day_values):
+            price = day_map.get(day)
+            if price is not None:
+                last_prices[idx] = price
+            if last_prices[idx] is not None:
+                total += last_prices[idx] * entry_quantities[idx]
+        timestamp = dt.datetime.combine(day, dt.time.min, tzinfo=timezone)
+        aggregated.append((timestamp, round(total, 2)))
+
+    if not aggregated:
+        return []
+
+    latest_timestamp = aggregated[-1][0]
     if latest_timestamp.tzinfo is None:
         latest_reference = latest_timestamp.replace(tzinfo=dt.timezone.utc)
     else:
@@ -513,7 +581,7 @@ def _aggregate_portfolio_history(
     window_start = latest_reference - dt.timedelta(days=7)
 
     filtered: list[tuple[dt.datetime, float]] = []
-    for timestamp, value in points:
+    for timestamp, value in aggregated:
         if timestamp.tzinfo is None:
             timestamp_ref = timestamp.replace(tzinfo=dt.timezone.utc)
         else:
@@ -522,7 +590,7 @@ def _aggregate_portfolio_history(
             filtered.append((timestamp, value))
 
     if not filtered:
-        filtered.append(points[-1])
+        filtered.append(aggregated[-1])
 
     return filtered
 
