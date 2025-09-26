@@ -716,9 +716,37 @@ function renderPortfolioPerformance(history) {
     maxTime = Number.NaN;
   }
 
-  const viewBoxWidth = 120;
-  const viewBoxHeight = 70;
-  const padding = { top: 8, right: 6, bottom: 10, left: 14 };
+  const containerRect = chartContainer.getBoundingClientRect();
+  const computedStyles = window.getComputedStyle(chartContainer);
+  const parsePaddingValue = (value) => {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const containerPadding = {
+    top: parsePaddingValue(computedStyles.paddingTop),
+    right: parsePaddingValue(computedStyles.paddingRight),
+    bottom: parsePaddingValue(computedStyles.paddingBottom),
+    left: parsePaddingValue(computedStyles.paddingLeft),
+  };
+  const rawWidth = containerRect.width || chartContainer.clientWidth || chartContainer.offsetWidth || 720;
+  const rawHeight = containerRect.height || chartContainer.clientHeight || chartContainer.offsetHeight || 320;
+  const innerWidth = Math.max(
+    Math.round(rawWidth - containerPadding.left - containerPadding.right),
+    320,
+  );
+  const innerHeight = Math.max(
+    Math.round(rawHeight - containerPadding.top - containerPadding.bottom),
+    220,
+  );
+
+  const viewBoxWidth = innerWidth;
+  const viewBoxHeight = innerHeight;
+  const padding = {
+    top: Math.max(20, Math.round(innerHeight * 0.12)),
+    right: Math.max(28, Math.round(innerWidth * 0.06)),
+    bottom: Math.max(44, Math.round(innerHeight * 0.22)),
+    left: Math.max(56, Math.round(innerWidth * 0.08)),
+  };
   const chartWidth = viewBoxWidth - padding.left - padding.right;
   const chartHeight = viewBoxHeight - padding.top - padding.bottom;
   const chartLeft = padding.left;
@@ -963,7 +991,7 @@ function renderPortfolioPerformance(history) {
   yAxisGroup.appendChild(yAxisLine);
   yTicks.forEach((tick) => {
     const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    label.setAttribute("x", (chartLeft - 2).toFixed(2));
+    label.setAttribute("x", (chartLeft - 12).toFixed(2));
     label.setAttribute("y", tick.y.toFixed(2));
     label.setAttribute("text-anchor", "end");
     label.setAttribute("dominant-baseline", "middle");
@@ -985,7 +1013,7 @@ function renderPortfolioPerformance(history) {
     const x = chartLeft + tick.position * chartWidth;
     const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
     label.setAttribute("x", x.toFixed(2));
-    label.setAttribute("y", (chartBottom + 4).toFixed(2));
+    label.setAttribute("y", (chartBottom + 18).toFixed(2));
     label.setAttribute("text-anchor", "middle");
     label.setAttribute("dominant-baseline", "hanging");
     label.classList.add("portfolio-chart-axis-label", "portfolio-chart-axis-label--x");
