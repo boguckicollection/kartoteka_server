@@ -1842,6 +1842,9 @@ function renderRelatedCardsList(cards) {
   const empty = document.getElementById("related-empty");
   if (!container) return;
   container.innerHTML = "";
+  if (empty) {
+    empty.textContent = "Nie znaleziono innych kart z tą postacią.";
+  }
   if (!Array.isArray(cards) || !cards.length) {
     if (empty) empty.hidden = false;
     return;

@@ -351,15 +351,23 @@ def _load_related_catalogue(
 ) -> list["models.CardRecord"]:
     if not base or limit <= 0:
         return []
-    stmt = select(models.CardRecord).where(models.CardRecord.id != base.id)
-    if base.set_code_clean:
-        stmt = stmt.where(models.CardRecord.set_code_clean == base.set_code_clean)
-    elif base.set_name_normalized:
-        stmt = stmt.where(models.CardRecord.set_name_normalized == base.set_name_normalized)
-    else:
+    base_name_norm = base.name_normalized or pricing.normalize(base.name or "")
+    if not base_name_norm:
         return []
-    stmt = stmt.order_by(models.CardRecord.number)
-    stmt = stmt.limit(limit)
+
+    stmt = (
+        select(models.CardRecord)
+        .where(
+            (models.CardRecord.id != base.id)
+            & (models.CardRecord.name_normalized == base_name_norm)
+        )
+        .order_by(
+            models.CardRecord.set_name,
+            models.CardRecord.release_date,
+            models.CardRecord.number,
+        )
+        .limit(limit)
+    )
     return session.exec(stmt).all()
 
 def _find_card_record(
@@ -1012,18 +1020,46 @@ def card_info(
     related_items: list[schemas.CardSearchResult] = []
     if limit_value:
         related_records = _load_related_catalogue(session, record, limit_value + 1)
-        if len(related_records) < limit_value:
-            lookup_code = record.set_code_clean or set_utils.guess_set_code(resolved_set_name)
+        base_name_norm = record.name_normalized or pricing.normalize(
+            detail_data.get("name") or record.name or ""
+        )
+        if len(related_records) < limit_value and base_name_norm:
             stored_related = False
-            if lookup_code:
-                api_related = pricing.list_set_cards(lookup_code, limit=limit_value + 1)
-                for item in api_related:
-                    candidate, changed = catalogue.upsert_card_record(session, item)
-                    if candidate:
-                        if _ensure_record_assets(session, candidate):
-                            changed = True
-                    if changed:
-                        stored_related = True
+            seen_payloads: set[tuple[str, str, str]] = set()
+
+            def _payload_key(payload: dict[str, Any]) -> tuple[str, str, str]:
+                return (
+                    pricing.normalize(payload.get("name") or ""),
+                    pricing.sanitize_number(str(payload.get("number") or "")),
+                    pricing.normalize(payload.get("set_name") or ""),
+                )
+
+            candidate_payloads: list[dict[str, Any]] = []
+            for payload in _fetch_remote_results():
+                if pricing.normalize(payload.get("name") or "") == base_name_norm:
+                    candidate_payloads.append(payload)
+
+            character_name = detail_data.get("name") or record.name or ""
+            if character_name:
+                search_results = pricing.search_cards(
+                    name=character_name,
+                    limit=limit_value + 5,
+                )
+                for payload in search_results:
+                    if pricing.normalize(payload.get("name") or "") == base_name_norm:
+                        candidate_payloads.append(payload)
+
+            for payload in candidate_payloads:
+                key = _payload_key(payload)
+                if key in seen_payloads:
+                    continue
+                seen_payloads.add(key)
+                candidate, changed = catalogue.upsert_card_record(session, payload)
+                if candidate and _ensure_record_assets(session, candidate):
+                    changed = True
+                if changed:
+                    stored_related = True
+
             if stored_related:
                 session.commit()
                 related_records = _load_related_catalogue(session, record, limit_value + 1)
