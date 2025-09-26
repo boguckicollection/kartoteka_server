@@ -53,6 +53,13 @@ logging in, registering new users, managing the collection and monitoring the
 portfolio value.  JavaScript widgets communicate with the REST API to perform
 CRUD operations on stored cards.
 
+### Card detail dashboard
+
+The card-detail view exposes interactive price history charts with range
+toggles for the last day, week, month or the entire dataset ("Całość").  When a
+shorter window would be empty the UI automatically highlights the full-range
+option so the chart stays populated whenever historical data exists.
+
 ## Set validation
 
 OpenAI responses normally validate set and era names against a built-in list.

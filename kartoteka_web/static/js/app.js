@@ -1732,15 +1732,33 @@ function normaliseHistoryPoints(history) {
 }
 
 function filterHistoryByRange(history, range) {
-  if (!Array.isArray(history) || !history.length) return [];
+  const ensureRangeMeta = (points, appliedRange) => {
+    const output = Array.isArray(points) ? points.slice() : [];
+    output.appliedRange = appliedRange;
+    return output;
+  };
+
+  if (!Array.isArray(history) || !history.length) {
+    return ensureRangeMeta([], "all");
+  }
+
+  if (range === "all") {
+    return ensureRangeMeta(history, "all");
+  }
+
   let windowMs = 30 * 24 * 60 * 60 * 1000;
   if (range === "1d") {
     windowMs = 24 * 60 * 60 * 1000;
   } else if (range === "1w") {
     windowMs = 7 * 24 * 60 * 60 * 1000;
   }
+
   const cutoff = Date.now() - windowMs;
-  return history.filter((point) => point.time.getTime() >= cutoff);
+  const filtered = history.filter((point) => point.time.getTime() >= cutoff);
+  if (!filtered.length) {
+    return ensureRangeMeta(history, "all");
+  }
+  return ensureRangeMeta(filtered, range);
 }
 
 function updateDetailChart(points) {
@@ -1789,24 +1807,33 @@ function updateDetailChart(points) {
     cardDetailChart.update();
   }
   if (emptyState) {
-    emptyState.hidden = points.length > 0;
+    emptyState.hidden = Array.isArray(cardDetailHistory) && cardDetailHistory.length > 0;
   }
 }
 
 function setRangeButtons(range) {
+  let hasMatch = false;
   document.querySelectorAll(".chart-range [data-range]").forEach((button) => {
     if (button.dataset.range === range) {
       button.classList.add("active");
+      hasMatch = true;
     } else {
       button.classList.remove("active");
     }
   });
+  if (!hasMatch) {
+    const fallback = document.querySelector('.chart-range [data-range="all"]');
+    if (fallback) {
+      fallback.classList.add("active");
+    }
+  }
 }
 
 function updateDetailRange(range) {
-  cardDetailRange = range;
-  setRangeButtons(range);
   const filtered = filterHistoryByRange(cardDetailHistory, range);
+  const appliedRange = filtered.appliedRange || range;
+  cardDetailRange = appliedRange;
+  setRangeButtons(appliedRange);
   updateDetailChart(filtered);
 }
 
@@ -2023,9 +2050,10 @@ async function loadCardDetail(container) {
     }
     const history = normaliseHistoryPoints(detail.history);
     cardDetailHistory = history;
-    cardDetailRange = "1m";
+    const initialRange = filterHistoryByRange(cardDetailHistory, "1m");
+    cardDetailRange = initialRange.appliedRange || "1m";
     setRangeButtons(cardDetailRange);
-    updateDetailChart(filterHistoryByRange(cardDetailHistory, cardDetailRange));
+    updateDetailChart(initialRange);
     renderRelatedCardsList(detail.related || []);
 
     const fallbackTitle = container.dataset.name?.trim() || "Szczegóły karty";
