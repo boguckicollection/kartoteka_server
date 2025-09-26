@@ -455,6 +455,20 @@ def test_card_detail_page_prefills_dataset(api_client):
     assert 'data-total="102"' in html
     assert '<h1 id="card-detail-title">Pikachu</h1>' in html
 
+    # Even when the query provides conflicting metadata, the template should use
+    # the canonical catalogue values so the dataset remains consistent.
+    res = client.get(
+        "/cards/base/25",
+        params={"set_name": "151", "set_code": "sv3"},
+        headers=headers,
+    )
+    assert res.status_code == 200
+    html = res.text
+    assert 'data-set-code="base"' in html
+    assert 'data-set-name="Base Set"' in html
+    assert 'data-total="102"' in html
+    assert 'data-name="Pikachu"' in html
+
 
 def test_card_detail_page_missing_catalogue_returns_404(api_client):
     client, _prices, _server = api_client

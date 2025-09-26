@@ -383,13 +383,15 @@ async def card_detail_page(request: Request, set_identifier: str, number: str) -
             )
 
         if record:
-            resolved_name = resolved_name or record.name
-            resolved_set_name = resolved_set_name or (record.set_name or "")
-            if not resolved_set_code:
+            if record.name:
+                resolved_name = record.name
+            if record.set_name:
+                resolved_set_name = record.set_name
+            if record.set_code_clean or record.set_code:
                 resolved_set_code = (
                     record.set_code_clean or record.set_code or ""
                 )
-            if not resolved_total and record.total:
+            if record.total:
                 resolved_total = record.total
             if not resolved_number:
                 resolved_number = record.number
