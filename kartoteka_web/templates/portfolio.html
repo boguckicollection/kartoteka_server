@@ -16,7 +16,7 @@
 <section class="panel portfolio-performance-panel">
   <div class="panel-header">
     <div>
-      <h2>Wartość portfela</h2>
+      <h2 id="portfolio-chart-heading">Wartość portfela</h2>
       <p>Monitoruj zmianę wartości kolekcji w czasie.</p>
     </div>
     <div class="portfolio-change" id="portfolio-change" data-direction="flat">
@@ -28,7 +28,13 @@
     </div>
   </div>
   <div class="portfolio-chart-wrapper">
-    <div class="portfolio-chart" id="portfolio-chart" role="img" aria-live="polite">
+    <div
+      class="portfolio-chart"
+      id="portfolio-chart"
+      role="group"
+      aria-live="polite"
+      aria-labelledby="portfolio-chart-heading"
+    >
       <p>Ładuję dane wykresu…</p>
     </div>
     <div class="portfolio-chart-meta">
