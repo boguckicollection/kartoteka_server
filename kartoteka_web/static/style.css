@@ -1511,14 +1511,18 @@ body[data-theme="dark"] .portfolio-change[data-direction='down'] {
 
 .portfolio-chart-area {
   fill: rgba(var(--color-primary-rgb), 0.16);
+  fill: color-mix(in srgb, var(--color-primary) 22%, transparent);
+  transition: fill 0.3s ease;
 }
 
 .portfolio-chart-line {
   fill: none;
   stroke: var(--color-primary);
-  stroke-width: 2;
+  stroke: color-mix(in srgb, var(--color-primary) 78%, var(--color-text) 22%);
+  stroke-width: 2.6;
   stroke-linecap: round;
   stroke-linejoin: round;
+  transition: stroke 0.3s ease;
 }
 
 .portfolio-chart-grid {
@@ -1542,13 +1546,14 @@ body[data-theme="dark"] .portfolio-change[data-direction='down'] {
 
 .portfolio-chart-axis-label {
   fill: var(--color-text-muted);
-  font-size: 3.2px;
-  letter-spacing: 0.06px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  font-weight: 500;
   pointer-events: none;
 }
 
 .portfolio-chart-axis-label--x {
-  font-size: 3px;
+  font-size: 11px;
 }
 
 .portfolio-chart-point {
@@ -1603,22 +1608,46 @@ body[data-theme="dark"] .portfolio-change[data-direction='down'] {
 
 .portfolio-chart[data-direction='up'] .portfolio-chart-line {
   stroke: var(--color-success);
+  stroke: color-mix(in srgb, var(--color-success) 78%, var(--color-text) 22%);
 }
 
 .portfolio-chart[data-direction='up'] .portfolio-chart-area {
   fill: rgba(76, 175, 80, 0.2);
+  fill: color-mix(in srgb, var(--color-success) 26%, transparent);
 }
 
 .portfolio-chart[data-direction='down'] .portfolio-chart-line {
   stroke: var(--color-danger);
+  stroke: color-mix(in srgb, var(--color-danger) 80%, var(--color-text) 20%);
 }
 
 .portfolio-chart[data-direction='down'] .portfolio-chart-area {
   fill: rgba(244, 67, 54, 0.2);
+  fill: color-mix(in srgb, var(--color-danger) 28%, transparent);
+}
+
+body[data-theme="dark"] .portfolio-chart-line {
+  stroke: color-mix(in srgb, var(--color-primary) 82%, #0b101d 18%);
 }
 
 body[data-theme="dark"] .portfolio-chart-area {
-  fill: rgba(var(--color-primary-rgb), 0.2);
+  fill: color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+body[data-theme="dark"] .portfolio-chart[data-direction='up'] .portfolio-chart-line {
+  stroke: color-mix(in srgb, var(--color-success) 82%, rgba(9, 12, 21, 0.35) 18%);
+}
+
+body[data-theme="dark"] .portfolio-chart[data-direction='up'] .portfolio-chart-area {
+  fill: color-mix(in srgb, var(--color-success) 32%, transparent);
+}
+
+body[data-theme="dark"] .portfolio-chart[data-direction='down'] .portfolio-chart-line {
+  stroke: color-mix(in srgb, var(--color-danger) 84%, rgba(9, 12, 21, 0.45) 16%);
+}
+
+body[data-theme="dark"] .portfolio-chart[data-direction='down'] .portfolio-chart-area {
+  fill: color-mix(in srgb, var(--color-danger) 34%, transparent);
 }
 
 body[data-theme="dark"] .portfolio-chart-point {
