@@ -1,3 +1,4 @@
+import datetime as dt
 import sys
 from contextlib import suppress
 from pathlib import Path
@@ -45,6 +46,19 @@ def api_client(db_path, monkeypatch):
     monkeypatch.setattr("kartoteka.pricing.list_set_cards", lambda *a, **k: [])
     monkeypatch.setattr("kartoteka_web.utils.images.cache_card_images", lambda payload, **_: payload)
     monkeypatch.setattr("kartoteka_web.utils.images.ensure_local_path", lambda value, **_: value)
+    monkeypatch.setattr("kartoteka_web.auth.get_password_hash", lambda password: f"hashed:{password}")
+    monkeypatch.setattr(
+        "kartoteka_web.auth.verify_password",
+        lambda plain, hashed: hashed == f"hashed:{plain}",
+    )
+    monkeypatch.setattr(
+        "kartoteka_web.routes.users.get_password_hash",
+        lambda password: f"hashed:{password}",
+    )
+    monkeypatch.setattr(
+        "kartoteka_web.routes.users.verify_password",
+        lambda plain, hashed: hashed == f"hashed:{plain}",
+    )
 
     with TestClient(server.app) as client:
         yield client, prices, server
@@ -300,22 +314,21 @@ def test_card_info_endpoint(api_client, monkeypatch):
         "image_large": "https://example.com/pikachu-large.png",
         "set_icon": "https://example.com/base-icon.png",
     }
-    related_cards = [
+    search_results = [
         sample_card,
         {
-            "name": "Raichu",
+            "name": "Pikachu",
             "number": "26",
-            "number_display": "26/102",
-            "total": "102",
-            "set_name": "Base Set",
-            "set_code": "base",
-            "rarity": "Rare",
-            "image_small": "https://example.com/raichu-small.png",
+            "number_display": "26/64",
+            "total": "64",
+            "set_name": "Jungle",
+            "set_code": "jungle",
+            "rarity": "Common",
+            "image_small": "https://example.com/jungle-pikachu.png",
         },
     ]
 
-    monkeypatch.setattr("kartoteka.pricing.search_cards", lambda *a, **k: [sample_card])
-    monkeypatch.setattr("kartoteka.pricing.list_set_cards", lambda *a, **k: related_cards)
+    monkeypatch.setattr("kartoteka.pricing.search_cards", lambda *a, **k: search_results)
 
     res = client.get(
         "/cards/info",
@@ -330,7 +343,73 @@ def test_card_info_endpoint(api_client, monkeypatch):
     assert len(data["history"]) == 1
     assert data["history"][0]["price"] == prices["value"]
     assert data["related"]
-    assert data["related"][0]["name"] == "Raichu"
+    assert data["related"]
+    assert {item["set_name"] for item in data["related"]} == {"Jungle"}
+    assert all(item["name"] == "Pikachu" for item in data["related"])
+
+
+def test_card_info_related_by_character(api_client):
+    client, _prices, _ = api_client
+    token = register_and_login(client, username="brock", password="onix")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    from kartoteka import pricing
+    from kartoteka_web import database, models
+    from kartoteka_web.utils import sets as set_utils
+
+    now = dt.datetime.now(dt.timezone.utc)
+
+    with database.session_scope() as session:
+        base_record = models.CardRecord(
+            name="Eevee",
+            name_normalized=pricing.normalize("Eevee"),
+            number=pricing.sanitize_number("11"),
+            number_display="11/64",
+            total="64",
+            set_name="Jungle",
+            set_name_normalized=pricing.normalize("Jungle"),
+            set_code="jungle",
+            set_code_clean=set_utils.clean_code("jungle"),
+            rarity="Common",
+            artist="Kagemaru Himeno",
+            series="Jungle",
+            image_small="https://example.com/eevee-jungle.png",
+            price_pln=15.5,
+            price_updated_at=now,
+        )
+        alt_record = models.CardRecord(
+            name="Eevee",
+            name_normalized=pricing.normalize("Eevee"),
+            number=pricing.sanitize_number("63"),
+            number_display="63/102",
+            total="102",
+            set_name="Base Set 2",
+            set_name_normalized=pricing.normalize("Base Set 2"),
+            set_code="base2",
+            set_code_clean=set_utils.clean_code("base2"),
+            rarity="Common",
+            artist="Kagemaru Himeno",
+            series="Base Set 2",
+            image_small="https://example.com/eevee-base2.png",
+            price_pln=12.0,
+            price_updated_at=now,
+        )
+        session.add(base_record)
+        session.add(alt_record)
+
+    res = client.get(
+        "/cards/info",
+        params={"name": "Eevee", "number": "11", "set_name": "Jungle"},
+        headers=headers,
+    )
+    assert res.status_code == 200, res.text
+    payload = res.json()
+    assert payload["related"], payload
+    assert any(item["set_name"] == "Base Set 2" for item in payload["related"])
+    assert all(
+        pricing.normalize(item["name"]) == pricing.normalize("Eevee")
+        for item in payload["related"]
+    )
 
 
 def test_card_detail_page_prefills_dataset(api_client):
