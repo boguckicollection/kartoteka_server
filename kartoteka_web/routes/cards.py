@@ -61,6 +61,8 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for tests without rap
 
 router = APIRouter(prefix="/cards", tags=["cards"])
 
+SCORE_THRESHOLD = pricing.SEARCH_SCORE_THRESHOLD
+
 CARD_NUMBER_PATTERN = re.compile(
     r"(?i)([a-z]{0,5}\d+[a-z0-9]*)(?:\s*/\s*([a-z]{0,5}\d+[a-z0-9]*))?"
 )
@@ -256,6 +258,12 @@ def _fetch_cardrecord_candidate_ids(match_query: str, limit: int) -> list[int]:
         return [int(row[0]) for row in rows if row[0] is not None]
 
 
+def _suggested_query_label(record: "models.CardRecord" | None) -> str | None:
+    if not record:
+        return None
+    return record.name or record.number_display or record.number or None
+
+
 def _search_catalogue(
     session: Session,
     *,
@@ -266,7 +274,7 @@ def _search_catalogue(
     set_name: str | None = None,
     limit: int = 50,
     offset: int = 0,
-) -> tuple[list["models.CardRecord"], int]:
+) -> tuple[list["models.CardRecord"], int, "models.CardRecord" | None]:
     search_term = name or query
     name_norm = _normalise_search_value(search_term)
     number_clean = _sanitise_optional_number(number)
@@ -379,6 +387,7 @@ def _search_catalogue(
     total_count = int(total_count or 0)
 
     scored = []
+    best_entry: tuple[float, models.CardRecord] | None = None
     for record in records:
         base_score = _score_card_record(
             record,
@@ -389,6 +398,8 @@ def _search_catalogue(
         )
         fuzzy_score = fuzzy_priorities.get(record.id, 0.0)
         final_score = max(base_score, fuzzy_score)
+        if best_entry is None or final_score > best_entry[0]:
+            best_entry = (final_score, record)
         scored.append((final_score, fuzzy_score, record))
 
     scored.sort(
@@ -400,11 +411,18 @@ def _search_catalogue(
             item[2].name or "",
         )
     )
+    threshold = SCORE_THRESHOLD
+    filtered = [entry for entry in scored if entry[0] >= threshold]
+    filtered_total = len(filtered)
     paginated = [
         record
-        for _score, _fuzzy, record in scored[offset : offset + max(1, limit)]
+        for _score, _fuzzy, record in filtered[offset : offset + max(1, limit)]
     ]
-    return paginated, total_count
+    if threshold and total_count:
+        total_count = min(total_count, filtered_total)
+    else:
+        total_count = filtered_total
+    return paginated, total_count, best_entry[1] if best_entry else None
 
 
 def _select_best_record(
@@ -857,10 +875,12 @@ def search_cards_endpoint(
     if not name_value:
         name_value = search_query
 
-    def _run_search(page_index: int) -> tuple[list[models.CardRecord], int, int]:
+    def _run_search(
+        page_index: int,
+    ) -> tuple[list[models.CardRecord], int, int, str | None]:
         safe_page = max(1, page_index)
         page_offset = (safe_page - 1) * cleaned_page_size
-        results, total_count = _search_catalogue(
+        results, total_count, suggestion = _search_catalogue(
             session,
             query=search_query,
             name=name_value,
@@ -870,7 +890,7 @@ def search_cards_endpoint(
             limit=cleaned_page_size,
             offset=page_offset,
         )
-        return results, total_count, safe_page
+        return results, total_count, safe_page, _suggested_query_label(suggestion)
 
     def _apply_assets(records: Sequence[models.CardRecord]) -> None:
         updated = False
@@ -879,7 +899,7 @@ def search_cards_endpoint(
         if updated:
             session.commit()
 
-    records, total_count, resolved_page = _run_search(requested_page)
+    records, total_count, resolved_page, suggestion_name = _run_search(requested_page)
     _apply_assets(records)
 
     if not records:
@@ -904,7 +924,7 @@ def search_cards_endpoint(
                 stored = True
         if stored:
             session.commit()
-            records, total_count, resolved_page = _run_search(resolved_page)
+            records, total_count, resolved_page, suggestion_name = _run_search(resolved_page)
             _apply_assets(records)
         elif cached_records:
             records = cached_records[
@@ -921,7 +941,7 @@ def search_cards_endpoint(
     total_pages = (total_count + cleaned_page_size - 1) // cleaned_page_size if total_count else 0
     if total_pages and resolved_page > total_pages:
         resolved_page = max(1, total_pages)
-        records, total_count, resolved_page = _run_search(resolved_page)
+        records, total_count, resolved_page, suggestion_name = _run_search(resolved_page)
         _apply_assets(records)
     elif total_count == 0:
         resolved_page = 1
@@ -932,6 +952,7 @@ def search_cards_endpoint(
         total=total_count,
         page=resolved_page,
         page_size=cleaned_page_size,
+        suggested_query=suggestion_name,
     )
 
 
@@ -993,7 +1014,7 @@ def card_info(
         set_name=set_name,
     )
     if record is None:
-        records, _total = _search_catalogue(
+        records, _total, _suggestion = _search_catalogue(
             session,
             query=search_query,
             name=name,
@@ -1023,7 +1044,7 @@ def card_info(
                 set_name=set_name,
             )
             if record is None:
-                records, _total = _search_catalogue(
+                records, _total, _suggestion = _search_catalogue(
                     session,
                     query=search_query,
                     name=name,
@@ -1060,7 +1081,7 @@ def card_info(
                 set_name=set_name,
             )
             if record is None:
-                records, _total = _search_catalogue(
+                records, _total, _suggestion = _search_catalogue(
                     session,
                     query=search_query,
                     name=name,

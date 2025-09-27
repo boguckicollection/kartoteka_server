@@ -20,6 +20,10 @@ HOLO_REVERSE_MULTIPLIER = float(os.getenv("HOLO_REVERSE_MULTIPLIER", "3.5"))
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
 DEFAULT_EXCHANGE_RATE = float(os.getenv("DEFAULT_EUR_PLN", "4.265"))
+# ``_score`` values in :func:`search_cards` peak around 6--7 for confident
+# matches.  Mapping them to a percentage keeps the API consistent with the
+# catalogue scoring, where fuzzy ratios already span 0--100.
+SEARCH_SCORE_THRESHOLD = float(os.getenv("SEARCH_SCORE_THRESHOLD", "88"))
 
 _exchange_rate_lock = threading.Lock()
 _exchange_rate_cache: dict[str, Any] = {"value": None, "date": None}
@@ -505,6 +509,7 @@ def search_cards(
     set_norm = normalize(set_name) if set_name else ""
 
     suggestions: list[dict[str, Any]] = []
+    threshold = SEARCH_SCORE_THRESHOLD
     for card in cards or []:
         payload = _build_card_payload(card)
         if not payload:
@@ -540,6 +545,7 @@ def search_cards(
         if not payload.get("image_small") and payload.get("image_large"):
             payload["image_small"] = payload.get("image_large")
         payload["_score"] = score
+        payload["_score_value"] = score * 20
         suggestions.append(payload)
 
     suggestions.sort(
@@ -554,11 +560,14 @@ def search_cards(
     seen: set[tuple[str | None, str]] = set()
     results: list[dict] = []
     for item in suggestions:
+        if threshold and item.get("_score_value", 0) < threshold:
+            continue
         key = (item.get("set_code"), item.get("number"))
         if key in seen:
             continue
         seen.add(key)
         item.pop("_score", None)
+        item.pop("_score_value", None)
         if not item.get("image_small") and item.get("image_large"):
             item["image_small"] = item["image_large"]
         results.append(item)
