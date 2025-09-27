@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 from pathlib import Path
-from typing import Any, Iterable, Tuple
+from typing import Any, Callable, Iterable, Tuple
 
 from sqlalchemy import text
 from sqlmodel import Session, select
@@ -307,13 +307,28 @@ def _has_catalogue_data(session: Session) -> bool:
     return bool(session.exec(select(models.CardRecord.id).limit(1)).first())
 
 
-def refresh_catalogue(session: Session, *, now: dt.datetime | None = None, force: bool = False) -> int:
+def refresh_catalogue(
+    session: Session,
+    *,
+    now: dt.datetime | None = None,
+    force: bool = False,
+    progress: Callable[[str, dict[str, Any]], None] | None = None,
+) -> int:
     """Synchronise the local catalogue with the remote API.
 
     Returns the number of records that were created or updated.
     """
 
     now = now or dt.datetime.now(dt.timezone.utc)
+
+    def _notify(event: str, **payload: Any) -> None:
+        if not progress:
+            return
+        try:
+            progress(event, dict(payload))
+        except Exception:  # pragma: no cover - defensive guard around hooks
+            logger.warning("Catalogue progress hook raised during %s", event, exc_info=True)
+
     if not force and not _has_catalogue_data(session) and not _should_refresh(now):
         # Ensure the first run always happens, even if the marker exists but the
         # database is empty for any reason.
@@ -322,10 +337,12 @@ def refresh_catalogue(session: Session, *, now: dt.datetime | None = None, force
     if not _has_catalogue_data(session) or _should_refresh(now, force=force):
         logger.info("Synchronising card catalogue from remote API")
     else:
+        _notify("skipped", reason="Catalogue already up-to-date", force=force)
         return 0
 
     set_codes = list(iter_known_set_codes())
     total_sets = len(set_codes)
+    _notify("start", total_sets=total_sets, force=force)
     last_processed = _read_progress_marker()
     start_index = 0
     if last_processed:
@@ -344,6 +361,7 @@ def refresh_catalogue(session: Session, *, now: dt.datetime | None = None, force
             start_index + 1,
             total_sets,
         )
+        _notify("resume", next_set=next_set, index=start_index + 1, total_sets=total_sets)
 
     total_changed = 0
     requests_used = 0
@@ -365,6 +383,14 @@ def refresh_catalogue(session: Session, *, now: dt.datetime | None = None, force
                 processed_cards,
                 remaining_sets,
             )
+            _notify(
+                "limit",
+                requests_used=requests_used,
+                request_limit=CATALOGUE_REQUEST_LIMIT,
+                processed_sets=processed_sets,
+                processed_cards=processed_cards,
+                remaining_sets=remaining_sets,
+            )
             break
 
         logger.info(
@@ -374,6 +400,14 @@ def refresh_catalogue(session: Session, *, now: dt.datetime | None = None, force
             total_sets,
             requests_used + 1,
             CATALOGUE_REQUEST_LIMIT,
+        )
+        _notify(
+            "set.start",
+            set_code=set_code,
+            index=position + 1,
+            total_sets=total_sets,
+            request_number=requests_used + 1,
+            request_limit=CATALOGUE_REQUEST_LIMIT,
         )
         cards = pricing.list_set_cards(set_code, limit=0)
         card_count = len(cards or [])
@@ -389,6 +423,17 @@ def refresh_catalogue(session: Session, *, now: dt.datetime | None = None, force
                 total_sets,
                 processed_cards,
                 remaining_sets,
+            )
+            _notify(
+                "set.complete",
+                set_code=set_code,
+                index=position + 1,
+                total_sets=total_sets,
+                card_count=card_count,
+                changed=0,
+                processed_sets=processed_sets,
+                processed_cards=processed_cards,
+                remaining_sets=remaining_sets,
             )
             continue
         changed_for_set = 0
@@ -417,6 +462,17 @@ def refresh_catalogue(session: Session, *, now: dt.datetime | None = None, force
             processed_cards,
             remaining_sets,
         )
+        _notify(
+            "set.complete",
+            set_code=set_code,
+            index=position + 1,
+            total_sets=total_sets,
+            card_count=card_count,
+            changed=changed_for_set,
+            processed_sets=processed_sets,
+            processed_cards=processed_cards,
+            remaining_sets=remaining_sets,
+        )
 
     completed_all_sets = (start_index + processed_sets) >= total_sets and (
         requests_used < CATALOGUE_REQUEST_LIMIT or processed_sets == total_sets
@@ -430,14 +486,23 @@ def refresh_catalogue(session: Session, *, now: dt.datetime | None = None, force
             total_changed,
             requests_used,
         )
+        _notify(
+            "complete",
+            total_changed=total_changed,
+            requests_used=requests_used,
+            total_sets=total_sets,
+            processed_sets=processed_sets,
+        )
     elif last_completed_set:
         _write_progress_marker(last_completed_set)
         remaining_sets = max(total_sets - (start_index + processed_sets), 0)
         next_message = ""
+        next_set_code: str | None = None
         if remaining_sets:
             next_index = start_index + processed_sets
             if next_index < total_sets:
-                next_message = f" Next run will start with set {set_codes[next_index]}."
+                next_set_code = set_codes[next_index]
+                next_message = f" Next run will start with set {next_set_code}."
         logger.info(
             "Catalogue synchronisation paused after set %s (%s processed, %s updated, %s/%s requests used).%s",
             last_completed_set,
@@ -447,6 +512,17 @@ def refresh_catalogue(session: Session, *, now: dt.datetime | None = None, force
             CATALOGUE_REQUEST_LIMIT,
             next_message,
         )
+        _notify(
+            "paused",
+            last_completed_set=last_completed_set,
+            processed_sets=processed_sets,
+            total_sets=total_sets,
+            total_changed=total_changed,
+            requests_used=requests_used,
+            request_limit=CATALOGUE_REQUEST_LIMIT,
+            next_set=next_set_code,
+            remaining_sets=remaining_sets,
+        )
     elif total_sets == 0:
         _write_progress_marker(None)
         _write_marker(now)
@@ -454,6 +530,13 @@ def refresh_catalogue(session: Session, *, now: dt.datetime | None = None, force
             "Catalogue synchronisation completed with %s updated records using %s requests",
             total_changed,
             requests_used,
+        )
+        _notify(
+            "complete",
+            total_changed=total_changed,
+            requests_used=requests_used,
+            total_sets=total_sets,
+            processed_sets=processed_sets,
         )
 
     return total_changed

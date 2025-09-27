@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from contextlib import contextmanager
 from typing import Iterator
@@ -12,6 +13,8 @@ DATABASE_URL = os.getenv("KARTOTEKA_DATABASE_URL", "sqlite:///./kartoteka.db")
 
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, echo=False, connect_args=connect_args)
+
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -33,12 +36,15 @@ def init_db() -> None:
     # Import models lazily to avoid circular imports during module initialisation.
     from . import models  # noqa: F401  # pylint: disable=unused-import
 
+    logger.info("Ensuring database tables are created")
     SQLModel.metadata.create_all(engine)
+    logger.info("Database tables confirmed")
 
     # Ensure the FTS index used for catalogue search exists and is synchronised
     # with the current dataset. ``exec_driver_sql`` is required so SQLite can
     # execute the ``CREATE VIRTUAL TABLE`` statement directly without SQLAlchemy
     # attempting to introspect it.
+    logger.info("Synchronising full-text search index")
     with engine.connect() as connection:
         connection.exec_driver_sql(
             """
@@ -60,6 +66,7 @@ def init_db() -> None:
             )
             """
         )
+    logger.info("Full-text search index synchronisation complete")
 
 
 def get_session() -> Iterator[Session]:
