@@ -24,6 +24,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(
 )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
+oauth2_optional_scheme = OAuth2PasswordBearer(
+    tokenUrl="/users/login", auto_error=False
+)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -72,4 +75,23 @@ async def get_current_user(
     user = session.exec(select(User).where(User.id == user_id)).first()
     if user is None:
         raise credentials_exception
+    return user
+
+
+async def get_optional_user(
+    session: Session = Depends(get_session),
+    token: str | None = Depends(oauth2_optional_scheme),
+) -> Optional[User]:
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        subject = payload.get("sub")
+        if subject is None:
+            return None
+        user_id = int(subject)
+    except (JWTError, ValueError, TypeError):
+        return None
+
+    user = session.exec(select(User).where(User.id == user_id)).first()
     return user

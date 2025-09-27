@@ -2580,15 +2580,16 @@ function bindPortfolio() {
   loadPortfolioHistory(alertBox);
 }
 
-async function ensureAuthenticated() {
+async function hydrateUserContext() {
   const token = getToken();
+  const result = { user: null, tokenPresent: Boolean(token), error: null };
   if (!token) {
-    const alertBox = document.querySelector(".alert");
-    if (alertBox) {
-      showAlert(alertBox, "Wymagane logowanie.");
+    updateUserBadge({ username: "" });
+    if (document.body) {
+      document.body.dataset.username = "";
+      document.body.dataset.avatar = "";
     }
-    window.location.href = "/login";
-    return false;
+    return result;
   }
 
   try {
@@ -2598,21 +2599,38 @@ async function ensureAuthenticated() {
       document.body.dataset.avatar = user?.avatar_url ?? "";
     }
     updateUserBadge({ username: user?.username ?? "", avatar_url: user?.avatar_url ?? "" });
-    return true;
+    result.user = user;
+    return result;
   } catch (error) {
+    result.error = error;
     clearToken();
-    const alertBox = document.querySelector(".alert");
-    if (alertBox) {
-      showAlert(alertBox, "Sesja wygasła. Zaloguj się ponownie.");
-    }
     updateUserBadge({ username: "" });
     if (document.body) {
       document.body.dataset.username = "";
       document.body.dataset.avatar = "";
     }
-    window.location.href = "/login";
-    return false;
+    return result;
   }
+}
+
+async function ensureAuthenticated() {
+  const { user, tokenPresent, error } = await hydrateUserContext();
+  if (user) {
+    return true;
+  }
+
+  const alertBox = document.querySelector(".alert");
+  if (alertBox) {
+    const message = tokenPresent
+      ? "Sesja wygasła. Zaloguj się ponownie."
+      : "Wymagane logowanie.";
+    showAlert(alertBox, message);
+  }
+  if (tokenPresent && error) {
+    console.warn("Nie udało się pobrać danych użytkownika", error);
+  }
+  window.location.href = "/login";
+  return false;
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
@@ -2641,7 +2659,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   const needsAddCard = Boolean(document.getElementById("add-card-page"));
   const needsSettings = Boolean(document.getElementById("settings-page"));
 
-  if (needsDashboard || needsPortfolio || needsDetail || needsAddCard || needsSettings) {
+  const requiresAuth = needsDashboard || needsPortfolio || needsAddCard || needsSettings;
+  if (requiresAuth) {
     if (await ensureAuthenticated()) {
       if (needsDashboard) {
         bindDashboard();
@@ -2659,6 +2678,15 @@ window.addEventListener("DOMContentLoaded", async () => {
         bindSettingsPage();
       }
     }
+  } else if (needsDetail) {
+    const { error, tokenPresent } = await hydrateUserContext();
+    if (tokenPresent && error) {
+      const alertBox = document.querySelector(".alert");
+      if (alertBox) {
+        showAlert(alertBox, "Sesja wygasła. Zaloguj się ponownie.");
+      }
+    }
+    bindCardDetail();
   }
 });
 

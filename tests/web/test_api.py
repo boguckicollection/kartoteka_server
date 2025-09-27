@@ -169,6 +169,109 @@ def test_requires_authentication(api_client):
     assert res.status_code == 401
 
 
+def test_card_info_allows_anonymous_access(api_client):
+    client, _prices, _ = api_client
+    from kartoteka_web import catalogue, database
+
+    database.init_db()
+    with database.session_scope() as session:
+        record, _ = catalogue.upsert_card_record(
+            session,
+            {
+                "name": "Pikachu",
+                "number": "25",
+                "set_name": "Base Set",
+                "set_code": "base",
+                "rarity": "Common",
+            },
+        )
+        assert record is not None
+
+    res = client.get(
+        "/cards/info",
+        params={
+            "name": "Pikachu",
+            "number": "25",
+            "set_name": "Base Set",
+            "set_code": "base",
+        },
+    )
+    assert res.status_code == 200, res.text
+    payload = res.json()
+    assert payload["card"]["name"] == "Pikachu"
+    assert payload["card"]["number"] == "25"
+    assert payload["related"] == []
+
+
+def test_card_info_authenticated_features_intact(api_client):
+    client, _prices, _ = api_client
+    token = register_and_login(client, username="brock", password="onix")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    from kartoteka_web import catalogue, database
+
+    database.init_db()
+    with database.session_scope() as session:
+        for payload in (
+            {
+                "name": "Eevee",
+                "number": "133",
+                "set_name": "Jungle",
+                "set_code": "jng",
+                "rarity": "Common",
+            },
+            {
+                "name": "Eevee",
+                "number": "133",
+                "set_name": "Fossil",
+                "set_code": "fsl",
+                "rarity": "Common",
+            },
+            {
+                "name": "Eevee",
+                "number": "133",
+                "set_name": "Neo Discovery",
+                "set_code": "neo4",
+                "rarity": "Common",
+            },
+        ):
+            record, _ = catalogue.upsert_card_record(session, payload)
+            assert record is not None
+
+    res = client.get(
+        "/cards/info",
+        params={
+            "name": "Eevee",
+            "number": "133",
+            "set_name": "Jungle",
+            "set_code": "jng",
+            "related_limit": 2,
+        },
+        headers=headers,
+    )
+    assert res.status_code == 200, res.text
+    payload = res.json()
+    card = payload["card"]
+    assert card["name"] == "Eevee"
+    assert card["number"] == "133"
+    assert card["set_name"] == "Jungle"
+    assert len(payload["related"]) == 2
+
+    entry_payload = {
+        "quantity": 1,
+        "card": {
+            "name": card["name"],
+            "number": card["number"],
+            "set_name": card["set_name"],
+        },
+    }
+    if card.get("set_code"):
+        entry_payload["card"]["set_code"] = card["set_code"]
+
+    res = client.post("/cards/", json=entry_payload, headers=headers)
+    assert res.status_code == 201, res.text
+
+
 def test_user_profile_settings(api_client):
     client, _prices, _ = api_client
     token = register_and_login(client, username="leaf", password="bulbasaur")
