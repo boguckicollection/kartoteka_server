@@ -870,14 +870,35 @@ def card_info(
 
     def _fetch_remote_results() -> list[dict[str, Any]]:
         nonlocal remote_results
-        if not remote_results:
-            remote_results = pricing.search_cards(
+        if remote_results:
+            return remote_results
+
+        candidate_names: list[str | None] = [set_name]
+        info = set_utils.get_set_info(set_code=set_code, set_name=set_name)
+        if info:
+            canonical = info.get("name")
+            if canonical and canonical not in candidate_names:
+                candidate_names.append(canonical)
+        candidate_names.append(None)
+
+        tried: set[str | None] = set()
+        for candidate in candidate_names:
+            if candidate in tried:
+                continue
+            tried.add(candidate)
+            results = pricing.search_cards(
                 name=name,
                 number=number,
                 total=total,
-                set_name=set_name,
+                set_name=candidate,
                 limit=20,
             )
+            if results:
+                remote_results = results
+                break
+        else:
+            remote_results = []
+
         return remote_results
 
     record = _locate_catalogue_record(

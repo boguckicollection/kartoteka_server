@@ -342,10 +342,9 @@ async def card_detail_page(request: Request, set_identifier: str, number: str) -
         set_info = set_utils.get_set_info(set_name=set_identifier)
 
     if set_info:
-        if not resolved_set_name:
-            resolved_set_name = set_info.get("name") or ""
-        if not resolved_set_code and set_info.get("code"):
-            resolved_set_code = set_info.get("code") or ""
+        resolved_set_name = set_info.get("name") or resolved_set_name or ""
+        if set_info.get("code"):
+            resolved_set_code = set_info.get("code") or resolved_set_code or ""
         if not resolved_total and set_info.get("total"):
             resolved_total = str(set_info.get("total"))
 

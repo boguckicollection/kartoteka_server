@@ -33,10 +33,15 @@ def normalise_name(name: Optional[str]) -> Optional[str]:
 
 
 @lru_cache(maxsize=1)
-def _load_indices() -> tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
-    """Return lookup tables indexed by set code and set name."""
+def _load_indices() -> tuple[
+    Dict[str, Dict[str, Any]],
+    Dict[str, Dict[str, Any]],
+    Dict[str, Dict[str, Any]],
+]:
+    """Return lookup tables indexed by set code, abbreviation and set name."""
 
     by_code: Dict[str, Dict[str, Any]] = {}
+    by_abbr: Dict[str, Dict[str, Any]] = {}
     by_name: Dict[str, Dict[str, Any]] = {}
     for filename in SET_FILES:
         path = BASE_DIR / filename
@@ -57,21 +62,26 @@ def _load_indices() -> tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]
                     "era": era,
                 }
                 code_key = clean_code(entry.get("code"))
+                abbr_key = clean_code(entry.get("abbr"))
                 name_key = normalise_name(entry.get("name"))
                 if code_key:
                     by_code[code_key] = entry
+                if abbr_key and abbr_key not in by_abbr:
+                    by_abbr[abbr_key] = entry
                 if name_key and name_key not in by_name:
                     by_name[name_key] = entry
-    return by_code, by_name
+    return by_code, by_abbr, by_name
 
 
 def get_set_info(*, set_code: Optional[str] = None, set_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Return metadata for the given set or ``None`` when unknown."""
 
-    index_code, index_name = _load_indices()
+    index_code, index_abbr, index_name = _load_indices()
     code_key = clean_code(set_code)
     if code_key and code_key in index_code:
         return index_code[code_key]
+    if code_key and code_key in index_abbr:
+        return index_abbr[code_key]
     name_key = normalise_name(set_name)
     if name_key and name_key in index_name:
         return index_name[name_key]
@@ -104,5 +114,5 @@ def slugify_set_identifier(*, set_code: Optional[str] = None, set_name: Optional
 def iter_known_sets() -> list[Dict[str, Any]]:
     """Return metadata for every known set."""
 
-    index_code, _ = _load_indices()
+    index_code, _, _ = _load_indices()
     return list(index_code.values())
