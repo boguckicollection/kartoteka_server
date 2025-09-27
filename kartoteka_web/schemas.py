@@ -75,6 +75,7 @@ class CardSearchResponse(SQLModel):
     total: int = 0
     page: int = 1
     page_size: int = 0
+    suggested_query: Optional[str] = None
 
 
 class PricePoint(SQLModel):

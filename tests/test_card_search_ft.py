@@ -98,14 +98,14 @@ def _run_search(session: Session, *, use_fts: bool):
     try:
         if not use_fts:
             with _override_attribute(cards, "_fetch_cardrecord_candidate_ids", lambda *a, **k: []):
-                records, _total = cards._search_catalogue(
+                records, _total, _suggestion = cards._search_catalogue(
                     session,
                     query="Charizard",
                     name="Charizard",
                     limit=1,
                 )
         else:
-            records, _total = cards._search_catalogue(
+            records, _total, _suggestion = cards._search_catalogue(
                 session,
                 query="Charizard",
                 name="Charizard",
@@ -166,7 +166,7 @@ def test_card_search_fuzzy_misspelling(monkeypatch, search_db):
 
         monkeypatch.setattr(cards, "_fetch_cardrecord_candidate_ids", lambda *a, **k: [])
 
-        results, total_count = cards._search_catalogue(
+        results, total_count, _suggestion = cards._search_catalogue(
             session,
             query="Sharizard",
             name="Sharizard",
