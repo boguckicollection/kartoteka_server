@@ -7,7 +7,7 @@ import contextlib
 import datetime as dt
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
@@ -28,6 +28,8 @@ from kartoteka_web.routes import cards, users
 from kartoteka_web.utils import images as image_utils, sets as set_utils
 
 logger = logging.getLogger(__name__)
+
+ProgressCallback = Callable[[str, dict[str, Any]], None]
 
 def _apply_variant_multiplier(entry: models.CollectionEntry, base_price: Optional[float]) -> Optional[float]:
     if base_price is None:
@@ -98,9 +100,106 @@ async def _price_update_loop() -> None:
             logger.info("Background price refresh updated %s entries", updated)
 
 
-def _refresh_catalogue(force: bool = False) -> int:
+def _refresh_catalogue(
+    *,
+    force: bool = False,
+    progress: ProgressCallback | None = None,
+) -> int:
+    logger.info("Catalogue refresh requested%s", " (forced)" if force else "")
+
+    def _handle(event: str, payload: dict[str, Any]) -> None:
+        data = dict(payload)
+        if progress:
+            try:
+                progress(event, data)
+            except Exception:  # pragma: no cover - defensive guard around hooks
+                logger.warning(
+                    "External catalogue progress hook raised during %s", event, exc_info=True
+                )
+
+        message: str | None = None
+        if event == "start":
+            total_sets = data.get("total_sets")
+            forced_text = " (forced)" if force else ""
+            if total_sets is None:
+                message = f"Catalogue refresh started{forced_text}"
+            elif total_sets == 0:
+                message = f"Catalogue refresh started{forced_text} with no sets to process"
+            else:
+                message = f"Catalogue refresh will process {total_sets} sets{forced_text}"
+        elif event == "resume":
+            next_set = data.get("next_set") or "?"
+            index = data.get("index") or "?"
+            total = data.get("total_sets") or "?"
+            message = f"Catalogue refresh resuming from set {next_set} ({index}/{total})"
+        elif event == "set.start":
+            index = data.get("index") or "?"
+            total = data.get("total_sets") or "?"
+            set_code = data.get("set_code") or "?"
+            request_number = data.get("request_number") or "?"
+            request_limit = data.get("request_limit") or "?"
+            message = (
+                f"Catalogue refresh [{index}/{total}]: syncing set {set_code} "
+                f"(request {request_number}/{request_limit})"
+            )
+        elif event == "set.complete":
+            set_code = data.get("set_code") or "?"
+            changed = data.get("changed")
+            card_count = data.get("card_count")
+            processed_sets = data.get("processed_sets")
+            total = data.get("total_sets")
+            remaining = data.get("remaining_sets")
+            message = (
+                f"Catalogue refresh completed set {set_code} "
+                f"({changed if changed is not None else 0} updates out of {card_count or 0} cards). "
+                f"Progress: {processed_sets or 0}/{total or '?'} sets finished, "
+                f"{remaining if remaining is not None else '?'} sets remaining."
+            )
+        elif event == "limit":
+            used = data.get("requests_used")
+            limit = data.get("request_limit")
+            remaining = data.get("remaining_sets")
+            message = (
+                f"Catalogue refresh reached request limit {used}/{limit}; "
+                f"{remaining if remaining is not None else '?'} sets remaining."
+            )
+        elif event == "paused":
+            last_set = data.get("last_completed_set") or "?"
+            processed_sets = data.get("processed_sets")
+            total = data.get("total_sets")
+            total_changed = data.get("total_changed")
+            used = data.get("requests_used")
+            limit = data.get("request_limit")
+            next_set = data.get("next_set")
+            continuation = f" Next run will continue with {next_set}." if next_set else ""
+            message = (
+                f"Catalogue refresh paused after set {last_set}: "
+                f"{processed_sets or 0}/{total or '?'} sets processed, {total_changed or 0} updates "
+                f"using {used or 0}/{limit or '?'} requests.{continuation}"
+            )
+        elif event == "complete":
+            total_changed = data.get("total_changed") or 0
+            used = data.get("requests_used") or 0
+            processed_sets = data.get("processed_sets")
+            total = data.get("total_sets")
+            message = (
+                f"Catalogue refresh completed with {total_changed} updates across {used} requests"
+            )
+            if processed_sets is not None and total is not None:
+                message += f" ({processed_sets}/{total} sets processed)"
+        elif event == "skipped":
+            reason = data.get("reason") or "no refresh required"
+            message = f"Catalogue refresh skipped: {reason}"
+
+        if message:
+            logger.info(message)
+
     with session_scope() as session:
-        return catalogue.refresh_catalogue(session, force=force)
+        return catalogue.refresh_catalogue(
+            session,
+            force=force,
+            progress=_handle,
+        )
 
 
 async def _catalogue_update_loop() -> None:
@@ -132,11 +231,29 @@ async def _run_background(task: asyncio.Task[Any] | None) -> None:
         logger.exception("Background task %s raised during shutdown", task_name)
 
 
-async def _start_catalogue_bootstrap() -> None:
+async def _start_catalogue_bootstrap(progress: ProgressCallback | None = None) -> None:
+    logger.info("Initial catalogue bootstrap starting")
+    if progress:
+        try:
+            progress("bootstrap.start", {})
+        except Exception:  # pragma: no cover - defensive guard around hooks
+            logger.warning("Bootstrap progress hook raised during start", exc_info=True)
     try:
-        await asyncio.to_thread(_refresh_catalogue)
+        updated = await asyncio.to_thread(_refresh_catalogue, progress=progress)
     except Exception:  # pragma: no cover - defensive guard for startup
+        if progress:
+            try:
+                progress("bootstrap.error", {})
+            except Exception:  # pragma: no cover - defensive guard around hooks
+                logger.warning("Bootstrap progress hook raised during error", exc_info=True)
         logger.exception("Initial catalogue refresh failed")
+    else:
+        logger.info("Initial catalogue bootstrap completed with %s updates", updated)
+        if progress:
+            try:
+                progress("bootstrap.complete", {"updated": updated})
+            except Exception:  # pragma: no cover - defensive guard around hooks
+                logger.warning("Bootstrap progress hook raised during completion", exc_info=True)
 
 
 @contextlib.asynccontextmanager
