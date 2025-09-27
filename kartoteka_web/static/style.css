@@ -902,6 +902,18 @@ body[data-theme="dark"] .home-news-tag[data-category="rynek"] {
   font-weight: 500;
 }
 
+.search-hint {
+  margin: -6px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  transition: opacity 0.2s ease;
+}
+
+#add-card-query[data-hint-active='true']::placeholder {
+  opacity: 0.3;
+}
+
 .card-search-results-panel {
   display: flex;
   flex-direction: column;

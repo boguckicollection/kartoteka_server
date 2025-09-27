@@ -1251,6 +1251,7 @@ function setupCardSearch(form) {
   const nextButton = pagination?.querySelector('[data-page-action="next"]') ?? null;
   const pageList = pagination?.querySelector('[data-page-list]') ?? null;
   const sortSelect = document.getElementById("card-search-sort");
+  const hintElement = document.getElementById("card-search-hint");
 
   if (!queryInput || !resultsSection || !resultsContainer) {
     return null;
@@ -1268,6 +1269,8 @@ function setupCardSearch(form) {
     sortMode: sortSelect?.value || "relevance",
     currentPage: 1,
     pageSize: 20,
+    suggestedQuery: "",
+    lastQuery: "",
   };
 
   const buildResultKey = (card) => {
@@ -1315,6 +1318,29 @@ function setupCardSearch(form) {
       statusMessage.textContent = "";
       statusMessage.hidden = true;
       delete statusMessage.dataset.state;
+    }
+  };
+
+  const updateSearchHint = () => {
+    if (!hintElement || !queryInput) {
+      return;
+    }
+    const suggestion = (state.suggestedQuery || "").trim();
+    const query = queryInput.value.trim();
+    const hasQueryMatch = Boolean(query && state.lastQuery && query === state.lastQuery);
+    const isSameText =
+      suggestion && query
+        ? suggestion.localeCompare(query, undefined, { sensitivity: "accent" }) === 0
+        : false;
+    const shouldShow = Boolean(suggestion && hasQueryMatch && !selectedCard && !isSameText);
+    if (shouldShow) {
+      hintElement.textContent = `Może chodziło Ci o: ${suggestion}`;
+      hintElement.hidden = false;
+      queryInput.setAttribute("data-hint-active", "true");
+    } else {
+      hintElement.textContent = "";
+      hintElement.hidden = true;
+      queryInput.removeAttribute("data-hint-active");
     }
   };
 
@@ -1581,6 +1607,7 @@ function setupCardSearch(form) {
     }
     updateSelectionHighlight();
     eventTarget.dispatchEvent(new Event("cardsearch:clear"));
+    updateSearchHint();
   };
 
   const applySuggestion = (card) => {
@@ -1594,6 +1621,7 @@ function setupCardSearch(form) {
     }
     updateSelectionHighlight();
     eventTarget.dispatchEvent(new CustomEvent("cardsearch:select", { detail: { card } }));
+    updateSearchHint();
   };
 
   const loadResults = async (page = 1) => {
@@ -1602,6 +1630,8 @@ function setupCardSearch(form) {
       state.items = [];
       state.total = 0;
       state.currentPage = 1;
+      state.lastQuery = "";
+      state.suggestedQuery = "";
       updateSummary(0);
       updateStatus("");
       resultsContainer.innerHTML = "";
@@ -1611,6 +1641,7 @@ function setupCardSearch(form) {
       }
       updatePaginationControls(0);
       updateSortDisabled();
+      updateSearchHint();
       return [];
     }
 
@@ -1654,6 +1685,17 @@ function setupCardSearch(form) {
       state.currentPage = responsePage;
       state.items = responseItems;
       state.total = responseTotal;
+      state.lastQuery = query;
+      const payloadSuggestion =
+        typeof payload?.suggested_query === "string" ? payload.suggested_query.trim() : "";
+      if (payloadSuggestion) {
+        state.suggestedQuery = payloadSuggestion;
+      } else {
+        const fallback = responseItems.find(
+          (item) => typeof item?.name === "string" && item.name.trim()
+        );
+        state.suggestedQuery = fallback?.name?.trim() || "";
+      }
 
       renderResults();
       updateSortDisabled();
@@ -1668,6 +1710,7 @@ function setupCardSearch(form) {
       eventTarget.dispatchEvent(
         new CustomEvent("cardsearch:results", { detail: { count: state.total } })
       );
+      updateSearchHint();
       return state.items;
     } catch (error) {
       if (currentRequest !== requestId) {
@@ -1675,11 +1718,14 @@ function setupCardSearch(form) {
       }
       state.items = [];
       state.total = 0;
+      state.lastQuery = "";
+      state.suggestedQuery = "";
       renderResults();
       updateSummary(0);
       updateStatus(error.message || "Nie udało się pobrać wyników.", "error");
       updateSortDisabled();
       eventTarget.dispatchEvent(new CustomEvent("cardsearch:results", { detail: { count: 0 } }));
+      updateSearchHint();
       throw error;
     }
   };
@@ -1691,6 +1737,8 @@ function setupCardSearch(form) {
 
   const handleInputChange = () => {
     clearSelection();
+    state.lastQuery = "";
+    updateSearchHint();
   };
 
   queryInput.addEventListener("input", handleInputChange);
@@ -1752,6 +1800,8 @@ function setupCardSearch(form) {
       state.items = [];
       state.total = 0;
       state.currentPage = 1;
+      state.lastQuery = "";
+      state.suggestedQuery = "";
       updateSummary(0);
       updateStatus("");
       resultsContainer.innerHTML = "";
@@ -1761,6 +1811,7 @@ function setupCardSearch(form) {
       }
       updatePaginationControls(0);
       updateSortDisabled();
+      updateSearchHint();
     },
     search,
   };
