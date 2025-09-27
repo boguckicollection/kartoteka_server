@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from .. import database, models, schemas
-from ..auth import get_current_user
+from ..auth import get_current_user, get_optional_user
 from ..database import get_session
 from ..utils import images as image_utils, sets as set_utils
 from kartoteka import pricing
@@ -943,11 +943,9 @@ def card_info(
     set_code: str | None = None,
     set_name: str | None = None,
     related_limit: int = 6,
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User | None = Depends(get_optional_user),
     session: Session = Depends(get_session),
-): 
-    del current_user
-
+):
     number_clean = pricing.sanitize_number(str(number))
     total_clean = pricing.sanitize_number(str(total)) if total else None
     search_query = _compose_query(name, number, set_name)
