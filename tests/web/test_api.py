@@ -2,6 +2,7 @@ import datetime as dt
 import sys
 from contextlib import suppress
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -468,6 +469,77 @@ def test_card_detail_page_prefills_dataset(api_client):
     assert 'data-set-name="Base Set"' in html
     assert 'data-total="102"' in html
     assert 'data-name="Pikachu"' in html
+
+
+def test_card_info_regression_for_set_slug(api_client, monkeypatch):
+    client, prices, _server = api_client
+    token = register_and_login(client, username="mew", password="psyduck")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    prices["value"] = 42.0
+
+    sample_card = {
+        "name": "Mew ex",
+        "number": "199",
+        "number_display": "199/207",
+        "total": "207",
+        "set_name": "Scarlet & Violet: 151",
+        "set_code": "sv3pt5",
+        "rarity": "Ultra Rare",
+        "artist": "5ban Graphics",
+        "series": "Scarlet & Violet",
+        "image_small": "https://example.com/mew-small.png",
+        "image_large": "https://example.com/mew-large.png",
+        "set_icon": "https://example.com/mew-icon.png",
+    }
+
+    calls: list[dict[str, Any]] = []
+
+    def fake_search_cards(*, name, number=None, total=None, set_name=None, limit=None):
+        calls.append(
+            {
+                "name": name,
+                "number": number,
+                "total": total,
+                "set_name": set_name,
+                "limit": limit,
+            }
+        )
+        if set_name is None:
+            return [sample_card]
+        return []
+
+    monkeypatch.setattr("kartoteka.pricing.search_cards", fake_search_cards)
+
+    res = client.get(
+        "/cards/mew/199",
+        params={"name": "Mew ex", "set_name": "151"},
+        headers=headers,
+    )
+    assert res.status_code == 200, res.text
+    html = res.text
+    assert 'data-set-code="sv3pt5"' in html
+    assert 'data-set-name="151"' in html
+    assert 'data-name="Mew ex"' in html
+
+    res = client.get(
+        "/cards/info",
+        params={
+            "name": "Mew ex",
+            "number": "199",
+            "set_name": "151",
+            "set_code": "sv3pt5",
+        },
+        headers=headers,
+    )
+    assert res.status_code == 200, res.text
+    payload = res.json()
+    assert payload["card"]["name"] == "Mew ex"
+    assert payload["card"]["set_code"] == "sv3pt5"
+    assert payload["card"]["set_name"] == "Scarlet & Violet: 151"
+    assert len(calls) >= 2
+    assert calls[0]["set_name"] == "151"
+    assert calls[-1]["set_name"] is None
 
 
 def test_card_detail_page_missing_catalogue_returns_404(api_client):
