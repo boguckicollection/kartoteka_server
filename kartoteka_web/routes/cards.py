@@ -19,7 +19,7 @@ from kartoteka import pricing
 from kartoteka_web import catalogue
 
 try:  # pragma: no cover - optional dependency
-    from rapidfuzz import fuzz
+    from rapidfuzz import fuzz, process
 except ModuleNotFoundError:  # pragma: no cover - fallback for tests without rapidfuzz
     import difflib
 
@@ -33,6 +33,31 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for tests without rap
             return difflib.SequenceMatcher(None, a or "", b or "").ratio() * 100
 
     fuzz = _FuzzFallback()  # type: ignore[assignment]
+
+    class _ProcessFallback:
+        @staticmethod
+        def extract(
+            query: str,
+            choices,
+            *,
+            limit: int = 5,
+            scorer=None,
+            processor=None,
+        ):
+            scorer = scorer or _FuzzFallback.WRatio
+            if isinstance(choices, dict):
+                iterable = choices.items()
+            else:  # pragma: no cover - defensive branch for unexpected inputs
+                iterable = enumerate(choices)
+            results = []
+            for key, value in iterable:
+                candidate = processor(value) if processor else value
+                score = float(scorer(query, candidate))
+                results.append((value, score, key))
+            results.sort(key=lambda item: item[1], reverse=True)
+            return results[:limit]
+
+    process = _ProcessFallback()  # type: ignore[assignment]
 
 router = APIRouter(prefix="/cards", tags=["cards"])
 
@@ -263,6 +288,7 @@ def _search_catalogue(
     records: list[models.CardRecord] = []
     name_filter_applied = False
     count_filters: list[Any] = []
+    fuzzy_priorities: dict[int, float] = {}
 
     if name_norm:
         match_query = _build_fts_match_query(name_norm, query_norm, set_norm)
@@ -294,6 +320,53 @@ def _search_catalogue(
         count_filters = filters
         records = session.exec(fallback_stmt.limit(fetch_limit)).all()
 
+    if not records and name_norm:
+        fuzzy_stmt = select(models.CardRecord)
+        if base_filters:
+            fuzzy_stmt = fuzzy_stmt.where(*base_filters)
+        fuzzy_candidates = session.exec(fuzzy_stmt.limit(fetch_limit)).all()
+        if not fuzzy_candidates and not base_filters:
+            fuzzy_candidates = session.exec(select(models.CardRecord).limit(fetch_limit)).all()
+
+        raw_query = (query or "").strip() or search_term
+        if raw_query and fuzzy_candidates:
+            choice_labels: dict[int, str] = {}
+            candidate_lookup: dict[int, models.CardRecord] = {}
+            for record in fuzzy_candidates:
+                parts = [
+                    record.name or "",
+                    record.number_display or record.number or "",
+                    record.set_name or "",
+                ]
+                label = " ".join(part for part in parts if part).strip() or (record.name or "")
+                if not label:
+                    continue
+                choice_labels[record.id] = label
+                candidate_lookup[record.id] = record
+
+            if choice_labels:
+                extracted = process.extract(
+                    raw_query,
+                    choice_labels,
+                    processor=None,
+                    scorer=fuzz.WRatio,
+                    limit=min(fetch_limit, len(choice_labels)),
+                )
+                ordered_records: list[models.CardRecord] = []
+                for _label, score, record_id in extracted:
+                    record = candidate_lookup.get(record_id)
+                    if record and record not in ordered_records:
+                        ordered_records.append(record)
+                        fuzzy_priorities[record.id] = float(score)
+                if ordered_records:
+                    records = ordered_records
+                    record_ids = [rec.id for rec in ordered_records]
+                    id_filter = models.CardRecord.id.in_(record_ids)
+                    if base_filters:
+                        count_filters = [*base_filters, id_filter]
+                    else:
+                        count_filters = [id_filter]
+
     if not count_filters:
         count_filters = base_filters
 
@@ -305,30 +378,31 @@ def _search_catalogue(
         total_count = total_count[0]
     total_count = int(total_count or 0)
 
-    scored = [
-        (
-            _score_card_record(
-                record,
-                query_text=query_norm or search_term,
-                number_clean=number_clean,
-                set_norm=set_norm,
-                total_clean=total_clean,
-            ),
+    scored = []
+    for record in records:
+        base_score = _score_card_record(
             record,
+            query_text=query_norm or search_term,
+            number_clean=number_clean,
+            set_norm=set_norm,
+            total_clean=total_clean,
         )
-        for record in records
-    ]
+        fuzzy_score = fuzzy_priorities.get(record.id, 0.0)
+        final_score = max(base_score, fuzzy_score)
+        scored.append((final_score, fuzzy_score, record))
+
     scored.sort(
         key=lambda item: (
             -item[0],
-            item[1].set_name or "",
-            item[1].number or "",
-            item[1].name or "",
+            -item[1],
+            item[2].set_name or "",
+            item[2].number or "",
+            item[2].name or "",
         )
     )
     paginated = [
         record
-        for _score, record in scored[offset : offset + max(1, limit)]
+        for _score, _fuzzy, record in scored[offset : offset + max(1, limit)]
     ]
     return paginated, total_count
 
