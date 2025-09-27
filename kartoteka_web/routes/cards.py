@@ -809,17 +809,21 @@ def search_cards_endpoint(
     _apply_assets(records)
 
     if not records:
+        requested_offset = (resolved_page - 1) * cleaned_page_size
+        remote_limit = max(cleaned_page_size, requested_offset + cleaned_page_size)
         api_results = pricing.search_cards(
             name=name_value,
             number=number_value,
             total=total_value,
             set_name=set_name,
-            limit=cleaned_page_size,
+            limit=remote_limit,
         )
         stored = False
+        cached_records: list[models.CardRecord] = []
         for payload in api_results:
             record, changed = catalogue.upsert_card_record(session, payload)
             if record:
+                cached_records.append(record)
                 if _ensure_record_assets(session, record):
                     changed = True
             if changed:
@@ -828,9 +832,17 @@ def search_cards_endpoint(
             session.commit()
             records, total_count, resolved_page = _run_search(resolved_page)
             _apply_assets(records)
+        elif cached_records:
+            records = cached_records[
+                requested_offset : requested_offset + cleaned_page_size
+            ]
+            total_count = max(total_count, len(cached_records))
+            _apply_assets(records)
         else:
             records = []
-            total_count = 0
+            total_count = max(total_count, len(cached_records))
+
+        total_count = max(total_count, len(cached_records))
 
     total_pages = (total_count + cleaned_page_size - 1) // cleaned_page_size if total_count else 0
     if total_pages and resolved_page > total_pages:
