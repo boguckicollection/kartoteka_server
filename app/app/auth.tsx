@@ -5,6 +5,7 @@ import { commonStyles, colors } from '../styles/commonStyles';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Icon from '../components/Icon';
+import { storeAuthToken } from '../utils/authToken';
 
 export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
@@ -13,21 +14,63 @@ export default function AuthScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [username, setUsername] = useState('');
 
-  const handleAuth = () => {
-    console.log('Auth attempt:', { isLogin, email, username });
-    
-    if (!email || !password) {
+  const handleAuth = async () => {
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    const trimmedUsername = username.trim();
+    const trimmedConfirmPassword = confirmPassword.trim();
+
+    if (!trimmedEmail || !trimmedPassword || (!isLogin && !trimmedUsername)) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
 
-    if (!isLogin && password !== confirmPassword) {
+    if (!isLogin && trimmedPassword !== trimmedConfirmPassword) {
       Alert.alert('Error', 'Passwords do not match');
       return;
     }
 
-    // For demo purposes, we'll just navigate to home
-    router.replace('/home');
+    const endpoint = isLogin ? '/users/login' : '/users/register';
+    const payload = isLogin
+      ? { username: trimmedEmail, password: trimmedPassword }
+      : { username: trimmedUsername, email: trimmedEmail, password: trimmedPassword };
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      let responseData: any = null;
+      try {
+        responseData = await response.json();
+      } catch (jsonError) {
+        // Ignore JSON parse errors for empty responses
+      }
+
+      if (!response.ok) {
+        const defaultErrorMessage =
+          response.status === 400 || response.status === 401
+            ? 'Invalid credentials. Please check your details.'
+            : 'Authentication failed. Please try again.';
+        const message = responseData?.message || defaultErrorMessage;
+        Alert.alert('Error', message);
+        return;
+      }
+
+      const token = responseData?.token;
+      if (!token) {
+        Alert.alert('Error', 'Authentication token missing from server response.');
+        return;
+      }
+
+      await storeAuthToken(token);
+      router.replace('/home');
+    } catch (error) {
+      console.error('Authentication error:', error);
+      Alert.alert('Error', 'Unable to reach the server. Please try again later.');
+    }
   };
 
   return (
