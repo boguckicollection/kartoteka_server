@@ -398,20 +398,55 @@ async function apiFetch(path, options = {}) {
   return data;
 }
 
+const alertHideTimers = new WeakMap();
+const TOAST_TRANSITION_MS = 300;
+
+function hideToast(element) {
+  element.dataset.visible = "false";
+  window.setTimeout(() => {
+    element.hidden = true;
+    element.textContent = "";
+    delete element.dataset.variant;
+    element.removeAttribute("data-visible");
+  }, TOAST_TRANSITION_MS);
+}
+
 function showAlert(element, message, type = "error") {
   if (!element) return;
-  if (message) {
-    element.textContent = message;
-    element.hidden = false;
-    if (type === "success") {
-      element.classList.add("success");
+
+  const pendingTimer = alertHideTimers.get(element);
+  if (pendingTimer) {
+    window.clearTimeout(pendingTimer);
+    alertHideTimers.delete(element);
+  }
+
+  element.classList.remove("success", "error");
+
+  if (!message) {
+    if (element.id === "add-card-alert") {
+      hideToast(element);
     } else {
-      element.classList.remove("success");
+      element.textContent = "";
+      element.hidden = true;
+      delete element.dataset.variant;
+      element.removeAttribute("data-visible");
     }
-  } else {
-    element.textContent = "";
-    element.hidden = true;
-    element.classList.remove("success");
+    return;
+  }
+
+  element.textContent = message;
+  element.hidden = false;
+  element.dataset.variant = type;
+
+  if (element.id === "add-card-alert") {
+    element.dataset.visible = "true";
+    if (type === "success") {
+      const timeoutId = window.setTimeout(() => {
+        hideToast(element);
+        alertHideTimers.delete(element);
+      }, 4000);
+      alertHideTimers.set(element, timeoutId);
+    }
   }
 }
 
