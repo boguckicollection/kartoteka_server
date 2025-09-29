@@ -66,14 +66,68 @@ export default function AuthScreen() {
         return;
       }
 
-      const token = responseData?.token;
-      if (!token) {
-        Alert.alert('Error', 'Authentication token missing from server response.');
+      if (isLogin) {
+        const token = responseData?.access_token;
+        if (!token) {
+          Alert.alert('Error', 'Authentication token missing from server response.');
+          return;
+        }
+
+        await storeAuthToken(token);
+        router.replace('/home');
         return;
       }
 
-      await storeAuthToken(token);
-      router.replace('/home');
+      const registerToken = responseData?.access_token;
+      if (registerToken) {
+        await storeAuthToken(registerToken);
+        router.replace('/home');
+        return;
+      }
+
+      // Registration successful – perform automatic login to obtain token
+      try {
+        const loginResponse = await fetch('/users/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: trimmedUsername, password: trimmedPassword }),
+        });
+
+        let loginData: any = null;
+        try {
+          loginData = await loginResponse.json();
+        } catch (jsonError) {
+          // Ignore JSON parse errors for empty responses
+        }
+
+        if (!loginResponse.ok) {
+          const defaultErrorMessage =
+            loginResponse.status === 400 || loginResponse.status === 401
+              ? 'Invalid credentials. Please check your details.'
+              : 'Authentication failed. Please try again.';
+          const message = loginData?.message || defaultErrorMessage;
+          Alert.alert('Error', message);
+          return;
+        }
+
+        const token = loginData?.access_token;
+        if (!token) {
+          Alert.alert(
+            'Error',
+            'Registration succeeded but authentication token is missing from login response.'
+          );
+          return;
+        }
+
+        await storeAuthToken(token);
+        router.replace('/home');
+      } catch (loginError) {
+        console.error('Automatic login error:', loginError);
+        Alert.alert(
+          'Error',
+          'Registration succeeded but automatic login failed. Please try logging in manually.'
+        );
+      }
     } catch (error) {
       console.error('Authentication error:', error);
       Alert.alert('Error', 'Unable to reach the server. Please try again later.');
