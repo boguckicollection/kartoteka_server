@@ -38,7 +38,8 @@ def get_password_hash(password: str) -> str:
 
 
 def authenticate_user(session: Session, username: str, password: str) -> Optional[User]:
-    user = session.exec(select(User).where(User.username == username)).first()
+    clean_username = username.strip()
+    user = session.exec(select(User).where(User.username == clean_username)).first()
     if not user:
         return None
     if not verify_password(password, user.hashed_password):

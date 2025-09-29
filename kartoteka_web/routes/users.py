@@ -20,14 +20,33 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.post("/register", response_model=schemas.UserRead, status_code=status.HTTP_201_CREATED)
 def register_user(user_in: schemas.UserCreate, session: Session = Depends(get_session)):
-    existing = session.exec(select(models.User).where(models.User.username == user_in.username)).first()
+    clean_username = user_in.username.strip()
+    if not clean_username:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username cannot be empty",
+        )
+
+    clean_email = None
+    if user_in.email is not None:
+        stripped_email = user_in.email.strip()
+        clean_email = stripped_email or None
+
+    clean_avatar_url = None
+    if user_in.avatar_url is not None:
+        stripped_avatar = user_in.avatar_url.strip()
+        clean_avatar_url = stripped_avatar or None
+
+    existing = session.exec(
+        select(models.User).where(models.User.username == clean_username)
+    ).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
 
     user = models.User(
-        username=user_in.username,
-        email=user_in.email,
-        avatar_url=user_in.avatar_url,
+        username=clean_username,
+        email=clean_email,
+        avatar_url=clean_avatar_url,
         hashed_password=get_password_hash(user_in.password),
     )
     session.add(user)
