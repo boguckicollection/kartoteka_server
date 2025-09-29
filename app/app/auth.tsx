@@ -5,7 +5,7 @@ import { commonStyles, colors } from '../styles/commonStyles';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Icon from '../components/Icon';
-import { storeAuthToken } from '../utils/authToken';
+import { useAuth } from '../context/AuthContext';
 
 export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
@@ -13,6 +13,8 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [username, setUsername] = useState('');
+
+  const { signIn } = useAuth();
 
   const handleAuth = async () => {
     const trimmedEmail = email.trim();
@@ -73,14 +75,14 @@ export default function AuthScreen() {
           return;
         }
 
-        await storeAuthToken(token);
+        await signIn(token);
         router.replace('/home');
         return;
       }
 
       const registerToken = responseData?.access_token;
       if (registerToken) {
-        await storeAuthToken(registerToken);
+        await signIn(registerToken);
         router.replace('/home');
         return;
       }
@@ -119,7 +121,7 @@ export default function AuthScreen() {
           return;
         }
 
-        await storeAuthToken(token);
+        await signIn(token);
         router.replace('/home');
       } catch (loginError) {
         console.error('Automatic login error:', loginError);

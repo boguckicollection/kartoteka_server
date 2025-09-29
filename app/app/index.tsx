@@ -1,13 +1,21 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { Redirect } from 'expo-router';
+import { useAuth } from '../context/AuthContext';
 
 export default function Index() {
-  // Check if user is logged in (for now, we'll redirect to auth)
-  const [isLoggedIn] = useState(false);
-  
+  const { isLoggedIn, isLoading, refreshAuthState } = useAuth();
+
+  useEffect(() => {
+    refreshAuthState();
+  }, [refreshAuthState]);
+
+  if (isLoading) {
+    return null;
+  }
+
   if (isLoggedIn) {
     return <Redirect href="/home" />;
   }
-  
+
   return <Redirect href="/auth" />;
 }

@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Icon from '../components/Icon';
 import SimpleBottomSheet from '../components/BottomSheet';
+import { useAuth } from '../context/AuthContext';
 
 export default function ProfileScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -21,13 +22,22 @@ export default function ProfileScreen() {
     walletBalance: 1250,
   };
 
+  const { signOut } = useAuth();
+
   const handleLogout = () => {
     Alert.alert(
       'Logout',
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', style: 'destructive', onPress: () => router.replace('/auth') },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+            router.replace('/auth');
+          },
+        },
       ]
     );
   };
