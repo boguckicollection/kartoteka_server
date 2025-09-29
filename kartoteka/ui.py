@@ -6464,7 +6464,11 @@ class CardEditorApp:
                 }
             else:
                 url = "https://www.tcggo.com/api/cards/"
-                params = {"name": name_api, "number": number_input, "set": set_code}
+                params = {"name": name_api}
+                if number_input:
+                    params["number"] = number_input
+                if set_code:
+                    params["set"] = set_code
 
             response = requests.get(url, params=params, headers=headers, timeout=10)
             if response.status_code != 200:
@@ -6485,9 +6489,11 @@ class CardEditorApp:
                 card_number = str(card.get("card_number", "")).lower()
                 card_set = str(card.get("episode", {}).get("name", "")).lower()
 
-                name_match = name_input in card_name
-                number_match = number_input == card_number
-                set_match = set_input in card_set or card_set.startswith(set_input)
+                name_match = not name_input or name_input in card_name
+                number_match = not number_input or number_input == card_number
+                set_match = not set_input or set_input in card_set or card_set.startswith(
+                    set_input
+                )
 
                 if name_match and number_match and set_match:
                     price_eur = extract_cardmarket_price(card) or 0
