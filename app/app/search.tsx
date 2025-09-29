@@ -14,7 +14,7 @@ import { commonStyles, colors } from '../styles/commonStyles';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Icon from '../components/Icon';
-import { getAuthToken } from '../utils/authToken';
+import { useAuth } from '../context/AuthContext';
 
 type CardSummary = {
   id: string;
@@ -63,6 +63,8 @@ export default function SearchScreen() {
     { id: 'number-desc', name: 'Numer malejąco' },
   ];
 
+  const { token, isLoading: isAuthLoading } = useAuth();
+
   useEffect(() => {
     const trimmedQuery = searchQuery.trim();
 
@@ -78,12 +80,15 @@ export default function SearchScreen() {
     let isCancelled = false;
     const controller = new AbortController();
     const debounceTimer = setTimeout(async () => {
+      if (isAuthLoading) {
+        return;
+      }
+
       setIsLoading(true);
       setErrorMessage(null);
       setInfoMessage(null);
       setHasSearched(true);
 
-      const token = getAuthToken();
       if (!token) {
         if (!isCancelled) {
           setErrorMessage('Brak tokena autoryzacyjnego. Zaloguj się ponownie.');
@@ -182,7 +187,7 @@ export default function SearchScreen() {
       controller.abort();
       clearTimeout(debounceTimer);
     };
-  }, [searchQuery]);
+  }, [isAuthLoading, searchQuery, token]);
 
   const filteredCards = useMemo(() => {
     return cards.filter((card) => {
