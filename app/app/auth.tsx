@@ -20,19 +20,26 @@ export default function AuthScreen() {
     const trimmedUsername = username.trim();
     const trimmedConfirmPassword = confirmPassword.trim();
 
-    if (!trimmedEmail || !trimmedPassword || (!isLogin && !trimmedUsername)) {
-      Alert.alert('Error', 'Please fill in all required fields');
-      return;
-    }
+    if (isLogin) {
+      if (!trimmedUsername || !trimmedPassword) {
+        Alert.alert('Error', 'Please fill in all required fields');
+        return;
+      }
+    } else {
+      if (!trimmedUsername || !trimmedEmail || !trimmedPassword || !trimmedConfirmPassword) {
+        Alert.alert('Error', 'Please fill in all required fields');
+        return;
+      }
 
-    if (!isLogin && trimmedPassword !== trimmedConfirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
+      if (trimmedPassword !== trimmedConfirmPassword) {
+        Alert.alert('Error', 'Passwords do not match');
+        return;
+      }
     }
 
     const endpoint = isLogin ? '/users/login' : '/users/register';
     const payload = isLogin
-      ? { username: trimmedEmail, password: trimmedPassword }
+      ? { username: trimmedUsername, password: trimmedPassword }
       : { username: trimmedUsername, email: trimmedEmail, password: trimmedPassword };
 
     try {
@@ -100,26 +107,26 @@ export default function AuthScreen() {
               {isLogin ? 'Sign In' : 'Create Account'}
             </Text>
 
+            <TextInput
+              style={commonStyles.input}
+              placeholder="Username"
+              placeholderTextColor={colors.textLight}
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+            />
+
             {!isLogin && (
               <TextInput
                 style={commonStyles.input}
-                placeholder="Username"
+                placeholder="Email"
                 placeholderTextColor={colors.textLight}
-                value={username}
-                onChangeText={setUsername}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
                 autoCapitalize="none"
               />
             )}
-
-            <TextInput
-              style={commonStyles.input}
-              placeholder="Email"
-              placeholderTextColor={colors.textLight}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
 
             <TextInput
               style={commonStyles.input}
