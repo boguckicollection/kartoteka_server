@@ -1,12 +1,14 @@
+import asyncio
 import datetime as dt
 import sys
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import SQLModel, create_engine, select
+from sqlmodel import create_engine, select
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -19,8 +21,7 @@ def db_path(tmp_path_factory):
     return tmp_path_factory.mktemp("web") / "api.db"
 
 
-@pytest.fixture
-def api_client(db_path, monkeypatch):
+def _configure_test_environment(db_path, monkeypatch):
     db_url = f"sqlite:///{db_path}"
     monkeypatch.setenv("KARTOTEKA_DATABASE_URL", db_url)
 
@@ -33,7 +34,7 @@ def api_client(db_path, monkeypatch):
     connect_args = {"check_same_thread": False}
     database.engine = create_engine(db_url, echo=False, connect_args=connect_args)
 
-    SQLModel.metadata.create_all(database.engine)
+    database.init_db()
 
     import server
 
@@ -61,6 +62,13 @@ def api_client(db_path, monkeypatch):
         lambda plain, hashed: hashed == f"hashed:{plain}",
     )
 
+    return server, prices
+
+
+@pytest.fixture
+def api_client(db_path, monkeypatch):
+    server, prices = _configure_test_environment(db_path, monkeypatch)
+
     with TestClient(server.app) as client:
         yield client, prices, server
 
@@ -82,6 +90,28 @@ def perform_register_and_login(
         json={"username": login_username or username, "password": password},
     )
     assert res.status_code == 200
+    token = res.json()["access_token"]
+    assert token
+    return token
+
+
+async def perform_register_and_login_async(
+    client: httpx.AsyncClient,
+    username: str = "ash",
+    password: str = "pikachu",
+    login_username: str | None = None,
+) -> str:
+    res = await client.post(
+        "/users/register",
+        json={"username": username, "password": password},
+    )
+    assert res.status_code == 201, res.text
+
+    res = await client.post(
+        "/users/login",
+        json={"username": login_username or username, "password": password},
+    )
+    assert res.status_code == 200, res.text
     token = res.json()["access_token"]
     assert token
     return token
@@ -171,6 +201,41 @@ def test_collection_crud_and_summary(api_client):
     assert res.status_code == 204
     res = client.get("/cards/", headers=headers)
     assert res.json() == []
+
+
+def test_cards_summary_async_client(db_path, monkeypatch):
+    async def run():
+        server, prices = _configure_test_environment(db_path, monkeypatch)
+
+        transport = httpx.ASGITransport(app=server.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            token = await perform_register_and_login_async(client)
+            headers = {"Authorization": f"Bearer {token}"}
+
+            payload = {
+                "quantity": 1,
+                "purchase_price": 5.0,
+                "is_reverse": False,
+                "is_holo": False,
+                "card": {
+                    "name": "Bulbasaur",
+                    "number": "1",
+                    "set_name": "Base Set",
+                    "set_code": "base",
+                },
+            }
+
+            prices["value"] = 10.0
+            res = await client.post("/cards/", json=payload, headers=headers)
+            assert res.status_code == 201, res.text
+
+            res = await client.get("/cards/summary", headers=headers)
+            assert res.status_code == 200, res.text
+            summary = res.json()
+            assert summary["total_cards"] == 1
+            assert summary["total_quantity"] == 1
+
+    asyncio.run(run())
 
 
 def test_requires_authentication(api_client):

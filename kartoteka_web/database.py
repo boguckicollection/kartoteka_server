@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import threading
-from contextlib import contextmanager, nullcontext
-from typing import Iterator
+from contextlib import asynccontextmanager, contextmanager, nullcontext
+from typing import AsyncIterator, Iterator
+from weakref import WeakKeyDictionary
 
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -17,6 +19,30 @@ connect_args = {"check_same_thread": False} if USING_SQLITE else {}
 engine = create_engine(DATABASE_URL, echo=False, connect_args=connect_args)
 
 DATABASE_WRITE_LOCK = threading.RLock() if USING_SQLITE else nullcontext()
+
+_ASYNC_LOCKS: WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock]
+_ASYNC_LOCKS = WeakKeyDictionary()
+_ASYNC_LOCKS_GUARD = threading.Lock()
+
+
+def _get_async_lock_for_current_loop() -> asyncio.Lock:
+    loop = asyncio.get_running_loop()
+    with _ASYNC_LOCKS_GUARD:
+        lock = _ASYNC_LOCKS.get(loop)
+        if lock is None:
+            lock = asyncio.Lock()
+            _ASYNC_LOCKS[loop] = lock
+    return lock
+
+
+@asynccontextmanager
+async def _async_database_write_lock() -> AsyncIterator[None]:
+    if USING_SQLITE:
+        lock = _get_async_lock_for_current_loop()
+        async with lock:
+            yield
+    else:
+        yield
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +100,9 @@ def init_db() -> None:
     logger.info("Full-text search index synchronisation complete")
 
 
-def get_session() -> Iterator[Session]:
+async def get_session() -> AsyncIterator[Session]:
     """FastAPI dependency returning a new SQLModel session."""
 
-    with DATABASE_WRITE_LOCK:
+    async with _async_database_write_lock():
         with Session(engine) as session:
             yield session
