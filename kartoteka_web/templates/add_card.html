@@ -35,7 +35,6 @@
     <input type="hidden" name="rarity" id="add-card-rarity" />
     <div class="form-footer">
       <button type="submit" class="secondary" id="card-search-trigger">Szukaj</button>
-      <div class="alert" id="add-card-alert" hidden></div>
     </div>
   </form>
 </section>
@@ -85,4 +84,8 @@
     </button>
   </div>
 </section>
+
+<div class="toast-container">
+  <div class="alert" id="add-card-alert" role="status" aria-live="polite" hidden></div>
+</div>
 {% endblock %}
