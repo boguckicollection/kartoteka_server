@@ -7,6 +7,7 @@ import logging
 import os
 import threading
 import unicodedata
+from difflib import SequenceMatcher
 from typing import Any, Callable, Optional
 
 import requests
@@ -24,6 +25,7 @@ DEFAULT_EXCHANGE_RATE = float(os.getenv("DEFAULT_EUR_PLN", "4.265"))
 # matches.  Mapping them to a percentage keeps the API consistent with the
 # catalogue scoring, where fuzzy ratios already span 0--100.
 SEARCH_SCORE_THRESHOLD = float(os.getenv("SEARCH_SCORE_THRESHOLD", "88"))
+NAME_SIMILARITY_THRESHOLD = 0.75
 
 _exchange_rate_lock = threading.Lock()
 _exchange_rate_cache: dict[str, Any] = {"value": None, "date": None}
@@ -510,6 +512,7 @@ def search_cards(
 
     suggestions: list[dict[str, Any]] = []
     threshold = SEARCH_SCORE_THRESHOLD
+    threshold_points = threshold / 20 if threshold else 0
     for card in cards or []:
         payload = _build_card_payload(card)
         if not payload:
@@ -519,6 +522,13 @@ def search_cards(
         card_number_clean = payload.get("number") or ""
         total_value = payload.get("total") or ""
         card_total_clean = sanitize_number(str(total_value)) if total_value else ""
+
+        name_similarity = 0.0
+        if name_norm and card_name_norm:
+            if card_name_norm == name_norm:
+                name_similarity = 1.0
+            else:
+                name_similarity = SequenceMatcher(None, name_norm, card_name_norm).ratio()
 
         if number_clean and card_number_clean != number_clean:
             continue
@@ -546,6 +556,7 @@ def search_cards(
             payload["image_small"] = payload.get("image_large")
         payload["_score"] = score
         payload["_score_value"] = score * 20
+        payload["_name_similarity"] = name_similarity
         suggestions.append(payload)
 
     suggestions.sort(
@@ -560,14 +571,20 @@ def search_cards(
     seen: set[tuple[str | None, str]] = set()
     results: list[dict] = []
     for item in suggestions:
-        if threshold and item.get("_score_value", 0) < threshold:
+        score_value = float(item.get("_score", 0) or 0)
+        if score_value <= 0:
             continue
+        if threshold_points and score_value < threshold_points:
+            similarity = float(item.get("_name_similarity") or 0)
+            if similarity < NAME_SIMILARITY_THRESHOLD:
+                continue
         key = (item.get("set_code"), item.get("number"))
         if key in seen:
             continue
         seen.add(key)
         item.pop("_score", None)
         item.pop("_score_value", None)
+        item.pop("_name_similarity", None)
         if not item.get("image_small") and item.get("image_large"):
             item["image_small"] = item["image_large"]
         results.append(item)

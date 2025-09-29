@@ -107,3 +107,40 @@ def test_card_search_suggests_and_filters(monkeypatch, search_session):
 
     assert captured["called"] == 1
     assert [item["name"] for item in results] == ["Charizard"]
+
+
+def test_search_cards_allows_typo_without_number(monkeypatch):
+    from kartoteka import pricing
+
+    class _DummyResponse:
+        status_code = 200
+
+        def __init__(self, data):
+            self._data = data
+
+        def json(self):
+            return self._data
+
+    def fake_get(_url, params=None, headers=None, timeout=None):
+        data = {
+            "cards": [
+                {
+                    "name": "Charizard",
+                    "number": "4",
+                    "total": "102",
+                    "set": {"name": "Base Set", "code": "BS"},
+                },
+                {
+                    "name": "Pikachu",
+                    "number": "25",
+                    "set": {"name": "Base Set", "code": "BS"},
+                },
+            ]
+        }
+        return _DummyResponse(data)
+
+    monkeypatch.setattr(pricing.requests, "get", fake_get)
+
+    results = pricing.search_cards(name="Charoad", set_name="Base Set", limit=5)
+
+    assert [item["name"] for item in results] == ["Charizard"]
