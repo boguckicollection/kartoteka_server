@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Text,
   View,
@@ -14,7 +14,17 @@ import { commonStyles, colors } from '../styles/commonStyles';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Icon from '../components/Icon';
-import { mockCards, CardSummary } from '../data/mockCards';
+import { getAuthToken } from '../utils/authToken';
+
+type CardSummary = {
+  id: string;
+  name: string;
+  number: string;
+  set: string;
+  rarity?: string | null;
+  price?: number | null;
+  image?: string | null;
+};
 
 type SortOption =
   | 'relevance'
@@ -29,6 +39,12 @@ export default function SearchScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [sortOption, setSortOption] = useState<SortOption>('relevance');
+  const [cards, setCards] = useState<CardSummary[]>([]);
+  const [totalResults, setTotalResults] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const filters = [
     { id: 'all', name: 'All Cards' },
@@ -47,34 +63,154 @@ export default function SearchScreen() {
     { id: 'number-desc', name: 'Numer malejąco' },
   ];
 
+  useEffect(() => {
+    const trimmedQuery = searchQuery.trim();
+
+    if (!trimmedQuery) {
+      setCards([]);
+      setTotalResults(0);
+      setErrorMessage(null);
+      setInfoMessage(null);
+      setHasSearched(false);
+      return;
+    }
+
+    let isCancelled = false;
+    const controller = new AbortController();
+    const debounceTimer = setTimeout(async () => {
+      setIsLoading(true);
+      setErrorMessage(null);
+      setInfoMessage(null);
+      setHasSearched(true);
+
+      const token = getAuthToken();
+      if (!token) {
+        if (!isCancelled) {
+          setErrorMessage('Brak tokena autoryzacyjnego. Zaloguj się ponownie.');
+          setCards([]);
+          setTotalResults(0);
+        }
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      try {
+        const params = new URLSearchParams({ query: trimmedQuery, page: '1', page_size: '20' });
+        const response = await fetch(`/cards/search?${params.toString()}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          signal: controller.signal,
+        });
+
+        let payload: any = null;
+        try {
+          payload = await response.json();
+        } catch (parseError) {
+          payload = null;
+        }
+
+        if (!response.ok) {
+          const serverMessage =
+            (payload && (payload.message || payload.detail)) ||
+            'Nie udało się pobrać wyników wyszukiwania.';
+          throw new Error(serverMessage);
+        }
+
+        if (isCancelled) {
+          return;
+        }
+
+        const items = Array.isArray(payload?.items) ? payload.items : [];
+        const mapped: CardSummary[] = items.map((item: any, index: number) => {
+          const identifierParts = [item?.set_code, item?.number, item?.name].filter(Boolean);
+          const fallbackId = `${trimmedQuery}-${index}`;
+          return {
+            id: identifierParts.join(':') || fallbackId,
+            name: String(item?.name || 'Nieznana karta'),
+            number: String(item?.number_display || item?.number || ''),
+            set: String(item?.set_name || 'Nieznany set'),
+            rarity: item?.rarity ?? null,
+            price:
+              typeof item?.price_pln === 'number'
+                ? item.price_pln
+                : typeof item?.current_price === 'number'
+                ? item.current_price
+                : typeof item?.price === 'number'
+                ? item.price
+                : null,
+            image: item?.image_small || item?.image_large || null,
+          };
+        });
+
+        setCards(mapped);
+        const totalValue =
+          typeof payload?.total === 'number'
+            ? payload.total
+            : Number.isFinite(Number(payload?.total))
+            ? Number(payload?.total)
+            : null;
+        const resolvedTotal = totalValue ?? mapped.length;
+        setTotalResults(resolvedTotal);
+        if (!mapped.length) {
+          setInfoMessage('Nie znaleziono kart dla podanej frazy.');
+        } else {
+          setInfoMessage(null);
+        }
+      } catch (caughtError) {
+        if (controller.signal.aborted || isCancelled) {
+          return;
+        }
+        const message =
+          caughtError instanceof Error && caughtError.message.trim()
+            ? caughtError.message.trim()
+            : 'Wystąpił błąd podczas wyszukiwania kart.';
+        setErrorMessage(message);
+        setCards([]);
+        setTotalResults(0);
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      }
+    }, 400);
+
+    return () => {
+      isCancelled = true;
+      controller.abort();
+      clearTimeout(debounceTimer);
+    };
+  }, [searchQuery]);
+
   const filteredCards = useMemo(() => {
-    const loweredQuery = searchQuery.trim().toLowerCase();
-
-    return mockCards.filter((card) => {
-      const matchesSearch =
-        loweredQuery.length === 0 ||
-        card.name.toLowerCase().includes(loweredQuery) ||
-        card.set.toLowerCase().includes(loweredQuery) ||
-        card.number.toLowerCase().includes(loweredQuery);
-
-      const matchesFilter =
-        selectedFilter === 'all' ||
-        (selectedFilter === 'rare' && card.rarity.includes('Rare')) ||
-        (selectedFilter === 'ultra' && card.rarity.includes('Ultra')) ||
-        (selectedFilter === 'secret' && card.rarity.includes('Secret'));
-
-      return matchesSearch && matchesFilter;
+    return cards.filter((card) => {
+      const rarityValue = (card.rarity || '').toLowerCase();
+      if (selectedFilter === 'all') {
+        return true;
+      }
+      if (selectedFilter === 'rare') {
+        return rarityValue.includes('rare');
+      }
+      if (selectedFilter === 'ultra') {
+        return rarityValue.includes('ultra');
+      }
+      if (selectedFilter === 'secret') {
+        return rarityValue.includes('secret');
+      }
+      return true;
     });
-  }, [searchQuery, selectedFilter]);
+  }, [cards, selectedFilter]);
 
   const sortedCards = useMemo(() => {
     const cards = [...filteredCards];
 
     switch (sortOption) {
       case 'price-desc':
-        return cards.sort((a, b) => b.price - a.price);
+        return cards.sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity));
       case 'price-asc':
-        return cards.sort((a, b) => a.price - b.price);
+        return cards.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
       case 'name-asc':
         return cards.sort((a, b) => a.name.localeCompare(b.name));
       case 'name-desc':
@@ -92,10 +228,16 @@ export default function SearchScreen() {
     <TouchableOpacity
       style={styles.cardTile}
       activeOpacity={0.9}
-      onPress={() => router.push(`/card/${item.id}`)}
+      onPress={() => router.push(`/card/${encodeURIComponent(item.id)}`)}
     >
       <View style={styles.cardImageWrapper}>
-        <Image source={{ uri: item.image }} style={styles.cardImage} resizeMode="cover" />
+        {!!item.image ? (
+          <Image source={{ uri: item.image }} style={styles.cardImage} resizeMode="cover" />
+        ) : (
+          <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
+            <Icon name="image-outline" size={24} color={colors.textLight} />
+          </View>
+        )}
         <Pressable
           style={styles.addButton}
           onPress={(event) => {
@@ -114,8 +256,10 @@ export default function SearchScreen() {
         <Text style={styles.cardMeta} numberOfLines={1}>
           #{item.number} · {item.set}
         </Text>
-        <Text style={styles.cardRarity}>{item.rarity}</Text>
-        <Text style={styles.cardPrice}>${item.price}</Text>
+        {!!item.rarity && <Text style={styles.cardRarity}>{item.rarity}</Text>}
+        <Text style={styles.cardPrice}>
+          {typeof item.price === 'number' ? `PLN ${item.price.toFixed(2)}` : 'Brak danych o cenie'}
+        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -236,13 +380,24 @@ export default function SearchScreen() {
         {/* Results */}
         <View style={{ flex: 1 }}>
           <View style={{ paddingHorizontal: 20 }}>
-            <Text style={[commonStyles.textLight, { marginBottom: 12 }]}>{sortedCards.length} cards found</Text>
+            <Text style={[commonStyles.textLight, { marginBottom: 8 }]}>
+              {totalResults} cards found
+            </Text>
+            {isLoading && (
+              <Text style={[commonStyles.textLight, styles.statusInfo]}>Wyszukiwanie kart...</Text>
+            )}
+            {!isLoading && errorMessage && (
+              <Text style={[commonStyles.textLight, styles.statusError]}>{errorMessage}</Text>
+            )}
+            {!isLoading && !errorMessage && hasSearched && infoMessage && (
+              <Text style={[commonStyles.textLight, styles.statusInfo]}>{infoMessage}</Text>
+            )}
           </View>
 
           <FlatList
             data={sortedCards}
             renderItem={renderCard}
-            keyExtractor={(item) => item.id.toString()}
+            keyExtractor={(item) => item.id}
             numColumns={2}
             columnWrapperStyle={{ justifyContent: 'space-between' }}
             showsVerticalScrollIndicator={false}
@@ -308,6 +463,11 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 63 / 88,
   },
+  cardImagePlaceholder: {
+    backgroundColor: colors.backgroundAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   addButton: {
     position: 'absolute',
     top: 8,
@@ -360,5 +520,12 @@ const styles = StyleSheet.create({
   sortHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  statusInfo: {
+    marginTop: 4,
+  },
+  statusError: {
+    marginTop: 4,
+    color: colors.error,
   },
 });
