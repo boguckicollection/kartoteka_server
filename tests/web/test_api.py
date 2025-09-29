@@ -65,7 +65,12 @@ def api_client(db_path, monkeypatch):
         yield client, prices, server
 
 
-def register_and_login(client: TestClient, username: str = "ash", password: str = "pikachu") -> str:
+def perform_register_and_login(
+    client: TestClient,
+    username: str = "ash",
+    password: str = "pikachu",
+    login_username: str | None = None,
+) -> str:
     res = client.post(
         "/users/register",
         json={"username": username, "password": password},
@@ -74,7 +79,7 @@ def register_and_login(client: TestClient, username: str = "ash", password: str 
 
     res = client.post(
         "/users/login",
-        json={"username": username, "password": password},
+        json={"username": login_username or username, "password": password},
     )
     assert res.status_code == 200
     token = res.json()["access_token"]
@@ -82,9 +87,30 @@ def register_and_login(client: TestClient, username: str = "ash", password: str 
     return token
 
 
+def register_and_login(api_client):
+    client, _prices, _server = api_client
+    registration_username = "   ash   "
+    login_username = "\tash\n"
+
+    res = client.post(
+        "/users/register",
+        json={"username": registration_username, "password": "pikachu"},
+    )
+    assert res.status_code == 201, res.text
+    payload = res.json()
+    assert payload["username"] == "ash"
+
+    res = client.post(
+        "/users/login",
+        json={"username": login_username, "password": "pikachu"},
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["access_token"]
+
+
 def test_collection_crud_and_summary(api_client):
     client, prices, server = api_client
-    token = register_and_login(client)
+    token = perform_register_and_login(client)
     headers = {"Authorization": f"Bearer {token}"}
 
     from kartoteka_web import database, models
@@ -152,7 +178,7 @@ def test_requires_authentication(api_client):
     res = client.get("/cards/")
     assert res.status_code == 401
 
-    token = register_and_login(client, username="misty", password="starmie")
+    token = perform_register_and_login(client, username="misty", password="starmie")
     headers = {"Authorization": f"Bearer {token}"}
     res = client.post(
         "/cards/",
@@ -205,7 +231,7 @@ def test_card_info_allows_anonymous_access(api_client):
 
 def test_card_info_authenticated_features_intact(api_client):
     client, _prices, _ = api_client
-    token = register_and_login(client, username="brock", password="onix")
+    token = perform_register_and_login(client, username="brock", password="onix")
     headers = {"Authorization": f"Bearer {token}"}
 
     from kartoteka_web import catalogue, database
@@ -274,7 +300,7 @@ def test_card_info_authenticated_features_intact(api_client):
 
 def test_user_profile_settings(api_client):
     client, _prices, _ = api_client
-    token = register_and_login(client, username="leaf", password="bulbasaur")
+    token = perform_register_and_login(client, username="leaf", password="bulbasaur")
     headers = {"Authorization": f"Bearer {token}"}
 
     res = client.patch(
@@ -316,7 +342,7 @@ def test_card_search_endpoint(api_client, monkeypatch):
     res = client.get("/cards/search", params={"name": "Pikachu", "number": "25"})
     assert res.status_code == 401
 
-    token = register_and_login(client, username="brock", password="onix")
+    token = perform_register_and_login(client, username="brock", password="onix")
     headers = {"Authorization": f"Bearer {token}"}
 
     sample = [
@@ -358,7 +384,7 @@ def test_card_search_endpoint(api_client, monkeypatch):
 
 def test_card_search_query_parameter(api_client):
     client, _prices, _ = api_client
-    token = register_and_login(client, username="gio", password="charisma")
+    token = perform_register_and_login(client, username="gio", password="charisma")
     headers = {"Authorization": f"Bearer {token}"}
 
     from kartoteka import pricing
@@ -390,7 +416,7 @@ def test_card_search_query_parameter(api_client):
 
 def test_card_info_endpoint(api_client, monkeypatch):
     client, prices, _ = api_client
-    token = register_and_login(client, username="gary", password="eevee")
+    token = perform_register_and_login(client, username="gary", password="eevee")
     headers = {"Authorization": f"Bearer {token}"}
 
     prices["value"] = 19.75
@@ -459,7 +485,7 @@ def test_card_info_endpoint(api_client, monkeypatch):
 
 def test_card_info_related_by_character(api_client):
     client, _prices, _ = api_client
-    token = register_and_login(client, username="brock", password="onix")
+    token = perform_register_and_login(client, username="brock", password="onix")
     headers = {"Authorization": f"Bearer {token}"}
 
     from kartoteka import pricing
@@ -523,7 +549,7 @@ def test_card_info_related_by_character(api_client):
 
 def test_card_detail_page_prefills_dataset(api_client):
     client, _prices, _server = api_client
-    token = register_and_login(client)
+    token = perform_register_and_login(client)
     headers = {"Authorization": f"Bearer {token}"}
 
     from kartoteka import pricing
@@ -576,7 +602,7 @@ def test_card_detail_page_prefills_dataset(api_client):
 
 def test_card_info_regression_for_set_slug(api_client, monkeypatch):
     client, prices, _server = api_client
-    token = register_and_login(client, username="mew", password="psyduck")
+    token = perform_register_and_login(client, username="mew", password="psyduck")
     headers = {"Authorization": f"Bearer {token}"}
 
     prices["value"] = 42.0
@@ -647,7 +673,7 @@ def test_card_info_regression_for_set_slug(api_client, monkeypatch):
 
 def test_card_detail_page_missing_catalogue_returns_404(api_client):
     client, _prices, _server = api_client
-    token = register_and_login(client, username="misty", password="staryu")
+    token = perform_register_and_login(client, username="misty", password="staryu")
     headers = {"Authorization": f"Bearer {token}"}
 
     res = client.get("/cards/base/25", headers=headers)
