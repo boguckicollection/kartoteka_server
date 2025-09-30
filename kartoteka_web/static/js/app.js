@@ -555,13 +555,6 @@ function renderPortfolio(entries) {
     if (card.set_name) {
       const setInfo = document.createElement("div");
       setInfo.className = "portfolio-card-set";
-      if (card.set_icon) {
-        const setImg = document.createElement("img");
-        setImg.src = card.set_icon;
-        setImg.alt = `Logo ${card.set_name}`;
-        setImg.loading = "lazy";
-        setInfo.appendChild(setImg);
-      }
       const setName = document.createElement("span");
       setName.textContent = card.set_name;
       setInfo.appendChild(setName);
@@ -956,13 +949,6 @@ function setupCardSearch(form) {
 
     const setMeta = document.createElement("p");
     setMeta.className = "card-search-set";
-    if (card.set_icon) {
-      const setImg = document.createElement("img");
-      setImg.src = card.set_icon;
-      setImg.alt = card.set_name ? `Logo ${card.set_name}` : "Logo dodatku";
-      setImg.loading = "lazy";
-      setMeta.appendChild(setImg);
-    }
     const setText = document.createElement("span");
     setText.textContent = card.set_name || "Brak informacji o secie";
     setMeta.appendChild(setText);
@@ -1278,13 +1264,6 @@ function renderRelatedCardsList(cards) {
     if (card.set_name) {
       const setWrapper = document.createElement("div");
       setWrapper.className = "related-card-set";
-      if (card.set_icon) {
-        const setImg = document.createElement("img");
-        setImg.src = card.set_icon;
-        setImg.alt = `Logo ${card.set_name}`;
-        setImg.loading = "lazy";
-        setWrapper.appendChild(setImg);
-      }
       const setName = document.createElement("span");
       setName.textContent = card.set_name;
       setWrapper.appendChild(setName);
@@ -1473,16 +1452,6 @@ async function loadCardDetail(container) {
     const image = document.getElementById("card-detail-image");
     const placeholder = document.getElementById("card-detail-placeholder");
     updateCardDetailImage(image, placeholder, card);
-
-    const setIcon = document.getElementById("card-detail-set-icon");
-    if (setIcon) {
-      if (card.set_icon) {
-        setIcon.src = card.set_icon;
-        setIcon.hidden = false;
-      } else {
-        setIcon.hidden = true;
-      }
-    }
 
     const setNameTarget = document.getElementById("card-detail-set-name");
     if (setNameTarget) {
