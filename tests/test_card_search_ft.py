@@ -145,21 +145,12 @@ def test_card_search_uses_fts(monkeypatch, search_db):
     assert fts_queries <= fallback_queries
 
 
-def test_card_search_fuzzy_misspelling(monkeypatch, search_db):
+def test_card_search_strict_misspelling(monkeypatch, search_db):
     monkeypatch.setattr(
         "kartoteka_web.utils.images.cache_card_images", lambda payload, **_: payload
     )
 
     from kartoteka_web.routes import cards
-
-    original_extract = cards.process.extract
-    call_counter = {"count": 0}
-
-    def tracking_extract(*args, **kwargs):
-        call_counter["count"] += 1
-        return original_extract(*args, **kwargs)
-
-    monkeypatch.setattr(cards.process, "extract", tracking_extract)
 
     with Session(search_db.engine) as session:
         _seed_char_family(session)
@@ -173,8 +164,5 @@ def test_card_search_fuzzy_misspelling(monkeypatch, search_db):
             limit=5,
         )
 
-    assert call_counter["count"] >= 1
-    assert total_count >= 1
-    assert results
-    assert results[0].name == "Charizard"
-    assert "Charizard" in {record.name for record in results}
+    assert total_count == 0
+    assert results == []
