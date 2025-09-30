@@ -1,6 +1,7 @@
 import datetime as dt
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -124,6 +125,119 @@ def test_fetch_card_price_sets_user_agent_for_rapidapi(monkeypatch):
     assert captured["headers"]["User-Agent"] == "kartoteka/1.0"
     assert captured["headers"]["X-RapidAPI-Key"] == "test-key"
     assert captured["headers"]["X-RapidAPI-Host"] == "example.com"
+
+
+def test_list_set_cards_fetches_all_pages(monkeypatch):
+    from kartoteka import pricing
+
+    responses = [
+        {
+            "data": [
+                {
+                    "name": "Card A",
+                    "number": "1",
+                    "set": {"name": "Example", "id": "base1", "total": 3},
+                },
+                {
+                    "name": "Card B",
+                    "number": "2",
+                    "set": {"name": "Example", "id": "base1", "total": 3},
+                },
+            ],
+            "totalCount": 3,
+        },
+        {
+            "data": [
+                {
+                    "name": "Card C",
+                    "number": "3",
+                    "set": {"name": "Example", "id": "base1", "total": 3},
+                }
+            ],
+            "totalCount": 3,
+        },
+    ]
+
+    captured: list[dict[str, Any]] = []
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        captured.append({
+            "url": url,
+            "params": params,
+            "headers": headers,
+        })
+        return _DummyHTTPResponse(responses.pop(0))
+
+    monkeypatch.setattr(pricing.requests, "get", fake_get)
+    monkeypatch.setattr(pricing, "POKEMONTCG_API_KEY", None)
+
+    results = pricing.list_set_cards("base1", limit=0)
+
+    assert len(results) == 3
+    assert [item["number"] for item in results] == ["1", "2", "3"]
+    assert len(captured) == 2
+    assert captured[0]["url"] == pricing.POKEMONTCG_API_URL
+    assert captured[0]["params"]["page"] == "1"
+    assert captured[1]["params"]["page"] == "2"
+    assert 'set.id:"base1"' in captured[0]["params"]["q"]
+
+
+def test_list_set_cards_respects_limit(monkeypatch):
+    from kartoteka import pricing
+
+    payload = {
+        "data": [
+            {
+                "name": "Card A",
+                "number": "10",
+                "set": {"name": "Example", "id": "base1", "total": 3},
+            },
+            {
+                "name": "Card B",
+                "number": "5",
+                "set": {"name": "Example", "id": "base1", "total": 3},
+            },
+            {
+                "name": "Card C",
+                "number": "1",
+                "set": {"name": "Example", "id": "base1", "total": 3},
+            },
+        ],
+        "totalCount": 3,
+    }
+
+    captured = {"params": None}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        captured["params"] = params
+        return _DummyHTTPResponse(payload)
+
+    monkeypatch.setattr(pricing.requests, "get", fake_get)
+    monkeypatch.setattr(pricing, "POKEMONTCG_API_KEY", None)
+
+    results = pricing.list_set_cards("base1", limit=2)
+
+    assert len(results) == 2
+    assert [item["number"] for item in results] == ["1", "5"]
+    assert captured["params"]["pageSize"] == "250"
+
+
+def test_list_set_cards_uses_api_key_header(monkeypatch):
+    from kartoteka import pricing
+
+    captured = {"headers": None}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        captured["headers"] = headers
+        return _DummyHTTPResponse({"data": []})
+
+    monkeypatch.setattr(pricing.requests, "get", fake_get)
+    monkeypatch.setattr(pricing, "POKEMONTCG_API_KEY", "secret")
+
+    pricing.list_set_cards("base1", limit=1)
+
+    assert captured["headers"]["X-Api-Key"] == "secret"
+    assert captured["headers"]["User-Agent"] == "kartoteka/1.0"
 
 
 def test_fetch_card_price_respects_session_user_agent():

@@ -21,6 +21,10 @@ HOLO_REVERSE_MULTIPLIER = float(os.getenv("HOLO_REVERSE_MULTIPLIER", "3.5"))
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST")
 DEFAULT_EXCHANGE_RATE = float(os.getenv("DEFAULT_EUR_PLN", "4.265"))
+POKEMONTCG_API_URL = os.getenv(
+    "POKEMONTCG_API_URL", "https://api.pokemontcg.io/v2/cards"
+)
+POKEMONTCG_API_KEY = os.getenv("POKEMONTCG_API_KEY")
 # ``_score`` values in :func:`search_cards` peak around 6--7 for confident
 # matches.  Mapping them to a percentage keeps the API consistent with the
 # catalogue scoring, where fuzzy ratios already span 0--100.
@@ -462,7 +466,7 @@ def search_cards(
     session: Optional[requests.sessions.Session] = None,
     timeout: float = 10.0,
 ) -> list[dict]:
-    """Return card suggestions from the TCGGO API.
+    """Return card suggestions from the official Pokémon TCG API.
 
     The returned dictionaries contain enough data to populate the collection
     form without persisting any information yet.
@@ -472,8 +476,6 @@ def search_cards(
         return []
 
     http = session or requests
-    rapidapi_key = rapidapi_key if rapidapi_key is not None else RAPIDAPI_KEY
-    rapidapi_host = rapidapi_host if rapidapi_host is not None else RAPIDAPI_HOST
 
     number_part = ""
     number_total = ""
@@ -486,27 +488,52 @@ def search_cards(
     total_clean = sanitize_number(number_total) if number_total else ""
 
     name_api = normalize(name, keep_spaces=True)
-    params: dict[str, str] = {}
+    api_key = rapidapi_key if rapidapi_key is not None else POKEMONTCG_API_KEY
+    url = POKEMONTCG_API_URL
     headers: dict[str, str] = {}
-    url = "https://www.tcggo.com/api/cards/"
+    _apply_default_user_agent(headers, session)
+    if api_key:
+        headers["X-Api-Key"] = api_key
 
-    if rapidapi_key and rapidapi_host:
-        url = f"https://{rapidapi_host}/cards/search"
-        params = {"search": name_api}
-        headers = {
-            "X-RapidAPI-Key": rapidapi_key,
-            "X-RapidAPI-Host": rapidapi_host,
-        }
-        _apply_default_user_agent(headers, session)
-    else:
-        params = {"name": name_api}
-        if number_clean:
-            params["number"] = number_clean
-        if total_clean:
-            params["total"] = total_clean
-        if set_name:
-            params["set"] = normalize(set_name, keep_spaces=True)
-        _apply_default_user_agent(headers, session)
+    def _escape_query(value: str) -> str:
+        return value.replace("\\", "\\\\").replace('"', r"\"")
+
+    query_parts: list[str] = []
+    if name_api:
+        query_parts.append(f'name:"*{_escape_query(name_api)}*"')
+    if number_clean:
+        query_parts.append(f'number:"{_escape_query(number_clean)}"')
+    if set_name:
+        set_query = normalize(set_name, keep_spaces=True)
+        if set_query:
+            escaped = _escape_query(set_query)
+            query_parts.append(
+                "(" +
+                " OR ".join(
+                    (
+                        f'set.id:"{escaped}"',
+                        f'set.ptcgoCode:"{escaped}"',
+                        f'set.name:"*{escaped}*"',
+                    )
+                ) +
+                ")"
+            )
+    if total_clean:
+        escaped_total = _escape_query(total_clean)
+        query_parts.append(
+            f"(set.total:{escaped_total} OR set.printedTotal:{escaped_total})"
+        )
+
+    if not query_parts:
+        return []
+
+    page_size = max(limit * 5, 50)
+    page_size = min(page_size, 250)
+    params = {
+        "q": " and ".join(query_parts),
+        "page": "1",
+        "pageSize": str(page_size),
+    }
 
     try:
         response = http.get(url, params=params, headers=headers, timeout=timeout)
@@ -518,11 +545,11 @@ def search_cards(
         logger.warning("Request timed out")
         return []
     except (requests.RequestException, ValueError) as exc:  # pragma: no cover
-        logger.warning("Fetching cards from TCGGO failed: %s", exc)
+        logger.warning("Fetching cards from the Pokémon TCG API failed: %s", exc)
         return []
 
     if isinstance(cards, dict):
-        cards = cards.get("cards") or cards.get("data") or []
+        cards = cards.get("data") or cards.get("cards") or []
 
     name_norm = normalize(name)
     total_norm = total_clean
@@ -627,48 +654,91 @@ def list_set_cards(
         return []
 
     http = session or requests
-    rapidapi_key = rapidapi_key if rapidapi_key is not None else RAPIDAPI_KEY
-    rapidapi_host = rapidapi_host if rapidapi_host is not None else RAPIDAPI_HOST
-
-    params: dict[str, str] = {}
+    api_key = rapidapi_key if rapidapi_key is not None else POKEMONTCG_API_KEY
     headers: dict[str, str] = {}
-    url = "https://www.tcggo.com/api/cards/"
-    if rapidapi_key and rapidapi_host:
-        url = f"https://{rapidapi_host}/cards/search"
-        params = {"set": set_code}
-        headers = {
-            "X-RapidAPI-Key": rapidapi_key,
-            "X-RapidAPI-Host": rapidapi_host,
-        }
-    else:
-        params = {"set": set_code}
+    _apply_default_user_agent(headers, session)
+    if api_key:
+        headers["X-Api-Key"] = api_key
 
-    try:
-        response = http.get(url, params=params, headers=headers, timeout=timeout)
-        if response.status_code != 200:
-            logger.warning("API error: %s", response.status_code)
-            return []
-        cards = response.json()
-    except requests.Timeout:
-        logger.warning("Request timed out")
-        return []
-    except (requests.RequestException, ValueError) as exc:  # pragma: no cover
-        logger.warning("Fetching cards for set %s failed: %s", set_code, exc)
-        return []
+    def _escape_query(value: str) -> str:
+        return value.replace("\\", "\\\\").replace('"', r"\"")
 
-    if isinstance(cards, dict):
-        cards = cards.get("cards") or cards.get("data") or cards.get("results") or []
+    set_value = set_code.strip()
+    normalized = normalize(set_code, keep_spaces=True)
+    escaped_value = _escape_query(set_value)
+    set_filters = {
+        f'set.id:"{escaped_value}"',
+        f'set.ptcgoCode:"{escaped_value}"',
+        f'set.name:"*{escaped_value}*"',
+    }
+    if normalized and normalized != set_value:
+        escaped_normalized = _escape_query(normalized)
+        set_filters.add(f'set.id:"{escaped_normalized}"')
+        set_filters.add(f'set.ptcgoCode:"{escaped_normalized}"')
+        set_filters.add(f'set.name:"*{escaped_normalized}*"')
 
+    query = "(" + " OR ".join(sorted(set_filters)) + ")"
+    page = 1
+    page_size = 250
     results: list[dict[str, Any]] = []
-    for card in cards or []:
-        payload = _build_card_payload(card)
-        if not payload:
-            continue
-        if not payload.get("name"):
-            payload["name"] = card.get("name") or ""
-        if not payload.get("image_small") and payload.get("image_large"):
-            payload["image_small"] = payload.get("image_large")
-        results.append(payload)
+    fetched_total = 0
+
+    while True:
+        params = {
+            "q": query,
+            "page": str(page),
+            "pageSize": str(page_size),
+        }
+        try:
+            response = http.get(
+                POKEMONTCG_API_URL,
+                params=params,
+                headers=headers,
+                timeout=timeout,
+            )
+            if response.status_code != 200:
+                logger.warning("API error: %s", response.status_code)
+                break
+            payload = response.json()
+        except requests.Timeout:
+            logger.warning("Request timed out")
+            break
+        except (requests.RequestException, ValueError) as exc:  # pragma: no cover
+            logger.warning("Fetching cards for set %s failed: %s", set_code, exc)
+            break
+
+        cards = []
+        total_count = 0
+        if isinstance(payload, dict):
+            cards = payload.get("data") or []
+            total_count = int(payload.get("totalCount") or 0)
+        elif isinstance(payload, list):
+            cards = payload
+
+        if not cards:
+            break
+
+        for card in cards:
+            item = _build_card_payload(card)
+            if not item:
+                continue
+            if not item.get("name"):
+                item["name"] = card.get("name") or ""
+            if not item.get("image_small") and item.get("image_large"):
+                item["image_small"] = item.get("image_large")
+            results.append(item)
+
+        fetched_total += len(cards)
+        if limit and limit > 0 and len(results) >= limit:
+            break
+
+        if total_count:
+            if fetched_total >= total_count:
+                break
+        elif len(cards) < page_size:
+            break
+
+        page += 1
 
     results.sort(key=_card_sort_key)
     if limit and limit > 0:
