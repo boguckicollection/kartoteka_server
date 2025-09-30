@@ -102,7 +102,7 @@ export default function SearchScreen() {
       }
 
       try {
-        const params = new URLSearchParams({ query: trimmedQuery, page: '1', page_size: '20' });
+        const params = new URLSearchParams({ query: trimmedQuery });
         const response = await fetch(`/cards/search?${params.toString()}`, {
           headers: {
             Authorization: `Bearer ${token}`,

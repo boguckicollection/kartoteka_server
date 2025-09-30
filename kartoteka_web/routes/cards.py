@@ -37,6 +37,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for tests without rap
 router = APIRouter(prefix="/cards", tags=["cards"])
 
 SCORE_THRESHOLD = pricing.SEARCH_SCORE_THRESHOLD
+MAX_SEARCH_RESULTS = 200
 
 CARD_NUMBER_PATTERN = re.compile(
     r"(?i)([a-z]{0,5}\d+[a-z0-9]*)(?:\s*/\s*([a-z]{0,5}\d+[a-z0-9]*))?"
@@ -247,8 +248,7 @@ def _search_catalogue(
     number: str | None = None,
     total: str | None = None,
     set_name: str | None = None,
-    limit: int = 50,
-    offset: int = 0,
+    limit: int | None = None,
 ) -> tuple[list["models.CardRecord"], int, "models.CardRecord" | None]:
     search_term = name or query
     name_norm = _normalise_search_value(search_term)
@@ -256,6 +256,10 @@ def _search_catalogue(
     total_clean = _sanitise_optional_number(total)
     set_norm = _normalise_search_value(set_name) if set_name else ""
     query_norm = pricing.normalize(query or search_term or "", keep_spaces=True)
+
+    result_cap = MAX_SEARCH_RESULTS
+    if limit is not None and limit > 0:
+        result_cap = max(1, min(limit, MAX_SEARCH_RESULTS))
 
     base_filters: list[Any] = []
     if number_clean:
@@ -265,7 +269,7 @@ def _search_catalogue(
     if set_norm:
         base_filters.append(models.CardRecord.set_name_normalized.contains(set_norm))
 
-    fetch_limit = max(offset + limit, limit * 4, 100)
+    fetch_limit = max(result_cap * 4, result_cap, 100)
     fetch_limit = max(1, min(fetch_limit, 500))
 
     records: list[models.CardRecord] = []
@@ -300,6 +304,13 @@ def _search_catalogue(
         filters = [*base_filters, models.CardRecord.name_normalized.contains(name_norm)]
         fallback_stmt = select(models.CardRecord).where(*filters)
         count_filters = filters
+        records = session.exec(fallback_stmt.limit(fetch_limit)).all()
+
+    if not records:
+        fallback_stmt = select(models.CardRecord)
+        if base_filters:
+            fallback_stmt = fallback_stmt.where(*base_filters)
+        count_filters = base_filters
         records = session.exec(fallback_stmt.limit(fetch_limit)).all()
 
     if not count_filters:
@@ -338,15 +349,13 @@ def _search_catalogue(
     threshold = SCORE_THRESHOLD
     filtered = [entry for entry in scored if entry[0] >= threshold]
     filtered_total = len(filtered)
-    paginated = [
-        record
-        for _score, record in filtered[offset : offset + max(1, limit)]
-    ]
+    visible = [record for _score, record in filtered[:result_cap]]
     if threshold and total_count:
         total_count = min(total_count, filtered_total)
     else:
         total_count = filtered_total
-    return paginated, total_count, best_entry[1] if best_entry else None
+    total_count = min(total_count, result_cap)
+    return visible, total_count, best_entry[1] if best_entry else None
 
 
 def _select_best_record(
@@ -766,8 +775,6 @@ def search_cards_endpoint(
     number: str | None = None,
     total: str | None = None,
     set_name: str | None = None,
-    page: int = 1,
-    page_size: int = 20,
     limit: int | None = None,
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
@@ -783,38 +790,17 @@ def search_cards_endpoint(
     name_value = (name or parsed_name or "").strip()
     number_value = number or parsed_number
     total_value = total or parsed_total
+    result_cap = MAX_SEARCH_RESULTS
     if limit is not None and limit > 0:
-        page_size = limit
-
-    cleaned_page_size = max(1, min(page_size, 200))
-    requested_page = max(1, page)
+        result_cap = max(1, min(limit, MAX_SEARCH_RESULTS))
     search_query = query or _compose_query(name_value, number_value, set_name)
     if not (search_query or name_value):
         return schemas.CardSearchResponse(
             items=[],
             total=0,
-            page=1,
-            page_size=cleaned_page_size,
         )
     if not name_value:
         name_value = search_query
-
-    def _run_search(
-        page_index: int,
-    ) -> tuple[list[models.CardRecord], int, int, str | None]:
-        safe_page = max(1, page_index)
-        page_offset = (safe_page - 1) * cleaned_page_size
-        results, total_count, suggestion = _search_catalogue(
-            session,
-            query=search_query,
-            name=name_value,
-            number=number_value,
-            total=total_value,
-            set_name=set_name,
-            limit=cleaned_page_size,
-            offset=page_offset,
-        )
-        return results, total_count, safe_page, _suggested_query_label(suggestion)
 
     def _apply_assets(records: Sequence[models.CardRecord]) -> None:
         updated = False
@@ -823,18 +809,25 @@ def search_cards_endpoint(
         if updated:
             session.commit()
 
-    records, total_count, resolved_page, suggestion_name = _run_search(requested_page)
+    records, total_count, suggestion_record = _search_catalogue(
+        session,
+        query=search_query,
+        name=name_value,
+        number=number_value,
+        total=total_value,
+        set_name=set_name,
+        limit=result_cap,
+    )
+    suggestion_name = _suggested_query_label(suggestion_record)
     _apply_assets(records)
 
     if not records:
-        requested_offset = (resolved_page - 1) * cleaned_page_size
-        remote_limit = max(cleaned_page_size, requested_offset + cleaned_page_size)
         api_results = pricing.search_cards(
             name=name_value,
             number=number_value,
             total=total_value,
             set_name=set_name,
-            limit=remote_limit,
+            limit=result_cap,
         )
         stored = False
         cached_records: list[models.CardRecord] = []
@@ -848,34 +841,33 @@ def search_cards_endpoint(
                 stored = True
         if stored:
             session.commit()
-            records, total_count, resolved_page, suggestion_name = _run_search(resolved_page)
+            records, total_count, suggestion_record = _search_catalogue(
+                session,
+                query=search_query,
+                name=name_value,
+                number=number_value,
+                total=total_value,
+                set_name=set_name,
+                limit=result_cap,
+            )
+            suggestion_name = _suggested_query_label(suggestion_record)
             _apply_assets(records)
         elif cached_records:
-            records = cached_records[
-                requested_offset : requested_offset + cleaned_page_size
-            ]
-            total_count = max(total_count, len(cached_records))
+            records = cached_records[:result_cap]
+            total_count = min(len(cached_records), result_cap)
+            suggestion_name = _suggested_query_label(cached_records[0])
             _apply_assets(records)
         else:
             records = []
-            total_count = max(total_count, len(cached_records))
-
-        total_count = max(total_count, len(cached_records))
-
-    total_pages = (total_count + cleaned_page_size - 1) // cleaned_page_size if total_count else 0
-    if total_pages and resolved_page > total_pages:
-        resolved_page = max(1, total_pages)
-        records, total_count, resolved_page, suggestion_name = _run_search(resolved_page)
-        _apply_assets(records)
-    elif total_count == 0:
-        resolved_page = 1
+            total_count = 0
+            if not suggestion_name:
+                suggestion_name = _suggested_query_label(suggestion_record)
 
     items = [_record_to_search_schema(record) for record in records]
+    total_value = len(items)
     return schemas.CardSearchResponse(
         items=items,
-        total=total_count,
-        page=resolved_page,
-        page_size=cleaned_page_size,
+        total=total_value,
         suggested_query=suggestion_name,
     )
 
