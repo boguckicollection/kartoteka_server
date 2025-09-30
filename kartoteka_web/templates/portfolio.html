@@ -5,10 +5,10 @@
   <div>
     <p class="eyebrow">Analiza kolekcji</p>
     <h1>Portfel kolekcjonera</h1>
-    <p>Sprawdzaj aktualną wartość oraz skalę swojej kolekcji i porównuj wyniki z poprzednimi odczytami.</p>
+    <p>Przeglądaj swoją kolekcję i analizuj liczbę kart oraz zadeklarowane koszty.</p>
     <div class="hero-actions">
       <a class="button secondary" href="/dashboard">Powrót do kolekcji</a>
-      <button id="refresh-portfolio" class="primary" type="button">Odśwież wartość</button>
+      <button id="refresh-portfolio" class="primary" type="button">Odśwież dane</button>
     </div>
   </div>
 </section>
@@ -16,8 +16,8 @@
 <section class="panel portfolio-performance-panel">
   <div class="panel-header">
     <div>
-      <h2 id="portfolio-chart-heading">Wartość portfela</h2>
-      <p>Monitoruj zmianę wartości kolekcji w czasie.</p>
+      <h2 id="portfolio-chart-heading">Historia kolekcji</h2>
+      <p>Podgląd trendów jest obecnie niedostępny w uproszczonym trybie.</p>
     </div>
     <div class="portfolio-change" id="portfolio-change" data-direction="flat">
       <span class="portfolio-change-icon" aria-hidden="true">→</span>
@@ -38,24 +38,8 @@
       <p>Ładuję dane wykresu…</p>
     </div>
     <div class="portfolio-chart-meta">
-      <div class="portfolio-chart-stats">
-        <div>
-          <span>Aktualna wartość</span>
-          <strong id="portfolio-chart-latest" data-direction="flat">-</strong>
-        </div>
-        <div>
-          <span>Minimum (7 dni)</span>
-          <strong id="portfolio-chart-min">-</strong>
-        </div>
-        <div>
-          <span>Maksimum (7 dni)</span>
-          <strong id="portfolio-chart-max">-</strong>
-        </div>
-      </div>
-      <div class="portfolio-chart-range">
-        <span>Zakres danych</span>
-        <strong id="portfolio-chart-range">-</strong>
-      </div>
+      <div class="portfolio-chart-stats" hidden></div>
+      <div class="portfolio-chart-range" hidden></div>
     </div>
   </div>
 </section>
@@ -64,7 +48,7 @@
   <div class="panel-header">
     <div>
       <h2>Podsumowanie portfela</h2>
-      <p>Kluczowe wskaźniki obejmujące liczbę wpisów, egzemplarzy i całkowitą wartość kolekcji.</p>
+      <p>Kluczowe wskaźniki obejmujące liczbę wpisów, egzemplarzy i łączny koszt zakupu.</p>
     </div>
   </div>
   <div class="stat-grid" id="portfolio-overview">
@@ -79,9 +63,9 @@
       <span>Sumaryczna liczba egzemplarzy</span>
     </article>
     <article class="stat-card">
-      <h3>Szacowana wartość [PLN]</h3>
+      <h3>Łączna kwota zakupu [PLN]</h3>
       <p id="portfolio-value">0.00</p>
-      <span>Wycena portfela na podstawie aktualnych danych</span>
+      <span>Suma zadeklarowanych kosztów kart</span>
     </article>
   </div>
   <div class="alert" id="portfolio-alert" hidden></div>
@@ -91,7 +75,7 @@
   <div class="panel-header">
     <div>
       <h2>Karty w portfelu</h2>
-      <p>Przeglądaj zapisane karty wraz z ich aktualną wyceną i szczegółami.</p>
+      <p>Przeglądaj zapisane karty wraz z ich szczegółami i cenami zakupu.</p>
     </div>
   </div>
   <div class="portfolio-grid" id="portfolio-cards"></div>

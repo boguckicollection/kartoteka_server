@@ -76,11 +76,6 @@ class CardSearchResponse(SQLModel):
     suggested_query: Optional[str] = None
 
 
-class PricePoint(SQLModel):
-    price: float
-    recorded_at: dt.datetime
-
-
 class CardDetail(SQLModel):
     name: str
     number: str
@@ -95,13 +90,10 @@ class CardDetail(SQLModel):
     artist: Optional[str] = None
     series: Optional[str] = None
     release_date: Optional[str] = None
-    price_pln: Optional[float] = None
-    last_price_update: Optional[dt.datetime] = None
 
 
 class CardDetailResponse(SQLModel):
     card: CardDetail
-    history: List[PricePoint] = []
     related: List[CardSearchResult] = []
 
 
@@ -125,28 +117,4 @@ class CollectionEntryUpdate(SQLModel):
 
 class CollectionEntryRead(CollectionEntryBase):
     id: int
-    current_price: Optional[float] = None
-    last_price_update: Optional[dt.datetime] = None
     card: CardRead
-    change_24h: Optional[float] = None
-    change_direction: str = "flat"
-
-
-class PortfolioSummary(SQLModel):
-    total_cards: int
-    total_quantity: int
-    estimated_value: float
-    change_24h: float = 0.0
-    direction: str = "flat"
-
-
-class PortfolioHistoryPoint(SQLModel):
-    timestamp: dt.datetime
-    value: float
-
-
-class PortfolioHistoryResponse(SQLModel):
-    points: List[PortfolioHistoryPoint] = Field(default_factory=list)
-    change_24h: float = 0.0
-    direction: str = "flat"
-    latest_value: float = 0.0

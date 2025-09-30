@@ -5,7 +5,7 @@
   <div>
     <p class="eyebrow">Pokemon TCG Manager</p>
     <h1>Witaj, {{ username or 'Trenerze' }}!</h1>
-    <p>Z poziomu kokpitu błyskawicznie sprawdzisz stan swojej kolekcji, dodasz nowe karty i odświeżysz ich wycenę.</p>
+    <p>Z poziomu kokpitu błyskawicznie sprawdzisz stan swojej kolekcji, dodasz nowe karty i zaktualizujesz informacje o swoich wpisach.</p>
     <div class="hero-actions">
       <a class="button primary" href="/cards/add">Wyszukaj kartę</a>
       <a class="button secondary" href="#collection-section">Przeglądaj kolekcję</a>
@@ -32,9 +32,9 @@
       <span>Sumaryczna ilość egzemplarzy</span>
     </article>
     <article class="stat-card">
-      <h3>Szacowana wartość [PLN]</h3>
+      <h3>Łączna kwota zakupu [PLN]</h3>
       <p id="summary-value">0.00</p>
-      <span>Aktualna wycena kolekcji</span>
+      <span>Łączny koszt zadeklarowanych kart</span>
     </article>
   </div>
 </section>
@@ -55,12 +55,12 @@
     <a class="action-card" href="#collection-section">
       <span class="action-emoji">📚</span>
       <strong>Zobacz kolekcję</strong>
-      <span>Przeglądaj karty i aktualizuj ich wyceny.</span>
+      <span>Przeglądaj karty i zarządzaj wpisami.</span>
     </a>
     <a class="action-card" href="/portfolio">
       <span class="action-emoji">💰</span>
       <strong>Sprawdź portfel</strong>
-      <span>Analizuj łączną wartość i ilość kart.</span>
+      <span>Analizuj strukturę swojej kolekcji.</span>
     </a>
   </div>
 </section>
@@ -85,7 +85,7 @@
   <div class="panel-header">
     <div>
       <h2>Aktualna kolekcja</h2>
-      <p>Pełna lista kart z możliwością odświeżania cen i usuwania wpisów.</p>
+      <p>Pełna lista kart z możliwością aktualizacji ilości oraz usuwania wpisów.</p>
     </div>
     <button id="refresh-collection" class="secondary" type="button">Odśwież dane</button>
   </div>
@@ -97,7 +97,7 @@
           <th>Numer</th>
           <th>Set</th>
           <th>Ilość</th>
-          <th>Wartość</th>
+          <th>Cena zakupu</th>
           <th>Akcje</th>
         </tr>
       </thead>

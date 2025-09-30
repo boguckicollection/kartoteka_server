@@ -9,8 +9,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from kartoteka import pricing  # noqa: E402
 from kartoteka_web import catalogue, models  # noqa: E402
+from kartoteka_web.services import tcg_api  # noqa: E402
 
 
 @pytest.fixture()
@@ -109,7 +109,7 @@ def test_refresh_catalogue_tracks_requests_and_markers(in_memory_session, monkey
         cards, request_count = payloads[code]
         return cards, request_count
 
-    monkeypatch.setattr(pricing, "list_set_cards", fake_list_set_cards)
+    monkeypatch.setattr(tcg_api, "list_set_cards", fake_list_set_cards)
 
     events: list[tuple[str, dict]] = []
 

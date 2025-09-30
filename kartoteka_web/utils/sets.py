@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from kartoteka import pricing
+from . import text
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 SET_FILES = ("tcg_sets.json", "tcg_sets_jp.json")
@@ -28,7 +28,7 @@ def normalise_name(name: Optional[str]) -> Optional[str]:
 
     if not name:
         return None
-    value = pricing.normalize(name, keep_spaces=False)
+    value = text.normalize(name, keep_spaces=False)
     return value or None
 
 
@@ -104,7 +104,7 @@ def slugify_set_identifier(*, set_code: Optional[str] = None, set_name: Optional
     code = clean_code(set_code)
     if code:
         return code
-    name = pricing.normalize(set_name or "", keep_spaces=True)
+    name = text.normalize(set_name or "", keep_spaces=True)
     if not name:
         return "unknown"
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")

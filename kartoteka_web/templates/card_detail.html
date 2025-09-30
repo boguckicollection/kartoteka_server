@@ -1,8 +1,5 @@
 {% extends "base.html" %}
 {% block title %}{{ card_name or 'Szczegóły karty' }} - Kartoteka{% endblock %}
-{% block head_extra %}
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha384-eDqHtkobaN6D+PfYZ7RUTpujISiFDUFxIr05oig3NbS1Ry6j3TDIrS9KuX3sI5OG" crossorigin="anonymous" defer></script>
-{% endblock %}
 {% block content %}
 <section
   class="panel card-detail-hero"
@@ -43,12 +40,12 @@
           <dd id="card-detail-rarity"></dd>
         </div>
         <div>
-          <dt>Cena [PLN]</dt>
-          <dd id="card-detail-price"></dd>
+          <dt>Łączny nakład</dt>
+          <dd id="card-detail-total"></dd>
         </div>
         <div>
-          <dt>Ostatnia aktualizacja</dt>
-          <dd id="card-detail-updated"></dd>
+          <dt>Data wydania</dt>
+          <dd id="card-detail-release"></dd>
         </div>
       </dl>
       <div class="card-detail-actions">
@@ -57,25 +54,6 @@
       </div>
       <div class="alert" id="card-detail-alert" hidden></div>
     </div>
-  </div>
-</section>
-
-<section class="panel card-detail-chart-panel">
-  <div class="panel-header">
-    <div>
-      <h2>Historia cen</h2>
-      <p>Śledź, jak zmieniała się wartość tej karty w czasie.</p>
-    </div>
-    <div class="chart-range" role="group" aria-label="Zakres czasowy">
-      <button type="button" class="secondary" data-range="1d">1 dzień</button>
-      <button type="button" class="secondary" data-range="1w">1 tydzień</button>
-      <button type="button" class="secondary active" data-range="1m">1 miesiąc</button>
-      <button type="button" class="secondary" data-range="all">Całość</button>
-    </div>
-  </div>
-  <div class="card-chart-wrapper">
-    <canvas id="card-price-chart" height="220"></canvas>
-    <p class="chart-empty" id="card-chart-empty" hidden>Brak danych historycznych. Dodaj kartę do kolekcji, aby zapełnić wykres.</p>
   </div>
 </section>
 

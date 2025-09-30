@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime as dt
 import re
 from typing import Any, Iterable, Sequence
 
@@ -14,8 +13,8 @@ from sqlmodel import Session, select
 from .. import database, models, schemas
 from ..auth import get_current_user, get_optional_user
 from ..database import get_session
-from ..utils import images as image_utils, sets as set_utils
-from kartoteka import pricing
+from ..services import tcg_api
+from ..utils import images as image_utils, sets as set_utils, text
 from kartoteka_web import catalogue
 
 try:  # pragma: no cover - optional dependency
@@ -36,7 +35,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for tests without rap
 
 router = APIRouter(prefix="/cards", tags=["cards"])
 
-SCORE_THRESHOLD = pricing.SEARCH_SCORE_THRESHOLD
+SCORE_THRESHOLD = text.SEARCH_SCORE_THRESHOLD
 MAX_SEARCH_RESULTS = 200
 
 CARD_NUMBER_PATTERN = re.compile(
@@ -86,8 +85,8 @@ def _parse_card_query(value: str | None) -> tuple[str, str | None, str | None]:
         clean_total = re.sub(r"[^0-9a-zA-Z]", "", raw_total)
         if not clean_number or not _is_probable_card_number(clean_number):
             continue
-        number_clean = pricing.sanitize_number(clean_number)
-        total_clean = pricing.sanitize_number(clean_total) if clean_total else ""
+        number_clean = text.sanitize_number(clean_number)
+        total_clean = text.sanitize_number(clean_total) if clean_total else ""
         if not number_clean:
             continue
         start, end = match.span()
@@ -104,11 +103,11 @@ def _parse_card_query(value: str | None) -> tuple[str, str | None, str | None]:
 
 
 def _normalise_search_value(value: str | None) -> str:
-    return pricing.normalize(value or "") or (value or "").strip().lower()
+    return text.normalize(value or "") or (value or "").strip().lower()
 
 
 def _sanitise_optional_number(value: str | None) -> str | None:
-    cleaned = pricing.sanitize_number(str(value or ""))
+    cleaned = text.sanitize_number(str(value or ""))
     return cleaned or None
 
 
@@ -150,8 +149,6 @@ def _record_to_detail_payload(record: "models.CardRecord") -> dict[str, Any]:
         "artist": record.artist,
         "series": record.series,
         "release_date": record.release_date,
-        "price_pln": record.price_pln,
-        "last_price_update": record.price_updated_at,
     }
 
 
@@ -163,15 +160,15 @@ def _score_card_record(
     set_norm: str = "",
     total_clean: str | None = None,
 ) -> float:
-    query_norm = pricing.normalize(query_text or "", keep_spaces=True)
+    query_norm = text.normalize(query_text or "", keep_spaces=True)
     candidate_parts = [
         record.name or "",
         record.number_display or record.number or "",
         record.set_name or "",
     ]
     candidate_label = " ".join(part for part in candidate_parts if part).strip()
-    candidate_norm = pricing.normalize(candidate_label, keep_spaces=True)
-    name_norm = record.name_normalized or pricing.normalize(record.name or "")
+    candidate_norm = text.normalize(candidate_label, keep_spaces=True)
+    name_norm = record.name_normalized or text.normalize(record.name or "")
 
     scores: list[float] = []
     if query_norm and candidate_norm:
@@ -180,7 +177,7 @@ def _score_card_record(
     if query_norm and name_norm:
         scores.append(float(fuzz.partial_ratio(query_norm, name_norm)))
     if not scores and query_norm:
-        scores.append(float(fuzz.partial_ratio(query_norm, pricing.normalize(record.name or ""))))
+        scores.append(float(fuzz.partial_ratio(query_norm, text.normalize(record.name or ""))))
 
     base_score = max(scores) if scores else 0.0
     bonus = 0.0
@@ -193,12 +190,12 @@ def _score_card_record(
             bonus += 10.0
 
     if total_clean:
-        record_total = pricing.sanitize_number(str(record.total or ""))
+        record_total = text.sanitize_number(str(record.total or ""))
         if record_total == total_clean:
             bonus += 5.0
 
     if set_norm:
-        record_set_norm = record.set_name_normalized or pricing.normalize(record.set_name or "")
+        record_set_norm = record.set_name_normalized or text.normalize(record.set_name or "")
         if record_set_norm == set_norm:
             bonus += 15.0
         elif record_set_norm and set_norm in record_set_norm:
@@ -255,7 +252,7 @@ def _search_catalogue(
     number_clean = _sanitise_optional_number(number)
     total_clean = _sanitise_optional_number(total)
     set_norm = _normalise_search_value(set_name) if set_name else ""
-    query_norm = pricing.normalize(query or search_term or "", keep_spaces=True)
+    query_norm = text.normalize(query or search_term or "", keep_spaces=True)
 
     result_cap = MAX_SEARCH_RESULTS
     if limit is not None and limit > 0:
@@ -369,12 +366,12 @@ def _select_best_record(
         for record in records:
             if record.set_code_clean == code_clean:
                 return record
-    set_norm = pricing.normalize(set_name or "") if set_name else ""
+    set_norm = text.normalize(set_name or "") if set_name else ""
     if set_norm:
         for record in records:
             if (record.set_name_normalized or "") == set_norm:
                 return record
-            if pricing.normalize(record.set_name or "") == set_norm:
+            if text.normalize(record.set_name or "") == set_norm:
                 return record
     return records[0] if records else None
 
@@ -387,7 +384,7 @@ def _locate_catalogue_record(
     set_code: str | None = None,
     set_name: str | None = None,
 ) -> "models.CardRecord" | None:
-    number_clean = pricing.sanitize_number(str(number or ""))
+    number_clean = text.sanitize_number(str(number or ""))
     if not number_clean:
         return None
 
@@ -431,7 +428,7 @@ def _load_related_catalogue(
 ) -> list["models.CardRecord"]:
     if not base or limit <= 0:
         return []
-    base_name_norm = base.name_normalized or pricing.normalize(base.name or "")
+    base_name_norm = base.name_normalized or text.normalize(base.name or "")
     if not base_name_norm:
         return []
 
@@ -489,250 +486,6 @@ def _find_card_record(
     ).first()
 
 
-def _load_price_history(session: Session, card: models.Card | None) -> list[models.PriceHistory]:
-    if not card or card.id is None:
-        return []
-    return session.exec(
-        select(models.PriceHistory)
-        .where(models.PriceHistory.card_id == card.id)
-        .order_by(models.PriceHistory.recorded_at)
-    ).all()
-
-
-def _apply_variant_multiplier(price: float | None, entry: models.CollectionEntry) -> float | None:
-    if price is None:
-        return None
-    multiplier = 1.0
-    if entry.is_reverse or entry.is_holo:
-        multiplier *= pricing.HOLO_REVERSE_MULTIPLIER
-    try:
-        return round(float(price) * multiplier, 2)
-    except (TypeError, ValueError):
-        return price
-
-
-def _entry_price_points(
-    entry: models.CollectionEntry,
-    history: Sequence[models.PriceHistory] | None = None,
-) -> list[tuple[dt.datetime, float]]:
-    if history is None:
-        history = []
-    points: list[tuple[dt.datetime, float]] = []
-    for record in history:
-        price = _apply_variant_multiplier(record.price, entry)
-        if price is None:
-            continue
-        points.append((record.recorded_at, float(price)))
-    if entry.current_price is not None and entry.last_price_update:
-        points.append((entry.last_price_update, float(entry.current_price)))
-    points.sort(key=lambda item: item[0])
-    return points
-
-
-def _normalize_daily_points(
-    points: Sequence[tuple[dt.datetime, float]] | None,
-) -> list[tuple[dt.datetime, float]]:
-    if not points:
-        return []
-
-    has_timezone = any(timestamp.tzinfo is not None for timestamp, _ in points)
-
-    def _normalize_timestamp(value: dt.datetime) -> dt.datetime:
-        if not has_timezone:
-            return value
-        if value.tzinfo is None:
-            return value.replace(tzinfo=dt.timezone.utc)
-        return value.astimezone(dt.timezone.utc)
-
-    daily: dict[dt.date, tuple[dt.datetime, float]] = {}
-    for timestamp, price in points:
-        normalized_ts = _normalize_timestamp(timestamp)
-        day = normalized_ts.date()
-        stored = daily.get(day)
-        if stored is None or normalized_ts >= stored[0]:
-            daily[day] = (normalized_ts, float(price))
-
-    timezone = dt.timezone.utc if has_timezone else None
-    normalized_points = [
-        (
-            dt.datetime.combine(day, dt.time.min, tzinfo=timezone),
-            value,
-        )
-        for day, (_, value) in daily.items()
-    ]
-    normalized_points.sort(key=lambda item: item[0])
-    return normalized_points
-
-
-def _calculate_change(
-    points: Sequence[tuple[dt.datetime, float]] | None,
-) -> tuple[float, str]:
-    if not points:
-        return 0.0, "flat"
-    latest_ts, latest_value = points[-1]
-    baseline_value = latest_value
-    threshold = latest_ts - dt.timedelta(hours=24)
-    for ts, value in reversed(points[:-1]):
-        if ts <= threshold:
-            baseline_value = value
-            break
-    else:
-        if len(points) >= 2:
-            baseline_value = points[-2][1]
-    change = round(latest_value - baseline_value, 2)
-    epsilon = 0.01
-    if change > epsilon:
-        return change, "up"
-    if change < -epsilon:
-        return change, "down"
-    return 0.0, "flat"
-
-
-def _serialize_entry(
-    entry: models.CollectionEntry,
-    session: Session | None = None,
-) -> schemas.CollectionEntryRead:
-    schema = schemas.CollectionEntryRead.model_validate(entry, from_attributes=True)
-    history_records = None
-    card = entry.card
-    if card is not None:
-        history_records = getattr(card, "price_history", None)
-        if history_records is None and session is not None:
-            history_records = _load_price_history(session, card)
-    raw_points = _entry_price_points(entry, history_records or [])
-    daily_points = _normalize_daily_points(raw_points)
-    change, direction = _calculate_change(daily_points)
-    schema.change_24h = round(change, 2) if daily_points else 0.0
-    schema.change_direction = direction
-    return schema
-
-
-def _aggregate_portfolio_history(
-    entries: Sequence[models.CollectionEntry],
-    session: Session | None = None,
-) -> list[tuple[dt.datetime, float]]:
-    entry_day_values: list[dict[dt.date, float]] = []
-    entry_quantities: list[float] = []
-    all_days: set[dt.date] = set()
-    has_timezone = False
-
-    for entry in entries:
-        quantity = entry.quantity or 0
-        if quantity <= 0:
-            continue
-        card = entry.card
-        history_records = None
-        if card is not None:
-            history_records = getattr(card, "price_history", None)
-            if history_records is None and session is not None:
-                history_records = _load_price_history(session, card)
-        raw_points = _entry_price_points(entry, history_records or [])
-        daily_points = _normalize_daily_points(raw_points)
-        if not daily_points:
-            continue
-        day_map: dict[dt.date, float] = {}
-        for timestamp, price in daily_points:
-            if timestamp.tzinfo is not None:
-                has_timezone = True
-            day_map[timestamp.date()] = float(price)
-            all_days.add(timestamp.date())
-        entry_day_values.append(day_map)
-        entry_quantities.append(float(quantity))
-
-    if not all_days:
-        return []
-
-    sorted_days = sorted(all_days)
-    timezone = dt.timezone.utc if has_timezone else None
-    last_prices: list[float | None] = [None] * len(entry_day_values)
-    aggregated: list[tuple[dt.datetime, float]] = []
-
-    for day in sorted_days:
-        total = 0.0
-        for idx, day_map in enumerate(entry_day_values):
-            price = day_map.get(day)
-            if price is not None:
-                last_prices[idx] = price
-            if last_prices[idx] is not None:
-                total += last_prices[idx] * entry_quantities[idx]
-        timestamp = dt.datetime.combine(day, dt.time.min, tzinfo=timezone)
-        aggregated.append((timestamp, round(total, 2)))
-
-    if not aggregated:
-        return []
-
-    latest_timestamp = aggregated[-1][0]
-    if latest_timestamp.tzinfo is None:
-        latest_reference = latest_timestamp.replace(tzinfo=dt.timezone.utc)
-    else:
-        latest_reference = latest_timestamp
-    window_start = latest_reference - dt.timedelta(days=7)
-
-    filtered: list[tuple[dt.datetime, float]] = []
-    for timestamp, value in aggregated:
-        if timestamp.tzinfo is None:
-            timestamp_ref = timestamp.replace(tzinfo=dt.timezone.utc)
-        else:
-            timestamp_ref = timestamp
-        if timestamp_ref >= window_start:
-            filtered.append((timestamp, value))
-
-    if not filtered:
-        filtered.append(aggregated[-1])
-
-    return filtered
-
-
-def record_price_history(
-    session: Session,
-    card: models.Card | None,
-    price: float | None,
-    timestamp: dt.datetime | None = None,
-) -> bool:
-    """Persist ``price`` for ``card`` in the history table.
-
-    Returns ``True`` when a new row was stored.
-    """
-
-    if price is None or card is None or card.id is None:
-        return False
-    try:
-        value = round(float(price), 2)
-    except (TypeError, ValueError):
-        return False
-
-    existing = session.exec(
-        select(models.PriceHistory)
-        .where(models.PriceHistory.card_id == card.id)
-        .order_by(models.PriceHistory.recorded_at.desc())
-    ).first()
-    target_timestamp = timestamp or dt.datetime.now(dt.timezone.utc)
-    if existing is not None:
-        same_price = abs(existing.price - value) < 0.005
-
-        def _normalize(ts: dt.datetime | None) -> dt.datetime | None:
-            if ts is None:
-                return None
-            if ts.tzinfo is None:
-                return ts.replace(tzinfo=dt.timezone.utc)
-            return ts
-
-        existing_ts = _normalize(existing.recorded_at)
-        target_ts = _normalize(target_timestamp)
-        same_moment = False
-        if existing_ts and target_ts:
-            same_moment = abs((existing_ts - target_ts).total_seconds()) < 60
-        if same_price and same_moment:
-            return False
-
-    history = models.PriceHistory(
-        card_id=card.id,
-        price=value,
-        recorded_at=target_timestamp,
-    )
-    session.add(history)
-    return True
-
 
 def _apply_card_images(card: models.Card, card_data: schemas.CardBase) -> bool:
     """Update cached image paths for ``card`` based on ``card_data``."""
@@ -759,6 +512,14 @@ def _apply_card_images(card: models.Card, card_data: schemas.CardBase) -> bool:
         card.image_large = large_value
         updated = True
     return updated
+
+
+def _serialize_entry(
+    entry: models.CollectionEntry,
+    session: Session | None = None,
+) -> schemas.CollectionEntryRead:
+    del session  # Session kept for compatibility; not used in lean metadata mode.
+    return schemas.CollectionEntryRead.model_validate(entry, from_attributes=True)
 
 
 def _serialize_entries(
@@ -822,7 +583,7 @@ def search_cards_endpoint(
     _apply_assets(records)
 
     if not records:
-        api_results = pricing.search_cards(
+        api_results = tcg_api.search_cards(
             name=name_value,
             number=number_value,
             total=total_value,
@@ -883,8 +644,8 @@ def card_info(
     current_user: models.User | None = Depends(get_optional_user),
     session: Session = Depends(get_session),
 ):
-    number_clean = pricing.sanitize_number(str(number))
-    total_clean = pricing.sanitize_number(str(total)) if total else None
+    number_clean = text.sanitize_number(str(number))
+    total_clean = text.sanitize_number(str(total)) if total else None
     search_query = _compose_query(name, number, set_name)
 
     remote_results: list[dict[str, Any]] = []
@@ -907,7 +668,7 @@ def card_info(
             if candidate in tried:
                 continue
             tried.add(candidate)
-            results = pricing.search_cards(
+            results = tcg_api.search_cards(
                 name=name,
                 number=number,
                 total=total,
@@ -1059,92 +820,12 @@ def card_info(
         session.refresh(card)
         should_commit = True
 
-    history_rows = _load_price_history(session, card)
-    history_needs_reload = False
-    history = [
-        schemas.PricePoint(price=row.price, recorded_at=row.recorded_at)
-        for row in history_rows
-    ]
-
-    price_value: float | None = detail_data.get("price_pln")
-    last_update = detail_data.get("last_price_update")
-    if history_rows:
-        price_value = history_rows[-1].price
-        last_update = history_rows[-1].recorded_at
-
-    if card and card.id is not None:
-        entries = session.exec(
-            select(models.CollectionEntry).where(
-                models.CollectionEntry.card_id == card.id
-            )
-        ).all()
-        for entry in entries:
-            if entry.current_price is None:
-                continue
-            if entry.last_price_update and (
-                not last_update or entry.last_price_update > last_update
-            ):
-                price_value = entry.current_price
-                last_update = entry.last_price_update
-            elif price_value is None:
-                price_value = entry.current_price
-
-    now = dt.datetime.now(dt.timezone.utc)
-    last_reference = last_update or record.price_updated_at
-    normalized_last: dt.datetime | None = None
-    if isinstance(last_reference, dt.datetime):
-        normalized_last = (
-            last_reference
-            if last_reference.tzinfo
-            else last_reference.replace(tzinfo=dt.timezone.utc)
-        )
-    needs_price_refresh = price_value is None or normalized_last is None
-    if not needs_price_refresh and normalized_last is not None:
-        needs_price_refresh = (now - normalized_last) >= dt.timedelta(days=1)
-
-    if needs_price_refresh:
-        fetched_price = pricing.fetch_card_price(
-            name=detail_data.get("name") or name,
-            number=number_value,
-            set_name=resolved_set_name,
-            set_code=resolved_set_code,
-        )
-        if fetched_price is not None:
-            price_value = fetched_price
-            last_update = now
-            record.price_pln = float(fetched_price)
-            record.price_updated_at = now
-            record.updated_at = now
-            session.add(record)
-            should_commit = True
-
-    if price_value is not None:
-        if record.price_pln != price_value or record.price_updated_at != last_update:
-            record.price_pln = price_value
-            record.price_updated_at = last_update
-            record.updated_at = dt.datetime.now(dt.timezone.utc)
-            session.add(record)
-            should_commit = True
-
-    detail_data["price_pln"] = price_value
-    detail_data["last_price_update"] = last_update
-
-    if card and price_value is not None:
-        timestamp_value = last_update if isinstance(last_update, dt.datetime) else None
-        if timestamp_value is None:
-            timestamp_value = dt.datetime.now(dt.timezone.utc)
-            last_update = timestamp_value
-            detail_data["last_price_update"] = timestamp_value
-        if record_price_history(session, card, price_value, timestamp_value):
-            history_needs_reload = True
-            should_commit = True
-
     limit_value = max(0, min(related_limit, 24))
     related_items: list[schemas.CardSearchResult] = []
     if limit_value:
         related_records = _load_related_catalogue(session, record, limit_value + 1)
-        base_name_norm = record.name_normalized or pricing.normalize(
-            detail_data.get("name") or record.name or ""
+        base_name_norm = record.name_normalized or text.normalize(
+            detail_data.get("name") or record.name or "",
         )
         if len(related_records) < limit_value and base_name_norm:
             stored_related = False
@@ -1152,24 +833,24 @@ def card_info(
 
             def _payload_key(payload: dict[str, Any]) -> tuple[str, str, str]:
                 return (
-                    pricing.normalize(payload.get("name") or ""),
-                    pricing.sanitize_number(str(payload.get("number") or "")),
-                    pricing.normalize(payload.get("set_name") or ""),
+                    text.normalize(payload.get("name") or ""),
+                    text.sanitize_number(str(payload.get("number") or "")),
+                    text.normalize(payload.get("set_name") or ""),
                 )
 
             candidate_payloads: list[dict[str, Any]] = []
             for payload in _fetch_remote_results():
-                if pricing.normalize(payload.get("name") or "") == base_name_norm:
+                if text.normalize(payload.get("name") or "") == base_name_norm:
                     candidate_payloads.append(payload)
 
             character_name = detail_data.get("name") or record.name or ""
             if character_name:
-                search_results = pricing.search_cards(
+                search_results = tcg_api.search_cards(
                     name=character_name,
                     limit=limit_value + 5,
                 )
                 for payload in search_results:
-                    if pricing.normalize(payload.get("name") or "") == base_name_norm:
+                    if text.normalize(payload.get("name") or "") == base_name_norm:
                         candidate_payloads.append(payload)
 
             for payload in candidate_payloads:
@@ -1194,14 +875,14 @@ def card_info(
             detail_code = record.set_code_clean
             if candidate_code and detail_code:
                 return candidate_code == detail_code
-            candidate_name = pricing.normalize(candidate.set_name or "")
-            detail_name = pricing.normalize(record.set_name or "")
+            candidate_name = text.normalize(candidate.set_name or "")
+            detail_name = text.normalize(record.set_name or "")
             if candidate_name and detail_name:
                 return candidate_name == detail_name
             return False
 
         for item in related_records:
-            if item.id == record.id or is_same_record(item):
+            if is_same_record(item):
                 continue
             if _ensure_record_assets(session, item):
                 should_commit = True
@@ -1212,18 +893,9 @@ def card_info(
     if should_commit:
         session.commit()
 
-    if history_needs_reload and card:
-        history_rows = _load_price_history(session, card)
-
-    history = [
-        schemas.PricePoint(price=row.price, recorded_at=row.recorded_at)
-        for row in (history_rows or [])
-    ]
-
     detail = schemas.CardDetail.model_validate(detail_data)
     return schemas.CardDetailResponse(
         card=detail,
-        history=history,
         related=related_items,
     )
 
@@ -1236,65 +908,9 @@ def list_collection(
     entries = session.exec(
         select(models.CollectionEntry)
         .where(models.CollectionEntry.user_id == current_user.id)
-        .options(
-            selectinload(models.CollectionEntry.card).selectinload(
-                models.Card.price_history
-            )
-        )
-    ).all()
-    return _serialize_entries(entries, session=session)
-
-
-@router.get("/summary", response_model=schemas.PortfolioSummary)
-def portfolio_summary(
-    current_user: models.User = Depends(get_current_user),
-    session: Session = Depends(get_session),
-):
-    entries = session.exec(
-        select(models.CollectionEntry)
-        .where(models.CollectionEntry.user_id == current_user.id)
         .options(selectinload(models.CollectionEntry.card))
     ).all()
-    total_quantity = sum(entry.quantity for entry in entries)
-    estimated_value = sum((entry.current_price or 0) * entry.quantity for entry in entries)
-    aggregated = _aggregate_portfolio_history(entries, session=session)
-    change, direction = _calculate_change(aggregated)
-    return schemas.PortfolioSummary(
-        total_cards=len(entries),
-        total_quantity=total_quantity,
-        estimated_value=round(estimated_value, 2),
-        change_24h=round(change, 2),
-        direction=direction,
-    )
-
-
-@router.get("/portfolio/history", response_model=schemas.PortfolioHistoryResponse)
-def portfolio_history_points(
-    current_user: models.User = Depends(get_current_user),
-    session: Session = Depends(get_session),
-):
-    entries = session.exec(
-        select(models.CollectionEntry)
-        .where(models.CollectionEntry.user_id == current_user.id)
-        .options(
-            selectinload(models.CollectionEntry.card).selectinload(
-                models.Card.price_history
-            )
-        )
-    ).all()
-    aggregated = _aggregate_portfolio_history(entries, session=session)
-    points = [
-        schemas.PortfolioHistoryPoint(timestamp=timestamp, value=value)
-        for timestamp, value in aggregated
-    ]
-    change, direction = _calculate_change(aggregated)
-    latest_value = points[-1].value if points else 0.0
-    return schemas.PortfolioHistoryResponse(
-        points=points,
-        change_24h=round(change, 2) if points else 0.0,
-        direction=direction,
-        latest_value=round(latest_value, 2),
-    )
+    return _serialize_entries(entries, session=session)
 
 
 @router.post("/", response_model=schemas.CollectionEntryRead, status_code=status.HTTP_201_CREATED)
@@ -1378,31 +994,7 @@ def add_card(
         is_holo=payload.is_holo,
     )
 
-    base_price = None
-    price_timestamp: dt.datetime | None = None
-    if catalog_record and catalog_record.price_pln is not None:
-        base_price = catalog_record.price_pln
-        price_timestamp = catalog_record.price_updated_at
 
-    if base_price is None:
-        base_price = pricing.fetch_card_price(
-            name=card.name,
-            number=card.number,
-            set_name=card.set_name,
-            set_code=card.set_code,
-        )
-        if base_price is not None and catalog_record:
-            price_timestamp = dt.datetime.now(dt.timezone.utc)
-            catalog_record.price_pln = float(base_price)
-            catalog_record.price_updated_at = price_timestamp
-            catalog_record.updated_at = price_timestamp
-            session.add(catalog_record)
-
-    entry.current_price = _apply_variant_multiplier(base_price, entry)
-    timestamp = price_timestamp or dt.datetime.now(dt.timezone.utc)
-    if entry.current_price is not None:
-        entry.last_price_update = timestamp
-    record_price_history(session, card, base_price, timestamp)
 
     session.add(entry)
     session.commit()
@@ -1465,65 +1057,3 @@ def delete_entry(
     return None
 
 
-@router.post("/{entry_id}/refresh", response_model=schemas.CollectionEntryRead)
-def refresh_entry_price(
-    entry_id: int,
-    current_user: models.User = Depends(get_current_user),
-    session: Session = Depends(get_session),
-):
-    entry = session.exec(
-        select(models.CollectionEntry)
-        .where(
-            (models.CollectionEntry.id == entry_id)
-            & (models.CollectionEntry.user_id == current_user.id)
-        )
-        .options(selectinload(models.CollectionEntry.card))
-    ).first()
-    if not entry:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entry not found")
-
-    card = entry.card
-    if card is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Entry has no card")
-
-    catalog_payload = {
-        "name": card.name,
-        "number": card.number,
-        "set_name": card.set_name,
-        "set_code": card.set_code,
-        "rarity": card.rarity,
-        "image_small": card.image_small,
-        "image_large": card.image_large,
-    }
-    catalog_candidate, _ = catalogue.upsert_card_record(session, catalog_payload)
-    if catalog_candidate:
-        _ensure_record_assets(session, catalog_candidate)
-
-    catalog_record = _locate_catalogue_record(
-        session,
-        name=card.name,
-        number=card.number,
-        set_code=card.set_code,
-        set_name=card.set_name,
-    )
-
-    base_price = pricing.fetch_card_price(
-        name=card.name,
-        number=card.number,
-        set_name=card.set_name,
-        set_code=card.set_code,
-    )
-    timestamp = dt.datetime.now(dt.timezone.utc)
-    if base_price is not None and catalog_record:
-        catalog_record.price_pln = float(base_price)
-        catalog_record.price_updated_at = timestamp
-        catalog_record.updated_at = timestamp
-        session.add(catalog_record)
-
-    entry.current_price = _apply_variant_multiplier(base_price, entry)
-    entry.last_price_update = timestamp
-    record_price_history(session, card, base_price, timestamp)
-    session.add(entry)
-    session.commit()
-    session.refresh(entry)
-    return _serialize_entry(entry, session=session)

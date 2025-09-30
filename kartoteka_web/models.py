@@ -39,7 +39,6 @@ class Card(SQLModel, table=True):
     image_large: Optional[str] = Field(default=None)
 
     entries: List["CollectionEntry"] = Relationship(back_populates="card")
-    price_history: List["PriceHistory"] = Relationship(back_populates="card")
 
 
 class CardRecord(SQLModel, table=True):
@@ -66,8 +65,6 @@ class CardRecord(SQLModel, table=True):
     image_small: Optional[str] = Field(default=None)
     image_large: Optional[str] = Field(default=None)
     set_icon: Optional[str] = Field(default=None)
-    price_pln: Optional[float] = Field(default=None)
-    price_updated_at: Optional[dt.datetime] = Field(default=None)
     created_at: dt.datetime = Field(
         default_factory=lambda: dt.datetime.now(dt.timezone.utc)
     )
@@ -83,23 +80,8 @@ class CollectionEntry(SQLModel, table=True):
     card_id: int = Field(foreign_key="card.id", index=True)
     quantity: int = Field(default=1, ge=0)
     purchase_price: Optional[float] = Field(default=None, ge=0)
-    current_price: Optional[float] = Field(default=None, ge=0)
     is_reverse: bool = Field(default=False)
     is_holo: bool = Field(default=False)
-    last_price_update: Optional[dt.datetime] = Field(default=None)
 
     owner: Optional["User"] = Relationship(back_populates="collections")
     card: Optional["Card"] = Relationship(back_populates="entries")
-
-
-class PriceHistory(SQLModel, table=True):
-    """Stored snapshots of card prices for chart generation."""
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    card_id: int = Field(foreign_key="card.id", index=True)
-    price: float = Field(ge=0)
-    recorded_at: dt.datetime = Field(
-        default_factory=lambda: dt.datetime.now(dt.timezone.utc)
-    )
-
-    card: Optional["Card"] = Relationship(back_populates="price_history")

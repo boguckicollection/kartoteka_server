@@ -7,12 +7,12 @@ import logging
 from pathlib import Path
 from typing import Any, Callable, Iterable, Tuple
 
-from sqlalchemy import text
+from sqlalchemy import text as sa_text
 from sqlmodel import Session, select
 
-from kartoteka import pricing
 from kartoteka_web import models
-from kartoteka_web.utils import images as image_utils, sets as set_utils
+from kartoteka_web.services import tcg_api
+from kartoteka_web.utils import images as image_utils, sets as set_utils, text
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ def prepare_card_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _sanitise_optional_number(value: str | None) -> str | None:
-    cleaned = pricing.sanitize_number(str(value or ""))
+    cleaned = text.sanitize_number(str(value or ""))
     return cleaned or None
 
 
@@ -127,12 +127,12 @@ def _sync_cardrecord_search_entry(
     set_name_normalized: str | None,
 ) -> None:
     session.exec(
-        text("DELETE FROM cardrecord_search WHERE card_id = :card_id").bindparams(
+        sa_text("DELETE FROM cardrecord_search WHERE card_id = :card_id").bindparams(
             card_id=card_id
         )
     )
     session.exec(
-        text(
+        sa_text(
             """
             INSERT INTO cardrecord_search (card_id, name_normalized, set_name_normalized)
             VALUES (:card_id, :name_normalized, :set_name_normalized)
@@ -166,7 +166,7 @@ def upsert_card_record(
 ) -> Tuple["models.CardRecord" | None, bool]:
     data = prepare_card_payload(payload)
     name_value = (data.get("name") or "").strip()
-    number_value = pricing.sanitize_number(str(data.get("number") or ""))
+    number_value = text.sanitize_number(str(data.get("number") or ""))
     if not name_value or not number_value:
         return None, False
 
@@ -202,8 +202,8 @@ def upsert_card_record(
             )
         ).first()
 
-    name_normalized = pricing.normalize(name_value)
-    set_name_normalized = pricing.normalize(set_name_value) if set_name_value else None
+    name_normalized = text.normalize(name_value)
+    set_name_normalized = text.normalize(set_name_value) if set_name_value else None
 
     if candidate is None:
         record = models.CardRecord(
@@ -410,7 +410,7 @@ def refresh_catalogue(
             requests_used=requests_used,
             request_limit=CATALOGUE_REQUEST_LIMIT,
         )
-        cards, set_request_count = pricing.list_set_cards(set_code, limit=0)
+        cards, set_request_count = tcg_api.list_set_cards(set_code, limit=0)
         set_request_count = int(set_request_count or 0)
         card_list = list(cards or [])
         card_count = len(card_list)
