@@ -31,6 +31,20 @@ _exchange_rate_lock = threading.Lock()
 _exchange_rate_cache: dict[str, Any] = {"value": None, "date": None}
 
 
+def _apply_default_user_agent(
+    headers: dict[str, str],
+    session: Optional[requests.sessions.Session],
+) -> None:
+    """Set the default ``User-Agent`` without overriding custom headers."""
+
+    session_headers = getattr(session, "headers", None) or {}
+    user_agent = session_headers.get("User-Agent") if session_headers else None
+    if user_agent:
+        headers.setdefault("User-Agent", str(user_agent))
+    else:
+        headers.setdefault("User-Agent", "kartoteka/1.0")
+
+
 def _current_date() -> dt.date:
     return dt.datetime.now(dt.timezone.utc).date()
 
@@ -356,6 +370,7 @@ def fetch_card_price(
                 "X-RapidAPI-Key": rapidapi_key,
                 "X-RapidAPI-Host": rapidapi_host,
             }
+            _apply_default_user_agent(headers, session)
         else:
             url = "https://www.tcggo.com/api/cards/"
             params = {
@@ -363,6 +378,7 @@ def fetch_card_price(
                 "number": number_input,
                 "set": set_code,
             }
+            _apply_default_user_agent(headers, session)
 
         response = http.get(url, params=params, headers=headers, timeout=timeout)
         if response.status_code != 200:
@@ -481,6 +497,7 @@ def search_cards(
             "X-RapidAPI-Key": rapidapi_key,
             "X-RapidAPI-Host": rapidapi_host,
         }
+        _apply_default_user_agent(headers, session)
     else:
         params = {"name": name_api}
         if number_clean:
@@ -489,6 +506,7 @@ def search_cards(
             params["total"] = total_clean
         if set_name:
             params["set"] = normalize(set_name, keep_spaces=True)
+        _apply_default_user_agent(headers, session)
 
     try:
         response = http.get(url, params=params, headers=headers, timeout=timeout)

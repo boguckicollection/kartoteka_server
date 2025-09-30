@@ -1,4 +1,10 @@
 import datetime as dt
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from kartoteka import pricing
 
@@ -64,3 +70,82 @@ def test_get_exchange_rate_refreshes_each_day(monkeypatch):
     current_day["value"] = dt.date(2024, 1, 2)
     refreshed = pricing.get_exchange_rate()
     assert refreshed == 4.7
+
+
+class _DummyHTTPResponse:
+    status_code = 200
+
+    def __init__(self, payload: dict | list | None = None):
+        self._payload = payload or []
+
+    def json(self):
+        return self._payload
+
+
+def test_fetch_card_price_sets_default_user_agent(monkeypatch):
+    captured: dict[str, dict | None] = {"headers": None}
+
+    def fake_get(_url, params=None, headers=None, timeout=None):
+        captured["headers"] = headers
+        return _DummyHTTPResponse([])
+
+    monkeypatch.setattr(pricing.requests, "get", fake_get)
+
+    pricing.fetch_card_price(
+        name="Charizard",
+        number="4",
+        set_name="Base",
+        rapidapi_key=None,
+        rapidapi_host=None,
+        get_rate=lambda: 4.5,
+    )
+
+    assert captured["headers"]["User-Agent"] == "kartoteka/1.0"
+
+
+def test_fetch_card_price_sets_user_agent_for_rapidapi(monkeypatch):
+    captured: dict[str, dict | None] = {"headers": None}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        captured["headers"] = headers
+        return _DummyHTTPResponse({"cards": []})
+
+    monkeypatch.setattr(pricing.requests, "get", fake_get)
+
+    pricing.fetch_card_price(
+        name="Charizard",
+        number="4",
+        set_name="Base",
+        rapidapi_key="test-key",
+        rapidapi_host="example.com",
+        get_rate=lambda: 4.5,
+    )
+
+    assert captured["headers"]["User-Agent"] == "kartoteka/1.0"
+    assert captured["headers"]["X-RapidAPI-Key"] == "test-key"
+    assert captured["headers"]["X-RapidAPI-Host"] == "example.com"
+
+
+def test_fetch_card_price_respects_session_user_agent():
+    class DummySession:
+        def __init__(self):
+            self.headers = {"User-Agent": "custom-agent/2.0"}
+            self.captured = None
+
+        def get(self, url, params=None, headers=None, timeout=None):
+            self.captured = headers
+            return _DummyHTTPResponse([])
+
+    session = DummySession()
+
+    pricing.fetch_card_price(
+        name="Charizard",
+        number="4",
+        set_name="Base",
+        rapidapi_key=None,
+        rapidapi_host=None,
+        get_rate=lambda: 4.5,
+        session=session,
+    )
+
+    assert session.captured["User-Agent"] == "custom-agent/2.0"
