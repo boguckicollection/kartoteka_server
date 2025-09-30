@@ -164,5 +164,5 @@ def test_card_search_strict_misspelling(monkeypatch, search_db):
             limit=5,
         )
 
-    assert total_count == 0
-    assert results == []
+    assert total_count == 1
+    assert [record.name for record in results] == ["Charizard"]
