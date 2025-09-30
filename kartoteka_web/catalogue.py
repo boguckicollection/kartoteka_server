@@ -394,11 +394,11 @@ def refresh_catalogue(
             break
 
         logger.info(
-            "Synchronising set %s (%s/%s) [request %s/%s]",
+            "Synchronising set %s (%s/%s); requests used %s/%s",
             set_code,
             position + 1,
             total_sets,
-            requests_used + 1,
+            requests_used,
             CATALOGUE_REQUEST_LIMIT,
         )
         _notify(
@@ -407,12 +407,15 @@ def refresh_catalogue(
             index=position + 1,
             total_sets=total_sets,
             request_number=requests_used + 1,
+            requests_used=requests_used,
             request_limit=CATALOGUE_REQUEST_LIMIT,
         )
-        cards = pricing.list_set_cards(set_code, limit=0)
-        card_count = len(cards or [])
-        if not cards:
-            requests_used += 1
+        cards, set_request_count = pricing.list_set_cards(set_code, limit=0)
+        set_request_count = int(set_request_count or 0)
+        card_list = list(cards or [])
+        card_count = len(card_list)
+        requests_used += set_request_count
+        if not card_list:
             processed_sets += 1
             processed_cards += card_count
             last_completed_set = set_code
@@ -434,10 +437,12 @@ def refresh_catalogue(
                 processed_sets=processed_sets,
                 processed_cards=processed_cards,
                 remaining_sets=remaining_sets,
+                request_count=set_request_count,
+                requests_used=requests_used,
             )
             continue
         changed_for_set = 0
-        for payload in cards:
+        for payload in card_list:
             record, changed = upsert_card_record(session, payload)
             if record is None:
                 continue
@@ -450,7 +455,6 @@ def refresh_catalogue(
             total_changed += changed_for_set
         else:
             session.rollback()
-        requests_used += 1
         processed_sets += 1
         processed_cards += card_count
         last_completed_set = set_code
@@ -472,6 +476,8 @@ def refresh_catalogue(
             processed_sets=processed_sets,
             processed_cards=processed_cards,
             remaining_sets=remaining_sets,
+            request_count=set_request_count,
+            requests_used=requests_used,
         )
 
     completed_all_sets = (start_index + processed_sets) >= total_sets and (

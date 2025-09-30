@@ -45,7 +45,7 @@ def _configure_test_environment(db_path, monkeypatch):
 
     monkeypatch.setattr("kartoteka.pricing.fetch_card_price", fake_price)
     monkeypatch.setattr("kartoteka.pricing.search_cards", lambda *a, **k: [])
-    monkeypatch.setattr("kartoteka.pricing.list_set_cards", lambda *a, **k: [])
+    monkeypatch.setattr("kartoteka.pricing.list_set_cards", lambda *a, **k: ([], 0))
     monkeypatch.setattr("kartoteka_web.utils.images.cache_card_images", lambda payload, **_: payload)
     monkeypatch.setattr("kartoteka_web.utils.images.ensure_local_path", lambda value, **_: value)
     monkeypatch.setattr("kartoteka_web.auth.get_password_hash", lambda password: f"hashed:{password}")

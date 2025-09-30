@@ -647,11 +647,15 @@ def list_set_cards(
     rapidapi_host: Optional[str] = None,
     session: Optional[requests.sessions.Session] = None,
     timeout: float = 10.0,
-) -> list[dict[str, Any]]:
-    """Return a selection of cards belonging to ``set_code``."""
+) -> tuple[list[dict[str, Any]], int]:
+    """Return a selection of cards belonging to ``set_code``.
+
+    The function returns a tuple containing the cards and the number of HTTP
+    requests issued to the PokémonTCG API so callers can track quota usage.
+    """
 
     if not set_code:
-        return []
+        return [], 0
 
     http = session or requests
     api_key = rapidapi_key if rapidapi_key is not None else POKEMONTCG_API_KEY
@@ -682,6 +686,7 @@ def list_set_cards(
     page_size = 250
     results: list[dict[str, Any]] = []
     fetched_total = 0
+    request_count = 0
 
     while True:
         params = {
@@ -696,16 +701,20 @@ def list_set_cards(
                 headers=headers,
                 timeout=timeout,
             )
+        except requests.Timeout:
+            request_count += 1
+            logger.warning("Request timed out")
+            break
+        except (requests.RequestException, ValueError) as exc:  # pragma: no cover
+            request_count += 1
+            logger.warning("Fetching cards for set %s failed: %s", set_code, exc)
+            break
+        else:
+            request_count += 1
             if response.status_code != 200:
                 logger.warning("API error: %s", response.status_code)
                 break
             payload = response.json()
-        except requests.Timeout:
-            logger.warning("Request timed out")
-            break
-        except (requests.RequestException, ValueError) as exc:  # pragma: no cover
-            logger.warning("Fetching cards for set %s failed: %s", set_code, exc)
-            break
 
         cards = []
         total_count = 0
@@ -742,6 +751,6 @@ def list_set_cards(
 
     results.sort(key=_card_sort_key)
     if limit and limit > 0:
-        return results[:limit]
-    return results
+        results = results[:limit]
+    return results, request_count
 

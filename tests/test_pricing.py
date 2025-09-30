@@ -171,11 +171,12 @@ def test_list_set_cards_fetches_all_pages(monkeypatch):
     monkeypatch.setattr(pricing.requests, "get", fake_get)
     monkeypatch.setattr(pricing, "POKEMONTCG_API_KEY", None)
 
-    results = pricing.list_set_cards("base1", limit=0)
+    results, request_count = pricing.list_set_cards("base1", limit=0)
 
     assert len(results) == 3
     assert [item["number"] for item in results] == ["1", "2", "3"]
-    assert len(captured) == 2
+    assert request_count == 2
+    assert len(captured) == request_count
     assert captured[0]["url"] == pricing.POKEMONTCG_API_URL
     assert captured[0]["params"]["page"] == "1"
     assert captured[1]["params"]["page"] == "2"
@@ -215,10 +216,11 @@ def test_list_set_cards_respects_limit(monkeypatch):
     monkeypatch.setattr(pricing.requests, "get", fake_get)
     monkeypatch.setattr(pricing, "POKEMONTCG_API_KEY", None)
 
-    results = pricing.list_set_cards("base1", limit=2)
+    results, request_count = pricing.list_set_cards("base1", limit=2)
 
     assert len(results) == 2
     assert [item["number"] for item in results] == ["1", "5"]
+    assert request_count == 1
     assert captured["params"]["pageSize"] == "250"
 
 
@@ -234,10 +236,11 @@ def test_list_set_cards_uses_api_key_header(monkeypatch):
     monkeypatch.setattr(pricing.requests, "get", fake_get)
     monkeypatch.setattr(pricing, "POKEMONTCG_API_KEY", "secret")
 
-    pricing.list_set_cards("base1", limit=1)
+    _cards, request_count = pricing.list_set_cards("base1", limit=1)
 
     assert captured["headers"]["X-Api-Key"] == "secret"
     assert captured["headers"]["User-Agent"] == "kartoteka/1.0"
+    assert request_count == 1
 
 
 def test_fetch_card_price_respects_session_user_agent():
