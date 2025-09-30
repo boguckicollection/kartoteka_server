@@ -27,7 +27,7 @@ browser.  To start the server locally use uvicorn:
 uvicorn server:app --reload
 ```
 
-### RapidAPI configuration
+### Pricing API configuration
 
 Price lookups use the same configuration as the desktop app.  Provide a
 RapidAPI host and key either via shell variables (`export RAPIDAPI_HOST=…`,
@@ -41,7 +41,10 @@ cp .env.example .env
 
 Both the Tkinter UI (`python main.py`) and the web server (`uvicorn
 server:app --reload`) load this file automatically on startup, so the
-credentials only need to be set once.
+credentials only need to be set once.  Card search and set synchronisation now
+use the official Pokémon TCG API.  Place the corresponding `POKEMONTCG_API_KEY`
+in your local `.env` file (or export it in the shell) and keep it outside of
+version control.
 
 By default the API stores data in `kartoteka.db` (SQLite).  Override the
 location with the `KARTOTEKA_DATABASE_URL` environment variable if you prefer

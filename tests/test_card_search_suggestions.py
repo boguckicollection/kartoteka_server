@@ -77,33 +77,43 @@ def test_card_search_suggests_and_filters(monkeypatch, search_session):
         def json(self):
             return self._data
 
-    captured = {"called": 0}
+    captured = {"called": 0, "params": None, "headers": None, "url": None}
 
-    def fake_get(_url, params=None, headers=None, timeout=None):
+    def fake_get(url, params=None, headers=None, timeout=None):
         captured["called"] += 1
+        captured["params"] = params
+        captured["headers"] = headers
+        captured["url"] = url
         data = {
-            "cards": [
+            "data": [
                 {
                     "name": "Charizard",
                     "number": "4",
-                    "total": "102",
-                    "set": {"name": "Base Set", "code": "BS"},
+                    "set": {"name": "Base Set", "id": "base1", "total": 102},
                 },
                 {
                     "name": "Charoad",
                     "number": "4",
-                    "total": "102",
-                    "set": {"name": "Base Set", "code": "BS"},
+                    "set": {"name": "Base Set", "id": "base1", "total": 102},
                 },
-            ]
+            ],
+            "totalCount": 2,
         }
         return _DummyResponse(data)
 
     monkeypatch.setattr(pricing.requests, "get", fake_get)
+    monkeypatch.setattr(pricing, "POKEMONTCG_API_KEY", None)
 
     results = pricing.search_cards(name="Charizard", number="4", limit=10)
 
     assert captured["called"] == 1
+    assert captured["url"] == pricing.POKEMONTCG_API_URL
+    assert captured["params"]["page"] == "1"
+    assert captured["params"]["pageSize"] == "50"
+    query = captured["params"]["q"]
+    assert 'name:"*charizard*"' in query
+    assert 'number:"4"' in query
+    assert "X-Api-Key" not in (captured["headers"] or {})
     assert [item["name"] for item in results] == ["Charizard"]
 
 
@@ -119,28 +129,34 @@ def test_search_cards_allows_typo_without_number(monkeypatch):
         def json(self):
             return self._data
 
-    def fake_get(_url, params=None, headers=None, timeout=None):
+    captured = {"params": None}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        captured["params"] = params
         data = {
-            "cards": [
+            "data": [
                 {
                     "name": "Charizard",
                     "number": "4",
-                    "total": "102",
-                    "set": {"name": "Base Set", "code": "BS"},
+                    "set": {"name": "Base Set", "id": "base1", "total": 102},
                 },
                 {
                     "name": "Pikachu",
                     "number": "25",
-                    "set": {"name": "Base Set", "code": "BS"},
+                    "set": {"name": "Base Set", "id": "base1", "total": 102},
                 },
             ]
         }
         return _DummyResponse(data)
 
     monkeypatch.setattr(pricing.requests, "get", fake_get)
+    monkeypatch.setattr(pricing, "POKEMONTCG_API_KEY", None)
 
     results = pricing.search_cards(name="Charoad", set_name="Base Set", limit=5)
 
+    query = captured["params"]["q"]
+    assert 'name:"*charoad*"' in query
+    assert 'set.name:"*base set*"' in query
     assert [item["name"] for item in results] == ["Charizard"]
 
 
@@ -151,7 +167,7 @@ def test_search_cards_sets_default_user_agent(monkeypatch):
         status_code = 200
 
         def json(self):
-            return {"cards": []}
+            return {"data": []}
 
     captured: dict[str, dict | None] = {"headers": None}
 
@@ -160,20 +176,23 @@ def test_search_cards_sets_default_user_agent(monkeypatch):
         return _DummyResponse()
 
     monkeypatch.setattr(pricing.requests, "get", fake_get)
+
+    monkeypatch.setattr(pricing, "POKEMONTCG_API_KEY", None)
 
     pricing.search_cards(name="Charizard", number="4", rapidapi_key=None, rapidapi_host=None)
 
     assert captured["headers"]["User-Agent"] == "kartoteka/1.0"
+    assert "X-Api-Key" not in captured["headers"]
 
 
-def test_search_cards_sets_user_agent_for_rapidapi(monkeypatch):
+def test_search_cards_uses_api_key_header(monkeypatch):
     from kartoteka import pricing
 
     class _DummyResponse:
         status_code = 200
 
         def json(self):
-            return {"cards": []}
+            return {"data": []}
 
     captured: dict[str, dict | None] = {"headers": None}
 
@@ -183,25 +202,20 @@ def test_search_cards_sets_user_agent_for_rapidapi(monkeypatch):
 
     monkeypatch.setattr(pricing.requests, "get", fake_get)
 
-    pricing.search_cards(
-        name="Charizard",
-        rapidapi_key="test-key",
-        rapidapi_host="example.com",
-    )
+    pricing.search_cards(name="Charizard", rapidapi_key="test-key")
 
     assert captured["headers"]["User-Agent"] == "kartoteka/1.0"
-    assert captured["headers"]["X-RapidAPI-Key"] == "test-key"
-    assert captured["headers"]["X-RapidAPI-Host"] == "example.com"
+    assert captured["headers"]["X-Api-Key"] == "test-key"
 
 
-def test_search_cards_respects_session_user_agent():
+def test_search_cards_respects_session_user_agent(monkeypatch):
     from kartoteka import pricing
 
     class _DummyResponse:
         status_code = 200
 
         def json(self):
-            return {"cards": []}
+            return {"data": []}
 
     class DummySession:
         def __init__(self):
@@ -213,6 +227,8 @@ def test_search_cards_respects_session_user_agent():
             return _DummyResponse()
 
     session = DummySession()
+
+    monkeypatch.setattr(pricing, "POKEMONTCG_API_KEY", None)
 
     pricing.search_cards(name="Charizard", session=session, rapidapi_key=None, rapidapi_host=None)
 
