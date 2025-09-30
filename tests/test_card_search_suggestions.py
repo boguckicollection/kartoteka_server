@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from sqlmodel import Session, SQLModel, create_engine
 
+from kartoteka_web.services import tcg_api
+
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -50,8 +52,8 @@ def test_card_search_suggests_and_filters(monkeypatch, search_session):
 
     _seed_charizard(search_session)
 
-    original_search_cards = cards.pricing.search_cards
-    monkeypatch.setattr(cards.pricing, "search_cards", lambda **_: [])
+    original_search_cards = cards.tcg_api.search_cards
+    monkeypatch.setattr(cards.tcg_api, "search_cards", lambda **_: [])
     monkeypatch.setattr(cards, "_ensure_record_assets", lambda *a, **k: False)
 
     response = cards.search_cards_endpoint(
@@ -64,9 +66,7 @@ def test_card_search_suggests_and_filters(monkeypatch, search_session):
     assert response.total == 0
     assert response.suggested_query == "Charizard"
 
-    monkeypatch.setattr(cards.pricing, "search_cards", original_search_cards)
-
-    from kartoteka import pricing
+    monkeypatch.setattr(cards.tcg_api, "search_cards", original_search_cards)
 
     class _DummyResponse:
         status_code = 200
@@ -101,13 +101,13 @@ def test_card_search_suggests_and_filters(monkeypatch, search_session):
         }
         return _DummyResponse(data)
 
-    monkeypatch.setattr(pricing.requests, "get", fake_get)
-    monkeypatch.setattr(pricing, "POKEMONTCG_API_KEY", None)
+    monkeypatch.setattr(tcg_api.requests, "get", fake_get)
+    monkeypatch.setattr(tcg_api, "POKEMONTCG_API_KEY", None)
 
-    results = pricing.search_cards(name="Charizard", number="4", limit=10)
+    results = tcg_api.search_cards(name="Charizard", number="4", limit=10)
 
     assert captured["called"] == 1
-    assert captured["url"] == pricing.POKEMONTCG_API_URL
+    assert captured["url"] == tcg_api.POKEMONTCG_API_URL
     assert captured["params"]["page"] == "1"
     assert captured["params"]["pageSize"] == "50"
     query = captured["params"]["q"]
@@ -118,8 +118,6 @@ def test_card_search_suggests_and_filters(monkeypatch, search_session):
 
 
 def test_search_cards_allows_typo_without_number(monkeypatch):
-    from kartoteka import pricing
-
     class _DummyResponse:
         status_code = 200
 
@@ -149,10 +147,10 @@ def test_search_cards_allows_typo_without_number(monkeypatch):
         }
         return _DummyResponse(data)
 
-    monkeypatch.setattr(pricing.requests, "get", fake_get)
-    monkeypatch.setattr(pricing, "POKEMONTCG_API_KEY", None)
+    monkeypatch.setattr(tcg_api.requests, "get", fake_get)
+    monkeypatch.setattr(tcg_api, "POKEMONTCG_API_KEY", None)
 
-    results = pricing.search_cards(name="Charoad", set_name="Base Set", limit=5)
+    results = tcg_api.search_cards(name="Charoad", set_name="Base Set", limit=5)
 
     query = captured["params"]["q"]
     assert 'name:"*charoad*"' in query
@@ -161,8 +159,6 @@ def test_search_cards_allows_typo_without_number(monkeypatch):
 
 
 def test_search_cards_sets_default_user_agent(monkeypatch):
-    from kartoteka import pricing
-
     class _DummyResponse:
         status_code = 200
 
@@ -175,19 +171,17 @@ def test_search_cards_sets_default_user_agent(monkeypatch):
         captured["headers"] = headers
         return _DummyResponse()
 
-    monkeypatch.setattr(pricing.requests, "get", fake_get)
+    monkeypatch.setattr(tcg_api.requests, "get", fake_get)
 
-    monkeypatch.setattr(pricing, "POKEMONTCG_API_KEY", None)
+    monkeypatch.setattr(tcg_api, "POKEMONTCG_API_KEY", None)
 
-    pricing.search_cards(name="Charizard", number="4", rapidapi_key=None, rapidapi_host=None)
+    tcg_api.search_cards(name="Charizard", number="4", rapidapi_key=None, rapidapi_host=None)
 
     assert captured["headers"]["User-Agent"] == "kartoteka/1.0"
     assert "X-Api-Key" not in captured["headers"]
 
 
 def test_search_cards_uses_api_key_header(monkeypatch):
-    from kartoteka import pricing
-
     class _DummyResponse:
         status_code = 200
 
@@ -200,17 +194,15 @@ def test_search_cards_uses_api_key_header(monkeypatch):
         captured["headers"] = headers
         return _DummyResponse()
 
-    monkeypatch.setattr(pricing.requests, "get", fake_get)
+    monkeypatch.setattr(tcg_api.requests, "get", fake_get)
 
-    pricing.search_cards(name="Charizard", rapidapi_key="test-key")
+    tcg_api.search_cards(name="Charizard", rapidapi_key="test-key")
 
     assert captured["headers"]["User-Agent"] == "kartoteka/1.0"
     assert captured["headers"]["X-Api-Key"] == "test-key"
 
 
 def test_search_cards_respects_session_user_agent(monkeypatch):
-    from kartoteka import pricing
-
     class _DummyResponse:
         status_code = 200
 
@@ -228,8 +220,8 @@ def test_search_cards_respects_session_user_agent(monkeypatch):
 
     session = DummySession()
 
-    monkeypatch.setattr(pricing, "POKEMONTCG_API_KEY", None)
+    monkeypatch.setattr(tcg_api, "POKEMONTCG_API_KEY", None)
 
-    pricing.search_cards(name="Charizard", session=session, rapidapi_key=None, rapidapi_host=None)
+    tcg_api.search_cards(name="Charizard", session=session, rapidapi_key=None, rapidapi_host=None)
 
     assert session.captured["User-Agent"] == "custom-agent/1.0"

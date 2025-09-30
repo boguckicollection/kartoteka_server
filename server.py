@@ -20,85 +20,15 @@ from sqlmodel import select
 
 load_dotenv(Path(__file__).resolve().with_name(".env"))
 
-from kartoteka import pricing
 from kartoteka_web import catalogue, models
 from kartoteka_web.auth import get_current_user, oauth2_scheme
 from kartoteka_web.database import init_db, session_scope
 from kartoteka_web.routes import cards, users
-from kartoteka_web.utils import images as image_utils, sets as set_utils
+from kartoteka_web.utils import images as image_utils, sets as set_utils, text
 
 logger = logging.getLogger(__name__)
 
 ProgressCallback = Callable[[str, dict[str, Any]], None]
-
-def _apply_variant_multiplier(entry: models.CollectionEntry, base_price: Optional[float]) -> Optional[float]:
-    if base_price is None:
-        return None
-    multiplier = 1.0
-    if entry.is_reverse or entry.is_holo:
-        multiplier *= pricing.HOLO_REVERSE_MULTIPLIER
-    try:
-        return round(float(base_price) * multiplier, 2)
-    except (TypeError, ValueError):
-        return base_price
-
-
-def _refresh_prices() -> int:
-    """Synchronously refresh prices for all collection entries."""
-
-    updated = 0
-    now = dt.datetime.now(dt.timezone.utc)
-    with session_scope() as session:
-        entries = session.exec(
-            select(models.CollectionEntry).options(selectinload(models.CollectionEntry.card))
-        ).all()
-        price_cache: dict[int, Optional[float]] = {}
-        recorded_cards: set[int] = set()
-        for entry in entries:
-            card = entry.card
-            if not card or card.id is None:
-                continue
-            if card.id not in price_cache:
-                price_cache[card.id] = pricing.fetch_card_price(
-                    name=card.name,
-                    number=card.number,
-                    set_name=card.set_name,
-                    set_code=card.set_code,
-                )
-            price = price_cache[card.id]
-            new_price = _apply_variant_multiplier(entry, price)
-            if new_price is not None:
-                entry.current_price = new_price
-                entry.last_price_update = now
-                updated += 1
-            if price is not None and card.id not in recorded_cards:
-                cards.record_price_history(session, card, price, now)
-                recorded_cards.add(card.id)
-        session.flush()
-    return updated
-
-
-def _seconds_until_next_midnight(now: dt.datetime | None = None) -> float:
-    """Return seconds until the next local midnight."""
-
-    reference = (now or dt.datetime.now(dt.timezone.utc)).astimezone()
-    next_midnight = (reference + dt.timedelta(days=1)).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
-    delta = next_midnight - reference
-    return max(delta.total_seconds(), 1.0)
-
-
-async def _price_update_loop() -> None:
-    while True:
-        try:
-            await asyncio.sleep(_seconds_until_next_midnight())
-        except asyncio.CancelledError:
-            raise
-        updated = await asyncio.to_thread(_refresh_prices)
-        if updated:
-            logger.info("Background price refresh updated %s entries", updated)
-
 
 def _refresh_catalogue(
     *,
@@ -202,6 +132,21 @@ def _refresh_catalogue(
         )
 
 
+def _seconds_until_next_midnight(now: dt.datetime | None = None) -> float:
+    """Return seconds until the next UTC midnight."""
+
+    current = now or dt.datetime.now(dt.timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=dt.timezone.utc)
+    tomorrow = (current + dt.timedelta(days=1)).replace(
+        hour=0,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
+    return max((tomorrow - current).total_seconds(), 0.0)
+
+
 async def _catalogue_update_loop() -> None:
     while True:
         try:
@@ -260,16 +205,13 @@ async def _start_catalogue_bootstrap(progress: ProgressCallback | None = None) -
 async def lifespan(app: FastAPI):
     init_db()
     bootstrap_task = asyncio.create_task(_start_catalogue_bootstrap())
-    price_task = asyncio.create_task(_price_update_loop())
     catalogue_task = asyncio.create_task(_catalogue_update_loop())
-    app.state.price_task = price_task
     app.state.catalogue_task = catalogue_task
     app.state.bootstrap_task = bootstrap_task
     try:
         yield
     finally:
         for task in (
-            getattr(app.state, "price_task", None),
             getattr(app.state, "catalogue_task", None),
             getattr(app.state, "bootstrap_task", None),
         ):
@@ -441,7 +383,7 @@ async def card_detail_page(request: Request, set_identifier: str, number: str) -
     set_code = (raw_query.get("set_code") or "").strip()
     total = (raw_query.get("total") or "").strip()
 
-    number_clean = pricing.sanitize_number(number)
+    number_clean = text.sanitize_number(number)
     resolved_number = number_clean or number
     resolved_name = card_name
     resolved_set_name = set_name

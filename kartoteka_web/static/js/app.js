@@ -2,14 +2,7 @@ const TOKEN_KEY = "kartoteka_token";
 const THEME_KEY = "kartoteka_theme";
 const LIGHT_THEME_COLOR = "#f9fafb";
 const DARK_THEME_COLOR = "#05060f";
-const DEFAULT_CHART_PALETTE = {
-  line: "#6fd3ff",
-  fill: "rgba(111, 211, 255, 0.22)",
-  grid: "rgba(111, 211, 255, 0.16)",
-  text: "rgba(226, 232, 240, 0.72)",
-};
-
-let cardDetailChart = null;
+let cachedCollectionEntries = [];
 
 const getToken = () => window.localStorage.getItem(TOKEN_KEY);
 const setToken = (token) => window.localStorage.setItem(TOKEN_KEY, token);
@@ -56,7 +49,6 @@ function applyTheme(theme) {
       icon.textContent = normalized === "dark" ? "☀️" : "🌙";
     }
   }
-  refreshDetailChartTheme();
 }
 
 function determineTheme() {
@@ -99,62 +91,6 @@ function setupThemeToggle() {
   }
 }
 
-function readCssCustomProperty(name, fallback) {
-  try {
-    const styles = window.getComputedStyle(document.documentElement);
-    const value = styles.getPropertyValue(name);
-    return value ? value.trim() : fallback;
-  } catch (error) {
-    console.warn("Unable to read CSS variable", name, error);
-    return fallback;
-  }
-}
-
-function getChartPalette() {
-  return {
-    line: readCssCustomProperty("--chart-line", DEFAULT_CHART_PALETTE.line),
-    fill: readCssCustomProperty("--chart-fill", DEFAULT_CHART_PALETTE.fill),
-    grid: readCssCustomProperty("--chart-grid", DEFAULT_CHART_PALETTE.grid),
-    text: readCssCustomProperty("--chart-text", DEFAULT_CHART_PALETTE.text),
-  };
-}
-
-function applyChartPalette(chart, palette = getChartPalette()) {
-  if (!chart || !palette) {
-    return;
-  }
-  const dataset = chart.data?.datasets?.[0];
-  if (dataset) {
-    dataset.borderColor = palette.line;
-    dataset.backgroundColor = palette.fill;
-    dataset.pointBackgroundColor = palette.line;
-    dataset.pointBorderColor = palette.fill;
-    dataset.pointHoverBackgroundColor = palette.line;
-    dataset.pointHoverBorderColor = palette.fill;
-  }
-  const scales = chart.options?.scales;
-  if (scales?.x?.ticks) {
-    scales.x.ticks.color = palette.text;
-  }
-  if (scales?.x?.grid) {
-    scales.x.grid.color = palette.grid;
-  }
-  if (scales?.y?.ticks) {
-    scales.y.ticks.color = palette.text;
-  }
-  if (scales?.y?.grid) {
-    scales.y.grid.color = palette.grid;
-  }
-}
-
-function refreshDetailChartTheme() {
-  if (!cardDetailChart) {
-    return;
-  }
-  applyChartPalette(cardDetailChart);
-  cardDetailChart.update("none");
-}
-
 const plnFormatter = new Intl.NumberFormat("pl-PL", {
   style: "currency",
   currency: "PLN",
@@ -167,58 +103,6 @@ function formatPln(value) {
     return null;
   }
   return plnFormatter.format(value);
-}
-
-function normalisePriceValue(value) {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : null;
-  }
-  if (typeof value === "string") {
-    let normalised = value.trim();
-    if (!normalised) {
-      return null;
-    }
-    normalised = normalised
-      .replace(/\u00a0/g, "")
-      .replace(/\s+/g, "")
-      .replace(/(pln|zł)\.?/gi, "");
-    const hasComma = normalised.includes(",");
-    const hasDot = normalised.includes(".");
-    if (hasComma && hasDot) {
-      normalised = normalised.replace(/\./g, "");
-    }
-    normalised = normalised.replace(",", ".");
-    const parsed = Number.parseFloat(normalised);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function formatChangeValue(value) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "0,00 zł";
-  }
-  const absolute = plnFormatter.format(Math.abs(value));
-  if (value > 0) {
-    return `+${absolute}`;
-  }
-  if (value < 0) {
-    return `-${absolute}`;
-  }
-  return absolute;
-}
-
-function formatDateRangeLabel(startDate, endDate) {
-  if (!(startDate instanceof Date) || Number.isNaN(startDate.getTime())) {
-    return null;
-  }
-  if (!(endDate instanceof Date) || Number.isNaN(endDate.getTime())) {
-    return startDate.toLocaleDateString("pl-PL");
-  }
-  const options = { day: "2-digit", month: "2-digit" };
-  const startLabel = startDate.toLocaleDateString("pl-PL", options);
-  const endLabel = endDate.toLocaleDateString("pl-PL", options);
-  return startLabel === endLabel ? startLabel : `${startLabel} – ${endLabel}`;
 }
 
 function resolveTrendSymbol(direction) {
@@ -595,30 +479,30 @@ async function handleRegister(form) {
 
 function renderCollection(entries) {
   const body = document.getElementById("collection-table");
+  cachedCollectionEntries = Array.isArray(entries) ? entries : [];
   if (!body) return;
   body.innerHTML = "";
   if (!entries.length) {
     const emptyRow = document.createElement("tr");
-    emptyRow.innerHTML = `<td colspan="6" class="table-empty">Brak kart w kolekcji. Dodaj pierwszą kartę, aby rozpocząć.</td>`;
+    emptyRow.innerHTML = `<td colspan="5" class="table-empty">Brak kart w kolekcji. Dodaj pierwszą kartę, aby rozpocząć.</td>`;
     body.appendChild(emptyRow);
     return;
   }
   for (const entry of entries) {
     const tr = document.createElement("tr");
-    const priceValue =
-      typeof entry.current_price === "number"
-        ? entry.current_price.toFixed(2)
-        : entry.current_price ?? "-";
+    const purchaseValue =
+      typeof entry.purchase_price === "number"
+        ? entry.purchase_price.toFixed(2)
+        : entry.purchase_price ?? "-";
     const detailUrl = buildCardDetailUrl(entry.card || {});
     tr.innerHTML = `
       <td data-label="Nazwa"><a class="table-link" href="${detailUrl}">${entry.card.name}</a></td>
       <td data-label="Numer">${entry.card.number}</td>
       <td data-label="Set">${entry.card.set_name}</td>
       <td data-label="Ilość">${entry.quantity}</td>
-      <td data-label="Wartość">${priceValue}</td>
+      <td data-label="Cena zakupu">${purchaseValue}</td>
       <td data-label="Akcje">
         <div class="table-actions">
-          <button class="secondary" data-action="refresh" data-id="${entry.id}">Odśwież cenę</button>
           <button class="ghost danger" data-action="delete" data-id="${entry.id}">Usuń</button>
         </div>
       </td>
@@ -697,49 +581,14 @@ function renderPortfolio(entries) {
     meta.textContent = [numberText, rarity, quantity].filter(Boolean).join(" • ");
     body.appendChild(meta);
 
-    const value = document.createElement("p");
-    value.className = "portfolio-card-value";
-    const priceValue =
-      typeof entry.current_price === "number" ? entry.current_price : null;
-    if (priceValue !== null) {
-      const formatted = formatPln(priceValue);
-      value.textContent = formatted
-        ? `Wartość sztuki: ${formatted}`
-        : "Wartość sztuki: -";
+    const purchase = document.createElement("p");
+    purchase.className = "portfolio-card-value";
+    if (typeof entry.purchase_price === "number") {
+      purchase.textContent = `Cena zakupu: ${entry.purchase_price.toFixed(2)} PLN`;
     } else {
-      value.textContent = "Wartość sztuki: -";
+      purchase.textContent = "Cena zakupu: -";
     }
-    const direction = entry.change_direction || "flat";
-    value.dataset.direction = direction;
-    body.appendChild(value);
-
-    const changeContainer = document.createElement("div");
-    changeContainer.className = "portfolio-card-trend";
-    changeContainer.dataset.direction = direction;
-    const changeValue =
-      typeof entry.change_24h === "number" ? entry.change_24h : 0;
-    const changeIcon = document.createElement("span");
-    changeIcon.className = "portfolio-card-trend-icon";
-    changeIcon.setAttribute("aria-hidden", "true");
-    changeIcon.textContent = resolveTrendSymbol(direction);
-    const changeText = document.createElement("span");
-    changeText.className = "portfolio-card-trend-value";
-    const changeFormatted = formatChangeValue(changeValue);
-    changeText.textContent = changeFormatted;
-    changeContainer.appendChild(changeIcon);
-    changeContainer.appendChild(changeText);
-    changeContainer.title = `Zmiana w 24h: ${changeFormatted}`;
-    body.appendChild(changeContainer);
-
-    if (entry.last_price_update) {
-      const updated = document.createElement("p");
-      updated.className = "portfolio-card-update";
-      const date = new Date(entry.last_price_update);
-      if (!Number.isNaN(date.getTime())) {
-        updated.textContent = `Aktualizacja: ${date.toLocaleDateString()}`;
-        body.appendChild(updated);
-      }
-    }
+    body.appendChild(purchase);
 
     link.appendChild(body);
     article.appendChild(link);
@@ -748,469 +597,93 @@ function renderPortfolio(entries) {
   container.appendChild(fragment);
 }
 
-function renderPortfolioPerformance(history) {
+function renderPortfolioPerformance() {
   const chartContainer = document.getElementById("portfolio-chart");
-  const changeWrapper = document.getElementById("portfolio-change");
-  const changeValue = document.getElementById("portfolio-change-value");
-  const latestValueElement = document.getElementById("portfolio-chart-latest");
-  const minValueElement = document.getElementById("portfolio-chart-min");
-  const maxValueElement = document.getElementById("portfolio-chart-max");
-  const rangeElement = document.getElementById("portfolio-chart-range");
-  const totalValueElement = document.getElementById("portfolio-value");
-  if (!chartContainer) {
-    return;
+  if (chartContainer) {
+    chartContainer.innerHTML = "";
+    const message = document.createElement("p");
+    message.className = "portfolio-chart-empty";
+    message.textContent = "Historia wartości jest niedostępna w uproszczonym trybie.";
+    chartContainer.appendChild(message);
   }
-  chartContainer.innerHTML = "";
-  const direction = history?.direction || "flat";
-  const deltaValue = typeof history?.change_24h === "number" ? history.change_24h : 0;
-  const latestPortfolioValue =
-    typeof history?.latest_value === "number" ? history.latest_value : null;
-  const applyMeta = ({
-    latest = latestPortfolioValue,
-    min = null,
-    max = null,
-    rangeText = null,
-    directionKey = direction,
-  } = {}) => {
-    const resolvedDirection = directionKey || "flat";
-    if (latestValueElement) {
-      const formatted =
-        typeof latest === "number" && !Number.isNaN(latest) ? formatPln(latest) : null;
-      latestValueElement.textContent = formatted || "-";
-      latestValueElement.dataset.direction = resolvedDirection;
-    }
-    if (minValueElement) {
-      const formatted =
-        typeof min === "number" && !Number.isNaN(min) ? formatPln(min) : null;
-      minValueElement.textContent = formatted || "-";
-    }
-    if (maxValueElement) {
-      const formatted =
-        typeof max === "number" && !Number.isNaN(max) ? formatPln(max) : null;
-      maxValueElement.textContent = formatted || "-";
-    }
-    if (rangeElement) {
-      rangeElement.textContent = rangeText || "Brak danych";
-    }
-    if (totalValueElement) {
-      const formatted =
-        typeof latest === "number" && !Number.isNaN(latest) ? formatPln(latest) : null;
-      if (formatted) {
-        totalValueElement.textContent = formatted;
-      }
-      totalValueElement.dataset.direction = resolvedDirection;
-    }
-    const summaryValueElement = document.getElementById("summary-value");
-    if (summaryValueElement) {
-      summaryValueElement.dataset.direction = resolvedDirection;
-    }
-  };
-  applyMeta();
-  chartContainer.dataset.direction = direction;
+
+  const changeWrapper = document.getElementById("portfolio-change");
   if (changeWrapper) {
-    changeWrapper.dataset.direction = direction;
+    changeWrapper.dataset.direction = "flat";
     const icon = changeWrapper.querySelector(".portfolio-change-icon");
     if (icon) {
-      icon.textContent = resolveTrendSymbol(direction);
+      icon.textContent = resolveTrendSymbol("flat");
     }
   }
+
+  const changeValue = document.getElementById("portfolio-change-value");
   if (changeValue) {
-    changeValue.textContent = formatChangeValue(deltaValue);
+    changeValue.textContent = plnFormatter.format(0);
   }
 
-  const points = Array.isArray(history?.points) ? history.points : [];
-  if (!points.length) {
-    const emptyMessage = document.createElement("p");
-    emptyMessage.className = "portfolio-chart-empty";
-    emptyMessage.textContent = "Brak danych do wyświetlenia.";
-    chartContainer.appendChild(emptyMessage);
-    applyMeta({ min: null, max: null, rangeText: null, latest: latestPortfolioValue });
-    return;
+  const latestValueElement = document.getElementById("portfolio-chart-latest");
+  if (latestValueElement) {
+    latestValueElement.textContent = "—";
+    latestValueElement.dataset.direction = "flat";
   }
 
-  const numericPoints = points
-    .map((point, index) => {
-      const rawTimestamp = point.timestamp || point.date || point.recorded_at || "";
-      const parsed = rawTimestamp ? Date.parse(rawTimestamp) : Number.NaN;
-      const date = Number.isNaN(parsed) ? null : new Date(parsed);
-      return {
-        order: Number.isNaN(parsed) ? index : parsed,
-        value: typeof point.value === "number" ? point.value : Number(point.value) || 0,
-        date,
-      };
-    })
-    .sort((a, b) => a.order - b.order);
-
-  const values = numericPoints.map((point) => point.value);
-  const minValue = Math.min(...values);
-  const maxValue = Math.max(...values);
-  const range = maxValue - minValue;
-  const datedPoints = numericPoints.filter((point) => point.date instanceof Date);
-  let minTime = Number.POSITIVE_INFINITY;
-  let maxTime = Number.NEGATIVE_INFINITY;
-  datedPoints.forEach((point) => {
-    if (!(point.date instanceof Date)) {
-      return;
-    }
-    const time = point.date.getTime();
-    if (time < minTime) {
-      minTime = time;
-    }
-    if (time > maxTime) {
-      maxTime = time;
-    }
-  });
-  const hasValidTimeRange = Number.isFinite(minTime) && Number.isFinite(maxTime) && maxTime > minTime;
-  if (!Number.isFinite(minTime)) {
-    minTime = Number.NaN;
-  }
-  if (!Number.isFinite(maxTime)) {
-    maxTime = Number.NaN;
+  const minValueElement = document.getElementById("portfolio-chart-min");
+  if (minValueElement) {
+    minValueElement.textContent = "—";
   }
 
-  const containerRect = chartContainer.getBoundingClientRect();
-  const computedStyles = window.getComputedStyle(chartContainer);
-  const parsePaddingValue = (value) => {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  };
-  const containerPadding = {
-    top: parsePaddingValue(computedStyles.paddingTop),
-    right: parsePaddingValue(computedStyles.paddingRight),
-    bottom: parsePaddingValue(computedStyles.paddingBottom),
-    left: parsePaddingValue(computedStyles.paddingLeft),
-  };
-  const rawWidth = containerRect.width || chartContainer.clientWidth || chartContainer.offsetWidth || 720;
-  const rawHeight = containerRect.height || chartContainer.clientHeight || chartContainer.offsetHeight || 320;
-  const innerWidth = Math.max(
-    Math.round(rawWidth - containerPadding.left - containerPadding.right),
-    320,
-  );
-  const innerHeight = Math.max(
-    Math.round(rawHeight - containerPadding.top - containerPadding.bottom),
-    220,
-  );
-
-  const viewBoxWidth = innerWidth;
-  const viewBoxHeight = innerHeight;
-  const padding = {
-    top: Math.max(20, Math.round(innerHeight * 0.12)),
-    right: Math.max(28, Math.round(innerWidth * 0.06)),
-    bottom: Math.max(44, Math.round(innerHeight * 0.22)),
-    left: Math.max(56, Math.round(innerWidth * 0.08)),
-  };
-  const chartWidth = viewBoxWidth - padding.left - padding.right;
-  const chartHeight = viewBoxHeight - padding.top - padding.bottom;
-  const chartLeft = padding.left;
-  const chartRight = padding.left + chartWidth;
-  const chartTop = padding.top;
-  const chartBottom = padding.top + chartHeight;
-
-  const coords = [];
-  let linePath = "";
-  numericPoints.forEach((point, idx) => {
-    let ratio = numericPoints.length > 1 ? idx / (numericPoints.length - 1) : 0.5;
-    if (point.date instanceof Date && Number.isFinite(minTime) && Number.isFinite(maxTime)) {
-      if (hasValidTimeRange) {
-        ratio = (point.date.getTime() - minTime) / (maxTime - minTime);
-      } else {
-        ratio = 0.5;
-      }
-    }
-    const clampedRatio = Math.min(1, Math.max(0, ratio));
-    const x = chartLeft + clampedRatio * chartWidth;
-    const normalized = range > 0 ? (point.value - minValue) / range : 0.5;
-    const y = chartBottom - normalized * chartHeight;
-    const coord = { x, y, value: point.value, date: point.date };
-    coords.push(coord);
-    linePath += `${idx === 0 ? "M" : " L"}${x.toFixed(2)},${y.toFixed(2)}`;
-  });
-
-  const firstCoord = coords[0];
-  const lastCoord = coords[coords.length - 1];
-  const resolvedAreaStartX = lastCoord ? lastCoord.x.toFixed(2) : chartRight.toFixed(2);
-  const resolvedAreaEndX = firstCoord ? firstCoord.x.toFixed(2) : chartLeft.toFixed(2);
-  const areaPath = `${linePath} L ${resolvedAreaStartX} ${chartBottom.toFixed(2)} L ${resolvedAreaEndX} ${chartBottom.toFixed(2)} Z`;
-
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", `0 0 ${viewBoxWidth} ${viewBoxHeight}`);
-  svg.setAttribute("preserveAspectRatio", "none");
-  svg.classList.add("portfolio-chart-svg");
-
-  const firstDatedPoint = numericPoints.find((point) => point.date instanceof Date)?.date ?? null;
-  const lastDatedPoint = [...numericPoints]
-    .reverse()
-    .find((point) => point.date instanceof Date)?.date ?? null;
-  const rangeLabel = formatDateRangeLabel(firstDatedPoint, lastDatedPoint);
-
-  const chartId = chartContainer.id || "portfolio-chart";
-  const titleId = `${chartId}-title`;
-  const descId = `${chartId}-desc`;
-  const svgTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
-  svgTitle.id = titleId;
-  svgTitle.textContent = "Historia wartości portfela";
-  const svgDesc = document.createElementNS("http://www.w3.org/2000/svg", "desc");
-  svgDesc.id = descId;
-  const minLabel = formatPln(minValue) || `${minValue.toFixed(2)} zł`;
-  const maxLabel = formatPln(maxValue) || `${maxValue.toFixed(2)} zł`;
-  const latestLabel =
-    typeof latestPortfolioValue === "number" && !Number.isNaN(latestPortfolioValue)
-      ? formatPln(latestPortfolioValue)
-      : "brak danych";
-  svgDesc.textContent = `Zakres dat: ${rangeLabel || "brak danych"}. Zakres wartości: od ${minLabel} do ${maxLabel}. Ostatnia znana wartość: ${latestLabel}.`;
-  svg.appendChild(svgTitle);
-  svg.appendChild(svgDesc);
-  svg.setAttribute("role", "img");
-  svg.setAttribute("aria-labelledby", `${titleId} ${descId}`);
-
-  const area = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  area.setAttribute("d", areaPath);
-  area.classList.add("portfolio-chart-area");
-  svg.appendChild(area);
-
-  const gridGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-  gridGroup.classList.add("portfolio-chart-grid");
-
-  const yTicksCount = 4;
-  const yTicks = [];
-  for (let i = 0; i <= yTicksCount; i += 1) {
-    const ratio = i / yTicksCount;
-    const value = range > 0 ? minValue + range * ratio : minValue;
-    const y = chartBottom - ratio * chartHeight;
-    yTicks.push({ ratio, value, y });
-    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    line.setAttribute("x1", chartLeft.toFixed(2));
-    line.setAttribute("x2", chartRight.toFixed(2));
-    line.setAttribute("y1", y.toFixed(2));
-    line.setAttribute("y2", y.toFixed(2));
-    line.classList.add("portfolio-chart-grid-line", "portfolio-chart-grid-line--horizontal");
-    gridGroup.appendChild(line);
+  const maxValueElement = document.getElementById("portfolio-chart-max");
+  if (maxValueElement) {
+    maxValueElement.textContent = "—";
   }
 
-  const xTicks = [];
-  if (datedPoints.length) {
-    const uniqueDays = new Map();
-    datedPoints.forEach((point) => {
-      if (!(point.date instanceof Date)) return;
-      const day = new Date(point.date.getFullYear(), point.date.getMonth(), point.date.getDate());
-      const key = day.getTime();
-      if (!uniqueDays.has(key)) {
-        uniqueDays.set(key, day);
-      }
-    });
-    const sortedDays = Array.from(uniqueDays.values()).sort((a, b) => a.getTime() - b.getTime());
-    const maxTicks = 6;
-    const step = sortedDays.length > maxTicks ? Math.ceil(sortedDays.length / maxTicks) : 1;
-    for (let i = 0; i < sortedDays.length; i += step) {
-      const day = sortedDays[i];
-      const time = day.getTime();
-      const ratio = hasValidTimeRange
-        ? (time - minTime) / (maxTime - minTime)
-        : 0.5;
-      xTicks.push({
-        position: Math.min(1, Math.max(0, ratio)),
-        label: day.toLocaleDateString("pl-PL"),
-      });
-    }
-    const lastDay = sortedDays[sortedDays.length - 1];
-    if (lastDay) {
-      const lastLabel = lastDay.toLocaleDateString("pl-PL");
-      const existingLast = xTicks[xTicks.length - 1];
-      if (!existingLast || existingLast.label !== lastLabel) {
-        const ratio = hasValidTimeRange
-          ? (lastDay.getTime() - minTime) / (maxTime - minTime)
-          : 0.5;
-        xTicks.push({ position: Math.min(1, Math.max(0, ratio)), label: lastLabel });
-      }
-    }
-  } else {
-    const fallbackTickCount = Math.min(numericPoints.length, 4);
-    for (let i = 0; i < fallbackTickCount; i += 1) {
-      const ratio = fallbackTickCount > 1 ? i / (fallbackTickCount - 1) : 0.5;
-      const index = Math.min(
-        numericPoints.length - 1,
-        Math.max(0, Math.round(ratio * (numericPoints.length - 1)))
-      );
-      const point = numericPoints[index];
-      const label = point?.date instanceof Date
-        ? point.date.toLocaleDateString("pl-PL")
-        : `#${index + 1}`;
-      xTicks.push({ position: ratio, label });
-    }
+  const rangeElement = document.getElementById("portfolio-chart-range");
+  if (rangeElement) {
+    rangeElement.textContent = "Brak danych";
   }
 
-  const verticalLinePositions = new Set();
-  xTicks.forEach((tick) => {
-    const x = chartLeft + tick.position * chartWidth;
-    const rounded = Number(x.toFixed(2));
-    if (Math.abs(rounded - chartLeft) < 0.01 || Math.abs(rounded - chartRight) < 0.01) {
-      return;
-    }
-    const key = rounded.toFixed(2);
-    if (verticalLinePositions.has(key)) {
-      return;
-    }
-    verticalLinePositions.add(key);
-    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    line.setAttribute("x1", rounded.toFixed(2));
-    line.setAttribute("x2", rounded.toFixed(2));
-    line.setAttribute("y1", chartTop.toFixed(2));
-    line.setAttribute("y2", chartBottom.toFixed(2));
-    line.classList.add("portfolio-chart-grid-line", "portfolio-chart-grid-line--vertical");
-    gridGroup.appendChild(line);
-  });
+  const totalValueElement = document.getElementById("portfolio-value");
+  if (totalValueElement) {
+    totalValueElement.dataset.direction = "flat";
+  }
 
-  svg.appendChild(gridGroup);
-
-  const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  line.setAttribute("d", linePath);
-  line.classList.add("portfolio-chart-line");
-  svg.appendChild(line);
-
-  const pointsGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-  pointsGroup.classList.add("portfolio-chart-points");
-
-  const tooltip = document.createElement("div");
-  tooltip.className = "portfolio-chart-tooltip";
-  tooltip.setAttribute("role", "tooltip");
-  tooltip.id = `${chartId}-tooltip`;
-  tooltip.hidden = true;
-  tooltip.dataset.visible = "false";
-  const tooltipDate = document.createElement("span");
-  tooltipDate.className = "portfolio-chart-tooltip-date";
-  const tooltipValue = document.createElement("span");
-  tooltipValue.className = "portfolio-chart-tooltip-value";
-  tooltip.appendChild(tooltipDate);
-  tooltip.appendChild(tooltipValue);
-
-  const updateTooltipPosition = (coord) => {
-    const svgRect = svg.getBoundingClientRect();
-    const containerRect = chartContainer.getBoundingClientRect();
-    const offsetX = svgRect.left - containerRect.left;
-    const offsetY = svgRect.top - containerRect.top;
-    const pxX = offsetX + (coord.x / viewBoxWidth) * svgRect.width;
-    const pxY = offsetY + (coord.y / viewBoxHeight) * svgRect.height;
-    tooltip.style.left = `${pxX}px`;
-    tooltip.style.top = `${pxY}px`;
-  };
-
-  const showTooltip = (coord) => {
-    const dateLabel = coord.date instanceof Date ? coord.date.toLocaleDateString("pl-PL") : "Brak daty";
-    const valueLabel = formatPln(coord.value) || `${coord.value.toFixed(2)} zł`;
-    tooltipDate.textContent = dateLabel;
-    tooltipValue.textContent = valueLabel;
-    tooltip.hidden = false;
-    tooltip.dataset.visible = "true";
-    updateTooltipPosition(coord);
-  };
-
-  const hideTooltip = () => {
-    tooltip.hidden = true;
-    tooltip.dataset.visible = "false";
-  };
-
-  coords.forEach((coord) => {
-    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    circle.setAttribute("cx", coord.x.toFixed(2));
-    circle.setAttribute("cy", coord.y.toFixed(2));
-    circle.setAttribute("r", "1.8");
-    circle.classList.add("portfolio-chart-point", "portfolio-chart-dot");
-    const dateLabel = coord.date instanceof Date ? coord.date.toLocaleDateString("pl-PL") : "Brak daty";
-    const valueLabel = formatPln(coord.value) || `${coord.value.toFixed(2)} zł`;
-    circle.setAttribute("tabindex", "0");
-    circle.setAttribute("focusable", "true");
-    circle.setAttribute("role", "img");
-    circle.setAttribute("aria-label", `${dateLabel}: ${valueLabel}`);
-    circle.setAttribute("aria-describedby", tooltip.id);
-    circle.addEventListener("mouseenter", () => showTooltip(coord));
-    circle.addEventListener("mouseleave", hideTooltip);
-    circle.addEventListener("focus", () => showTooltip(coord));
-    circle.addEventListener("blur", hideTooltip);
-    circle.addEventListener("mousemove", () => updateTooltipPosition(coord));
-    pointsGroup.appendChild(circle);
-  });
-
-  svg.appendChild(pointsGroup);
-  svg.addEventListener("mouseleave", hideTooltip);
-
-  const yAxisGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-  yAxisGroup.classList.add("portfolio-chart-axis", "portfolio-chart-axis--y");
-  const yAxisLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  yAxisLine.setAttribute("x1", chartLeft.toFixed(2));
-  yAxisLine.setAttribute("x2", chartLeft.toFixed(2));
-  yAxisLine.setAttribute("y1", chartTop.toFixed(2));
-  yAxisLine.setAttribute("y2", chartBottom.toFixed(2));
-  yAxisGroup.appendChild(yAxisLine);
-  yTicks.forEach((tick) => {
-    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    label.setAttribute("x", (chartLeft - 12).toFixed(2));
-    label.setAttribute("y", tick.y.toFixed(2));
-    label.setAttribute("text-anchor", "end");
-    label.setAttribute("dominant-baseline", "middle");
-    label.classList.add("portfolio-chart-axis-label", "portfolio-chart-axis-label--y");
-    label.textContent = formatPln(tick.value) || `${tick.value.toFixed(2)} zł`;
-    yAxisGroup.appendChild(label);
-  });
-  svg.appendChild(yAxisGroup);
-
-  const xAxisGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-  xAxisGroup.classList.add("portfolio-chart-axis", "portfolio-chart-axis--x");
-  const xAxisLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  xAxisLine.setAttribute("x1", chartLeft.toFixed(2));
-  xAxisLine.setAttribute("x2", chartRight.toFixed(2));
-  xAxisLine.setAttribute("y1", chartBottom.toFixed(2));
-  xAxisLine.setAttribute("y2", chartBottom.toFixed(2));
-  xAxisGroup.appendChild(xAxisLine);
-  xTicks.forEach((tick) => {
-    const x = chartLeft + tick.position * chartWidth;
-    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    label.setAttribute("x", x.toFixed(2));
-    label.setAttribute("y", (chartBottom + 18).toFixed(2));
-    label.setAttribute("text-anchor", "middle");
-    label.setAttribute("dominant-baseline", "hanging");
-    label.classList.add("portfolio-chart-axis-label", "portfolio-chart-axis-label--x");
-    label.textContent = tick.label;
-    xAxisGroup.appendChild(label);
-  });
-  svg.appendChild(xAxisGroup);
-
-  chartContainer.appendChild(svg);
-  chartContainer.appendChild(tooltip);
-  applyMeta({
-    min: minValue,
-    max: maxValue,
-    rangeText: rangeLabel,
-    latest: latestPortfolioValue,
-  });
+  const summaryValueElement = document.getElementById("summary-value");
+  if (summaryValueElement) {
+    summaryValueElement.dataset.direction = "flat";
+  }
 }
 
-function updateSummary(summary) {
+function updateSummary(entries) {
+  const collection = Array.isArray(entries) ? entries : [];
+  const totalCards = collection.length;
+  const totalQuantity = collection.reduce((acc, entry) => acc + (Number(entry.quantity) || 0), 0);
+  const totalPurchase = collection.reduce((acc, entry) => {
+    if (typeof entry.purchase_price === "number") {
+      return acc + entry.purchase_price * (Number(entry.quantity) || 1);
+    }
+    return acc;
+  }, 0);
+
   const count = document.getElementById("summary-count");
   const quantity = document.getElementById("summary-quantity");
   const value = document.getElementById("summary-value");
-  const rawDirection = summary && typeof summary.direction === "string" ? summary.direction : "";
-  const direction = rawDirection === "up" || rawDirection === "down" ? rawDirection : "flat";
-  if (count) count.textContent = summary.total_cards;
-  if (quantity) quantity.textContent = summary.total_quantity;
+  if (count) count.textContent = totalCards;
+  if (quantity) quantity.textContent = totalQuantity;
   if (value) {
-    const formatted = formatPln(summary.estimated_value);
-    value.textContent = formatted || summary.estimated_value.toFixed(2);
-    value.dataset.direction = direction;
+    const formatted = formatPln(totalPurchase);
+    value.textContent = formatted || totalPurchase.toFixed(2);
+    value.dataset.direction = "flat";
   }
 
   const pCount = document.getElementById("portfolio-count");
   const pQuantity = document.getElementById("portfolio-quantity");
   const pValue = document.getElementById("portfolio-value");
-  if (pCount) pCount.textContent = summary.total_cards;
-  if (pQuantity) pQuantity.textContent = summary.total_quantity;
+  if (pCount) pCount.textContent = totalCards;
+  if (pQuantity) pQuantity.textContent = totalQuantity;
   if (pValue) {
-    const formatted = formatPln(summary.estimated_value);
-    if (formatted) {
-      pValue.textContent = formatted;
-    } else {
-      pValue.textContent = summary.estimated_value.toFixed(2);
-    }
-    pValue.dataset.direction = direction;
+    const formatted = formatPln(totalPurchase);
+    pValue.textContent = formatted || totalPurchase.toFixed(2);
+    pValue.dataset.direction = "flat";
   }
 }
 
@@ -1218,57 +691,31 @@ async function loadCollection() {
   try {
     const entries = await apiFetch("/cards/");
     renderCollection(entries);
+    renderPortfolio(entries);
+    updateSummary(entries);
   } catch (error) {
     console.error(error);
   }
 }
 
 async function loadPortfolioHistory(targetAlert) {
-  const chartContainer = document.getElementById("portfolio-chart");
-  if (chartContainer) {
-    const loading = document.createElement("p");
-    loading.className = "portfolio-chart-loading";
-    loading.textContent = "Ładuję dane wykresu…";
-    chartContainer.innerHTML = "";
-    chartContainer.appendChild(loading);
-  }
-  try {
-    const history = await apiFetch("/cards/portfolio/history");
-    renderPortfolioPerformance(history);
-  } catch (error) {
-    if (chartContainer) {
-      chartContainer.innerHTML = "";
-      const message = document.createElement("p");
-      message.className = "portfolio-chart-error";
-      message.textContent = error.message;
-      chartContainer.appendChild(message);
-    }
-    if (targetAlert) {
-      showAlert(targetAlert, error.message);
-    }
+  renderPortfolioPerformance();
+  if (targetAlert) {
+    showAlert(targetAlert, "");
   }
 }
 
 async function loadSummary(targetAlert) {
-  try {
-    const summary = await apiFetch("/cards/summary");
-    updateSummary(summary);
+  updateSummary(cachedCollectionEntries);
+  if (targetAlert) {
     showAlert(targetAlert, "");
-  } catch (error) {
-    if (targetAlert) {
-      showAlert(targetAlert, error.message);
-    }
   }
 }
 
 async function loadPortfolioCards(targetAlert) {
-  try {
-    const entries = await apiFetch("/cards/");
-    renderPortfolio(entries);
-  } catch (error) {
-    if (targetAlert) {
-      showAlert(targetAlert, error.message);
-    }
+  renderPortfolio(cachedCollectionEntries);
+  if (targetAlert) {
+    showAlert(targetAlert, "");
   }
 }
 
@@ -1768,15 +1215,15 @@ async function addCard(form, cardSearch, selectedCardOverride = null) {
     } else {
       cardSearch?.clearSelection?.();
     }
-    const updates = [];
-    if (document.getElementById("collection-table")) {
-      updates.push(loadCollection());
-    }
-    if (document.getElementById("summary-count")) {
-      updates.push(loadSummary());
-    }
-    if (updates.length) {
-      await Promise.all(updates);
+    const hasCollection = document.getElementById("collection-table");
+    const hasSummary = document.getElementById("summary-count");
+    if (hasCollection) {
+      await loadCollection();
+      if (!hasSummary && document.getElementById("summary-count")) {
+        await loadSummary();
+      }
+    } else if (hasSummary) {
+      await loadSummary();
     }
     showAlert(alertBox, "Karta została dodana do kolekcji.", "success");
   } catch (error) {
@@ -1784,144 +1231,10 @@ async function addCard(form, cardSearch, selectedCardOverride = null) {
   }
 }
 
-async function refreshEntry(id) {
-  await apiFetch(`/cards/${id}/refresh`, { method: "POST" });
-  await Promise.all([loadCollection(), loadSummary()]);
-}
-
 async function deleteEntry(id) {
   await apiFetch(`/cards/${id}`, { method: "DELETE" });
-  await Promise.all([loadCollection(), loadSummary()]);
-}
-
-let cardDetailHistory = [];
-let cardDetailRange = "1m";
-
-function normaliseHistoryPoints(history) {
-  return (history || [])
-    .map((point) => {
-      const price = Number(point.price);
-      const time = point.recorded_at ? new Date(point.recorded_at) : null;
-      if (!Number.isFinite(price) || !time || Number.isNaN(time.getTime())) {
-        return null;
-      }
-      return { price, time };
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.time - b.time);
-}
-
-function filterHistoryByRange(history, range) {
-  const ensureRangeMeta = (points, appliedRange) => {
-    const output = Array.isArray(points) ? points.slice() : [];
-    output.appliedRange = appliedRange;
-    return output;
-  };
-
-  if (!Array.isArray(history) || !history.length) {
-    return ensureRangeMeta([], "all");
-  }
-
-  if (range === "all") {
-    return ensureRangeMeta(history, "all");
-  }
-
-  let windowMs = 30 * 24 * 60 * 60 * 1000;
-  if (range === "1d") {
-    windowMs = 24 * 60 * 60 * 1000;
-  } else if (range === "1w") {
-    windowMs = 7 * 24 * 60 * 60 * 1000;
-  }
-
-  const cutoff = Date.now() - windowMs;
-  const filtered = history.filter((point) => point.time.getTime() >= cutoff);
-  if (!filtered.length) {
-    return ensureRangeMeta(history, "all");
-  }
-  return ensureRangeMeta(filtered, range);
-}
-
-function updateDetailChart(points) {
-  const chartCanvas = document.getElementById("card-price-chart");
-  const emptyState = document.getElementById("card-chart-empty");
-  if (!chartCanvas) return;
-  const labels = points.map((point) => point.time.toLocaleDateString());
-  const values = points.map((point) => point.price);
-  const palette = getChartPalette();
-  if (!cardDetailChart) {
-    cardDetailChart = new Chart(chartCanvas, {
-      type: "line",
-      data: {
-        labels,
-        datasets: [
-          {
-            label: "Cena (PLN)",
-            data: values,
-            fill: true,
-            tension: 0.3,
-            borderColor: palette.line,
-            backgroundColor: palette.fill,
-            pointBackgroundColor: palette.line,
-            pointBorderColor: palette.fill,
-            pointHoverBackgroundColor: palette.line,
-            pointHoverBorderColor: palette.fill,
-            pointRadius: 3,
-            pointHoverRadius: 5,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: {
-            ticks: { color: palette.text },
-            grid: { display: false, color: palette.grid },
-          },
-          y: {
-            ticks: { color: palette.text },
-            grid: { color: palette.grid },
-          },
-        },
-      },
-    });
-    applyChartPalette(cardDetailChart, palette);
-  } else {
-    cardDetailChart.data.labels = labels;
-    cardDetailChart.data.datasets[0].data = values;
-    applyChartPalette(cardDetailChart, palette);
-    cardDetailChart.update();
-  }
-  if (emptyState) {
-    emptyState.hidden = Array.isArray(cardDetailHistory) && cardDetailHistory.length > 0;
-  }
-}
-
-function setRangeButtons(range) {
-  let hasMatch = false;
-  document.querySelectorAll(".chart-range [data-range]").forEach((button) => {
-    if (button.dataset.range === range) {
-      button.classList.add("active");
-      hasMatch = true;
-    } else {
-      button.classList.remove("active");
-    }
-  });
-  if (!hasMatch) {
-    const fallback = document.querySelector('.chart-range [data-range="all"]');
-    if (fallback) {
-      fallback.classList.add("active");
-    }
-  }
-}
-
-function updateDetailRange(range) {
-  const filtered = filterHistoryByRange(cardDetailHistory, range);
-  const appliedRange = filtered.appliedRange || range;
-  cardDetailRange = appliedRange;
-  setRangeButtons(appliedRange);
-  updateDetailChart(filtered);
+  await loadCollection();
+  await loadSummary();
 }
 
 function renderRelatedCardsList(cards) {
@@ -2084,15 +1397,15 @@ async function addDetailCardToCollection(card, button) {
       method: "POST",
       body: JSON.stringify(payload),
     });
-    const updates = [];
-    if (document.getElementById("collection-table")) {
-      updates.push(loadCollection());
-    }
-    if (document.getElementById("summary-count")) {
-      updates.push(loadSummary());
-    }
-    if (updates.length) {
-      await Promise.all(updates);
+    const hasCollection = document.getElementById("collection-table");
+    const hasSummary = document.getElementById("summary-count");
+    if (hasCollection) {
+      await loadCollection();
+      if (!hasSummary && document.getElementById("summary-count")) {
+        await loadSummary();
+      }
+    } else if (hasSummary) {
+      await loadSummary();
     }
     showAlert(alertBox, "Karta została dodana do kolekcji.", "success");
   } catch (error) {
@@ -2138,12 +1451,6 @@ async function loadCardDetail(container) {
     if (!card.total && container.dataset.total) {
       card.total = container.dataset.total.trim();
     }
-    const history = normaliseHistoryPoints(detail.history);
-    cardDetailHistory = history;
-    const initialRange = filterHistoryByRange(cardDetailHistory, "1m");
-    cardDetailRange = initialRange.appliedRange || "1m";
-    setRangeButtons(cardDetailRange);
-    updateDetailChart(initialRange);
     renderRelatedCardsList(detail.related || []);
 
     const fallbackTitle = container.dataset.name?.trim() || "Szczegóły karty";
@@ -2204,27 +1511,22 @@ async function loadCardDetail(container) {
       rarityField.textContent = rarityLabel || "—";
     }
 
-    const priceField = document.getElementById("card-detail-price");
-    if (priceField) {
-      const numericPrice = normalisePriceValue(card.price_pln);
-      const formattedPrice =
-        numericPrice !== null ? formatPln(numericPrice) : null;
-      priceField.textContent = formattedPrice || "—";
+    const totalField = document.getElementById("card-detail-total");
+    if (totalField) {
+      const totalValue = card.total || container.dataset.total || "";
+      totalField.textContent = totalValue || "—";
     }
 
-    const updatedField = document.getElementById("card-detail-updated");
-    if (updatedField) {
-      if (card.last_price_update) {
-        const updatedDate = new Date(card.last_price_update);
-        updatedField.textContent = Number.isNaN(updatedDate.getTime())
-          ? "—"
-          : updatedDate.toLocaleString("pl-PL", {
-              dateStyle: "medium",
-              timeStyle: "short",
-            });
-      } else {
-        updatedField.textContent = "—";
+    const releaseField = document.getElementById("card-detail-release");
+    if (releaseField) {
+      let label = card.release_date || "";
+      if (label) {
+        const parsed = new Date(label);
+        if (!Number.isNaN(parsed.getTime())) {
+          label = parsed.toLocaleDateString("pl-PL");
+        }
       }
+      releaseField.textContent = label || "—";
     }
 
     const addButton = document.getElementById("detail-add-button");
@@ -2248,8 +1550,6 @@ async function loadCardDetail(container) {
 
     showAlert(alertBox, "");
   } catch (error) {
-    cardDetailHistory = [];
-    updateDetailChart([]);
     renderRelatedCardsList([]);
     const fallbackTitle =
       container.dataset.name?.trim() ||
@@ -2275,11 +1575,6 @@ async function loadCardDetail(container) {
 function bindCardDetail() {
   const container = document.getElementById("card-detail-page");
   if (!container) return;
-  document.querySelectorAll(".chart-range [data-range]").forEach((button) => {
-    button.addEventListener("click", () => {
-      updateDetailRange(button.dataset.range || "1m");
-    });
-  });
   loadCardDetail(container);
 }
 
@@ -2336,9 +1631,7 @@ function bindDashboard() {
       const action = target.dataset.action;
       const id = target.dataset.id;
       if (!action || !id) return;
-      if (action === "refresh") {
-        refreshEntry(id);
-      } else if (action === "delete") {
+      if (action === "delete") {
         deleteEntry(id);
       }
     });
@@ -2516,15 +1809,18 @@ function bindPortfolio() {
   const alertBox = document.getElementById("portfolio-alert");
   const refreshBtn = document.getElementById("refresh-portfolio");
   if (refreshBtn) {
-    refreshBtn.addEventListener("click", () => {
+    refreshBtn.addEventListener("click", async () => {
+      await loadCollection();
       loadSummary(alertBox);
       loadPortfolioCards(alertBox);
       loadPortfolioHistory(alertBox);
     });
   }
-  loadSummary(alertBox);
-  loadPortfolioCards(alertBox);
-  loadPortfolioHistory(alertBox);
+  loadCollection().then(() => {
+    loadSummary(alertBox);
+    loadPortfolioCards(alertBox);
+    loadPortfolioHistory(alertBox);
+  });
 }
 
 async function hydrateUserContext() {

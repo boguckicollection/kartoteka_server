@@ -61,7 +61,7 @@ def test_remote_search_fetches_all_results(monkeypatch, search_session):
         captured_limit["value"] = limit
         return remote_payloads
 
-    monkeypatch.setattr(cards.pricing, "search_cards", fake_search_cards)
+    monkeypatch.setattr(cards.tcg_api, "search_cards", fake_search_cards)
     monkeypatch.setattr(cards, "_ensure_record_assets", lambda *a, **k: False)
 
     response = cards.search_cards_endpoint(
