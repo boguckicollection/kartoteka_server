@@ -346,10 +346,9 @@ def fetch_card_price(
 ) -> Optional[float]:
     """Return the current PLN price for a card.
 
-    The function mirrors the behaviour of :class:`kartoteka.ui.CardEditorApp`
-    while remaining independent from Tkinter specifics.  It uses the
-    TCGGO/RapidAPI endpoint and converts the result to PLN using the provided
-    exchange rate callback.
+    The implementation mirrors the heuristics from the legacy desktop client
+    while staying framework-agnostic.  It uses the TCGGO/RapidAPI endpoint and
+    converts the result to PLN using the provided exchange rate callback.
     """
 
     if price_multiplier is None:
