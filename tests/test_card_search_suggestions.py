@@ -142,3 +142,78 @@ def test_search_cards_allows_typo_without_number(monkeypatch):
     results = pricing.search_cards(name="Charoad", set_name="Base Set", limit=5)
 
     assert [item["name"] for item in results] == ["Charizard"]
+
+
+def test_search_cards_sets_default_user_agent(monkeypatch):
+    from kartoteka import pricing
+
+    class _DummyResponse:
+        status_code = 200
+
+        def json(self):
+            return {"cards": []}
+
+    captured: dict[str, dict | None] = {"headers": None}
+
+    def fake_get(_url, params=None, headers=None, timeout=None):
+        captured["headers"] = headers
+        return _DummyResponse()
+
+    monkeypatch.setattr(pricing.requests, "get", fake_get)
+
+    pricing.search_cards(name="Charizard", number="4", rapidapi_key=None, rapidapi_host=None)
+
+    assert captured["headers"]["User-Agent"] == "kartoteka/1.0"
+
+
+def test_search_cards_sets_user_agent_for_rapidapi(monkeypatch):
+    from kartoteka import pricing
+
+    class _DummyResponse:
+        status_code = 200
+
+        def json(self):
+            return {"cards": []}
+
+    captured: dict[str, dict | None] = {"headers": None}
+
+    def fake_get(_url, params=None, headers=None, timeout=None):
+        captured["headers"] = headers
+        return _DummyResponse()
+
+    monkeypatch.setattr(pricing.requests, "get", fake_get)
+
+    pricing.search_cards(
+        name="Charizard",
+        rapidapi_key="test-key",
+        rapidapi_host="example.com",
+    )
+
+    assert captured["headers"]["User-Agent"] == "kartoteka/1.0"
+    assert captured["headers"]["X-RapidAPI-Key"] == "test-key"
+    assert captured["headers"]["X-RapidAPI-Host"] == "example.com"
+
+
+def test_search_cards_respects_session_user_agent():
+    from kartoteka import pricing
+
+    class _DummyResponse:
+        status_code = 200
+
+        def json(self):
+            return {"cards": []}
+
+    class DummySession:
+        def __init__(self):
+            self.headers = {"User-Agent": "custom-agent/1.0"}
+            self.captured = None
+
+        def get(self, url, params=None, headers=None, timeout=None):
+            self.captured = headers
+            return _DummyResponse()
+
+    session = DummySession()
+
+    pricing.search_cards(name="Charizard", session=session, rapidapi_key=None, rapidapi_host=None)
+
+    assert session.captured["User-Agent"] == "custom-agent/1.0"
