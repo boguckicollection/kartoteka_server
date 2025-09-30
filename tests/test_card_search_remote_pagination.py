@@ -50,7 +50,7 @@ def _build_remote_payloads(total: int) -> list[dict[str, str]]:
     return results
 
 
-def test_remote_search_fetches_second_page(monkeypatch, search_session):
+def test_remote_search_fetches_all_results(monkeypatch, search_session):
     from kartoteka_web.routes import cards
     from kartoteka_web import models
 
@@ -66,19 +66,16 @@ def test_remote_search_fetches_second_page(monkeypatch, search_session):
 
     response = cards.search_cards_endpoint(
         query="Remote Card",
-        page=2,
-        page_size=20,
+        limit=30,
         current_user=object(),
         session=search_session,
     )
 
-    assert captured_limit["value"] == 40
+    assert captured_limit["value"] == 30
     assert response.total == len(remote_payloads)
-    assert response.page == 2
-    assert response.page_size == 20
 
     returned_names = {item.name for item in response.items}
-    expected_names = {payload["name"] for payload in remote_payloads[20:]}
+    expected_names = {payload["name"] for payload in remote_payloads}
     assert returned_names == expected_names
 
     stored_records = search_session.exec(select(models.CardRecord)).all()

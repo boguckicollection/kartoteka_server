@@ -73,8 +73,6 @@ class CardSearchResult(SQLModel):
 class CardSearchResponse(SQLModel):
     items: List[CardSearchResult] = Field(default_factory=list)
     total: int = 0
-    page: int = 1
-    page_size: int = 0
     suggested_query: Optional[str] = None
 
 

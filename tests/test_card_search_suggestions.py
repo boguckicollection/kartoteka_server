@@ -56,8 +56,6 @@ def test_card_search_suggests_and_filters(monkeypatch, search_session):
 
     response = cards.search_cards_endpoint(
         query="Sharzard",
-        page=1,
-        page_size=10,
         current_user=object(),
         session=search_session,
     )

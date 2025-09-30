@@ -1280,11 +1280,6 @@ function setupCardSearch(form) {
   const resultsContainer = document.getElementById("card-search-results");
   const summary = document.getElementById("card-search-summary");
   const statusMessage = document.getElementById("card-search-empty");
-  const pagination = document.getElementById("card-search-pagination");
-  const pageInfo = document.getElementById("card-search-page-info");
-  const prevButton = pagination?.querySelector('[data-page-action="prev"]') ?? null;
-  const nextButton = pagination?.querySelector('[data-page-action="next"]') ?? null;
-  const pageList = pagination?.querySelector('[data-page-list]') ?? null;
   const sortSelect = document.getElementById("card-search-sort");
   const hintElement = document.getElementById("card-search-hint");
 
@@ -1302,8 +1297,6 @@ function setupCardSearch(form) {
     items: [],
     total: 0,
     sortMode: sortSelect?.value || "relevance",
-    currentPage: 1,
-    pageSize: 20,
     suggestedQuery: "",
     lastQuery: "",
   };
@@ -1447,80 +1440,6 @@ function setupCardSearch(form) {
     }
   };
 
-  const getTotalPages = (total = state.total) => {
-    const safeTotal = Number.isFinite(total) ? Math.max(0, total) : Math.max(0, state.total);
-    return safeTotal > 0 ? Math.ceil(safeTotal / state.pageSize) : 1;
-  };
-
-  const renderPageButtons = (totalPages) => {
-    if (!pageList) {
-      return;
-    }
-    pageList.innerHTML = "";
-    if (totalPages <= 0) {
-      return;
-    }
-    const fragment = document.createDocumentFragment();
-    for (let page = 1; page <= totalPages; page += 1) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "card-search-page-number";
-      button.dataset.page = String(page);
-      button.textContent = String(page);
-      if (page === state.currentPage) {
-        button.classList.add("is-active");
-        button.setAttribute("aria-current", "page");
-        button.disabled = true;
-      }
-      fragment.appendChild(button);
-    }
-    pageList.appendChild(fragment);
-  };
-
-  const updatePaginationControls = (total = state.total) => {
-    if (!pagination || !pageInfo) {
-      return;
-    }
-    const safeTotal = Number.isFinite(total) ? Math.max(0, total) : Math.max(0, state.total);
-    if (!safeTotal) {
-      pagination.hidden = true;
-      pageInfo.textContent = "";
-      if (prevButton) prevButton.disabled = true;
-      if (nextButton) nextButton.disabled = true;
-      if (pageList) {
-        pageList.innerHTML = "";
-      }
-      return;
-    }
-    const totalPages = getTotalPages(safeTotal);
-    if (state.currentPage > totalPages) {
-      state.currentPage = totalPages;
-    }
-    pagination.hidden = false;
-    pageInfo.textContent = `Strona ${state.currentPage} z ${totalPages}`;
-    if (prevButton) {
-      prevButton.disabled = state.currentPage <= 1;
-    }
-    if (nextButton) {
-      nextButton.disabled = state.currentPage >= totalPages;
-    }
-    renderPageButtons(totalPages);
-  };
-
-  const goToPage = (page) => {
-    const totalPages = getTotalPages();
-    const nextPage = Math.min(Math.max(1, page), totalPages);
-    if (nextPage === state.currentPage) {
-      renderResults();
-      return Promise.resolve(state.items);
-    }
-    state.currentPage = nextPage;
-    return loadResults(nextPage).catch((error) => {
-      console.error(error);
-      return [];
-    });
-  };
-
   const createResultItem = (card) => {
     const item = document.createElement("article");
     item.className = "card-search-item";
@@ -1630,7 +1549,6 @@ function setupCardSearch(form) {
       resultsContainer.appendChild(fragment);
     }
 
-    updatePaginationControls(state.total);
     updateSelectionHighlight();
   };
 
@@ -1659,12 +1577,11 @@ function setupCardSearch(form) {
     updateSearchHint();
   };
 
-  const loadResults = async (page = 1) => {
+  const loadResults = async () => {
     const query = queryInput.value.trim();
     if (!query) {
       state.items = [];
       state.total = 0;
-      state.currentPage = 1;
       state.lastQuery = "";
       state.suggestedQuery = "";
       updateSummary(0);
@@ -1674,20 +1591,18 @@ function setupCardSearch(form) {
       if (resultsSection) {
         resultsSection.hidden = true;
       }
-      updatePaginationControls(0);
       updateSortDisabled();
       updateSearchHint();
       return [];
     }
 
+    clearSelection();
+
     const params = new URLSearchParams({
       query,
-      page: String(Math.max(1, page)),
-      page_size: String(state.pageSize),
     });
 
     const currentRequest = ++requestId;
-    state.currentPage = Math.max(1, page);
     state.sortMode = sortSelect?.value || state.sortMode || "relevance";
     if (resultsSection) {
       resultsSection.hidden = false;
@@ -1696,7 +1611,6 @@ function setupCardSearch(form) {
     updateStatus("Wyszukiwanie kart...", "loading");
     resultsContainer.innerHTML = "";
     resultsContainer.hidden = true;
-    updatePaginationControls(0);
     updateSortDisabled();
 
     try {
@@ -1709,15 +1623,6 @@ function setupCardSearch(form) {
       const responseTotal = Number.isFinite(payload?.total)
         ? Math.max(0, Number(payload.total))
         : responseItems.length;
-      const responsePageSize = Number.isFinite(payload?.page_size)
-        ? Math.max(1, Number(payload.page_size))
-        : state.pageSize;
-      const responsePage = Number.isFinite(payload?.page)
-        ? Math.max(1, Number(payload.page))
-        : state.currentPage;
-
-      state.pageSize = responsePageSize;
-      state.currentPage = responsePage;
       state.items = responseItems;
       state.total = responseTotal;
       state.lastQuery = query;
@@ -1737,8 +1642,6 @@ function setupCardSearch(form) {
       updateSummary(state.total);
       if (!state.total) {
         updateStatus("Nie znaleziono kart dla podanych kryteriów.");
-      } else if (!state.items.length) {
-        updateStatus("Brak wyników na tej stronie.", "info");
       } else {
         updateStatus("");
       }
@@ -1767,7 +1670,7 @@ function setupCardSearch(form) {
 
   const search = () => {
     clearSelection();
-    return loadResults(1);
+    return loadResults();
   };
 
   const handleInputChange = () => {
@@ -1780,50 +1683,10 @@ function setupCardSearch(form) {
 
   sortSelect?.addEventListener("change", () => {
     state.sortMode = sortSelect.value || "relevance";
-    state.currentPage = 1;
     renderResults();
   });
 
-  pagination?.addEventListener("click", (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) {
-      return;
-    }
-    const button = target.closest("[data-page-action]");
-    if (!(button instanceof HTMLElement)) {
-      return;
-    }
-    const action = button.dataset.pageAction;
-    if (!action) {
-      return;
-    }
-    event.preventDefault();
-    if (action === "prev") {
-      void goToPage(state.currentPage - 1);
-    } else if (action === "next") {
-      void goToPage(state.currentPage + 1);
-    }
-  });
-
-  pageList?.addEventListener("click", (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) {
-      return;
-    }
-    const button = target.closest(".card-search-page-number");
-    if (!(button instanceof HTMLElement)) {
-      return;
-    }
-    const page = Number.parseInt(button.dataset.page || "", 10);
-    if (!Number.isFinite(page)) {
-      return;
-    }
-    event.preventDefault();
-    void goToPage(page);
-  });
-
   updateSortDisabled();
-  updatePaginationControls(0);
 
   const api = {
     getSelectedCard: () => selectedCard,
@@ -1834,7 +1697,6 @@ function setupCardSearch(form) {
       clearSelection();
       state.items = [];
       state.total = 0;
-      state.currentPage = 1;
       state.lastQuery = "";
       state.suggestedQuery = "";
       updateSummary(0);
@@ -1844,7 +1706,6 @@ function setupCardSearch(form) {
       if (resultsSection) {
         resultsSection.hidden = true;
       }
-      updatePaginationControls(0);
       updateSortDisabled();
       updateSearchHint();
     },

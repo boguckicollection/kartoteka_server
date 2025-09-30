@@ -436,8 +436,6 @@ def test_card_search_endpoint(api_client, monkeypatch):
     assert res.status_code == 200
     results = res.json()
     assert results["total"] == 1
-    assert results["page"] == 1
-    assert results["page_size"] >= 1
     assert len(results["items"]) == 1
     item = results["items"][0]
     assert item["name"] == "Pikachu"
