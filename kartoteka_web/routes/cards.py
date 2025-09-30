@@ -1,41 +1,21 @@
-"""Card and collection management API routes."""
+"""Card and collection management API routes backed by local data."""
 
 from __future__ import annotations
 
 import re
-from typing import Any, Iterable, Sequence
+from typing import Iterable
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
-from .. import database, models, schemas
+from .. import models, schemas
 from ..auth import get_current_user, get_optional_user
 from ..database import get_session
-from ..services import tcg_api
-from ..utils import images as image_utils, sets as set_utils, text
-from kartoteka_web import catalogue
-
-try:  # pragma: no cover - optional dependency
-    from rapidfuzz import fuzz
-except ModuleNotFoundError:  # pragma: no cover - fallback for tests without rapidfuzz
-    import difflib
-
-    class _FuzzFallback:
-        @staticmethod
-        def WRatio(a: str, b: str) -> float:
-            return difflib.SequenceMatcher(None, a or "", b or "").ratio() * 100
-
-        @staticmethod
-        def partial_ratio(a: str, b: str) -> float:
-            return difflib.SequenceMatcher(None, a or "", b or "").ratio() * 100
-
-    fuzz = _FuzzFallback()  # type: ignore[assignment]
+from ..utils import images as image_utils, text
 
 router = APIRouter(prefix="/cards", tags=["cards"])
 
-SCORE_THRESHOLD = text.SEARCH_SCORE_THRESHOLD
 MAX_SEARCH_RESULTS = 200
 
 CARD_NUMBER_PATTERN = re.compile(
@@ -51,9 +31,9 @@ def _prepare_query_text(value: str) -> str:
     def _spaces(match: re.Match[str]) -> str:
         return " " * len(match.group(0))
 
-    text = re.sub(r"(?i)\bno\.?\s*", _spaces, value)
-    text = text.replace("#", " ").replace("№", " ")
-    return text
+    text_value = re.sub(r"(?i)\bno\.?\s*", _spaces, value)
+    text_value = text_value.replace("#", " ").replace("№", " ")
+    return text_value
 
 
 def _is_probable_card_number(value: str) -> bool:
@@ -71,11 +51,11 @@ def _is_probable_card_number(value: str) -> bool:
 
 
 def _parse_card_query(value: str | None) -> tuple[str, str | None, str | None]:
-    text = (value or "").strip()
-    if not text:
+    text_value = (value or "").strip()
+    if not text_value:
         return "", None, None
 
-    search_text = _prepare_query_text(text)
+    search_text = _prepare_query_text(text_value)
     match_info: tuple[int, int, str, str | None] | None = None
 
     for match in CARD_NUMBER_PATTERN.finditer(search_text):
@@ -93,361 +73,143 @@ def _parse_card_query(value: str | None) -> tuple[str, str | None, str | None]:
         match_info = (start, end, number_clean, total_clean or None)
 
     if match_info is None:
-        return text, None, None
+        return text_value, None, None
 
     start, end, number_value, total_value = match_info
-    name_candidate = f"{text[:start]} {text[end:]}".strip()
+    name_candidate = f"{text_value[:start]} {text_value[end:]}".strip()
     if not name_candidate:
-        name_candidate = text
+        name_candidate = text_value
     return name_candidate, number_value, total_value
 
 
-def _normalise_search_value(value: str | None) -> str:
-    return text.normalize(value or "") or (value or "").strip().lower()
+def _normalize_lower(value: str | None) -> str:
+    return (value or "").strip().lower()
 
 
-def _sanitise_optional_number(value: str | None) -> str | None:
-    cleaned = text.sanitize_number(str(value or ""))
-    return cleaned or None
+def _card_to_search_schema(card: models.Card) -> schemas.CardSearchResult:
+    return schemas.CardSearchResult(
+        name=card.name,
+        number=card.number,
+        number_display=card.number,
+        total=None,
+        set_name=card.set_name,
+        set_code=card.set_code,
+        rarity=card.rarity,
+        image_small=card.image_small,
+        image_large=card.image_large,
+        set_icon=None,
+        artist=None,
+        series=None,
+        release_date=None,
+    )
 
 
-def _ensure_record_assets(session: Session, record: "models.CardRecord") -> bool:
-    return catalogue.ensure_record_assets(session, record)
+def _card_to_detail(card: models.Card) -> schemas.CardDetail:
+    return schemas.CardDetail(
+        name=card.name,
+        number=card.number,
+        number_display=card.number,
+        total=None,
+        set_name=card.set_name,
+        set_code=card.set_code,
+        set_icon=None,
+        image_small=card.image_small,
+        image_large=card.image_large,
+        rarity=card.rarity,
+        artist=None,
+        series=None,
+        release_date=None,
+    )
 
 
-def _record_to_search_schema(record: "models.CardRecord") -> schemas.CardSearchResult:
-    payload = {
-        "name": record.name,
-        "number": record.number,
-        "number_display": record.number_display or record.number,
-        "total": record.total,
-        "set_name": record.set_name,
-        "set_code": record.set_code,
-        "rarity": record.rarity,
-        "image_small": record.image_small,
-        "image_large": record.image_large,
-        "set_icon": record.set_icon,
-        "artist": record.artist,
-        "series": record.series,
-        "release_date": record.release_date,
-    }
-    return schemas.CardSearchResult.model_validate(payload)
-
-
-def _record_to_detail_payload(record: "models.CardRecord") -> dict[str, Any]:
-    return {
-        "name": record.name,
-        "number": record.number,
-        "number_display": record.number_display,
-        "total": record.total,
-        "set_name": record.set_name,
-        "set_code": record.set_code,
-        "set_icon": record.set_icon,
-        "image_small": record.image_small,
-        "image_large": record.image_large,
-        "rarity": record.rarity,
-        "artist": record.artist,
-        "series": record.series,
-        "release_date": record.release_date,
-    }
-
-
-def _score_card_record(
-    record: "models.CardRecord",
+def _matches_filters(
+    card: models.Card,
     *,
-    query_text: str,
-    number_clean: str | None = None,
-    set_norm: str = "",
-    total_clean: str | None = None,
-) -> float:
-    query_norm = text.normalize(query_text or "", keep_spaces=True)
-    candidate_parts = [
-        record.name or "",
-        record.number_display or record.number or "",
-        record.set_name or "",
-    ]
-    candidate_label = " ".join(part for part in candidate_parts if part).strip()
-    candidate_norm = text.normalize(candidate_label, keep_spaces=True)
-    name_norm = record.name_normalized or text.normalize(record.name or "")
-
-    scores: list[float] = []
-    if query_norm and candidate_norm:
-        scores.append(float(fuzz.WRatio(query_norm, candidate_norm)))
-        scores.append(float(fuzz.partial_ratio(query_norm, candidate_norm)))
-    if query_norm and name_norm:
-        scores.append(float(fuzz.partial_ratio(query_norm, name_norm)))
-    if not scores and query_norm:
-        scores.append(float(fuzz.partial_ratio(query_norm, text.normalize(record.name or ""))))
-
-    base_score = max(scores) if scores else 0.0
-    bonus = 0.0
+    name_filter: str,
+    number_clean: str,
+    set_filter: str,
+    query_filter: str,
+) -> bool:
+    card_name_lower = (card.name or "").lower()
+    card_set_lower = (card.set_name or "").lower()
+    card_number_clean = text.sanitize_number(card.number or "")
 
     if number_clean:
-        record_number = record.number or ""
-        if record_number == number_clean:
-            bonus += 30.0
-        elif record_number.startswith(number_clean):
-            bonus += 10.0
-
-    if total_clean:
-        record_total = text.sanitize_number(str(record.total or ""))
-        if record_total == total_clean:
-            bonus += 5.0
-
-    if set_norm:
-        record_set_norm = record.set_name_normalized or text.normalize(record.set_name or "")
-        if record_set_norm == set_norm:
-            bonus += 15.0
-        elif record_set_norm and set_norm in record_set_norm:
-            bonus += 5.0
-
-    return base_score + bonus
+        number_value = card.number or ""
+        if card_number_clean != number_clean and not number_value.startswith(number_clean):
+            return False
+    if set_filter and set_filter not in card_set_lower:
+        return False
+    if name_filter:
+        if name_filter not in card_name_lower:
+            return False
+    elif query_filter:
+        combined = " ".join(
+            part for part in (card.name, card.number, card.set_name) if part
+        ).lower()
+        if query_filter not in combined:
+            return False
+    return True
 
 
-def _build_fts_match_query(*values: str) -> str:
-    tokens: list[str] = []
-    for value in values:
-        if not value:
-            continue
-        for token in re.findall(r"[0-9a-z]+", value):
-            if token and token not in tokens:
-                tokens.append(token)
-    return " ".join(f"{token}*" for token in tokens)
-
-
-def _fetch_cardrecord_candidate_ids(match_query: str, limit: int) -> list[int]:
-    if not match_query or limit <= 0:
-        return []
-    with database.engine.connect() as connection:
-        rows = connection.exec_driver_sql(
-            """
-            SELECT card_id
-            FROM cardrecord_search
-            WHERE cardrecord_search MATCH ?
-            LIMIT ?
-            """,
-            (match_query, limit),
-        )
-        return [int(row[0]) for row in rows if row[0] is not None]
-
-
-def _suggested_query_label(record: "models.CardRecord" | None) -> str | None:
-    if not record:
-        return None
-    return record.name or record.number_display or record.number or None
-
-
-def _search_catalogue(
+def _search_cards(
     session: Session,
     *,
     query: str,
     name: str,
     number: str | None = None,
-    total: str | None = None,
     set_name: str | None = None,
-    limit: int | None = None,
-) -> tuple[list["models.CardRecord"], int, "models.CardRecord" | None]:
-    search_term = name or query
-    name_norm = _normalise_search_value(search_term)
-    number_clean = _sanitise_optional_number(number)
-    total_clean = _sanitise_optional_number(total)
-    set_norm = _normalise_search_value(set_name) if set_name else ""
-    query_norm = text.normalize(query or search_term or "", keep_spaces=True)
+    limit: int = MAX_SEARCH_RESULTS,
+) -> tuple[list[models.Card], int, str | None]:
+    name_filter = _normalize_lower(name)
+    set_filter = _normalize_lower(set_name)
+    query_filter = _normalize_lower(query)
+    number_clean = text.sanitize_number(number or "") if number else ""
 
-    result_cap = MAX_SEARCH_RESULTS
-    if limit is not None and limit > 0:
-        result_cap = max(1, min(limit, MAX_SEARCH_RESULTS))
-
-    base_filters: list[Any] = []
-    if number_clean:
-        base_filters.append(models.CardRecord.number == number_clean)
-    if total_clean:
-        base_filters.append(models.CardRecord.total == total_clean)
-    if set_norm:
-        base_filters.append(models.CardRecord.set_name_normalized.contains(set_norm))
-
-    fetch_limit = max(result_cap * 4, result_cap, 100)
-    fetch_limit = max(1, min(fetch_limit, 500))
-
-    records: list[models.CardRecord] = []
-    name_filter_applied = False
-    count_filters: list[Any] = []
-
-    if name_norm:
-        match_query = _build_fts_match_query(name_norm, query_norm, set_norm)
-        candidate_ids = _fetch_cardrecord_candidate_ids(match_query, fetch_limit)
-        if candidate_ids:
-            filters = [*base_filters, models.CardRecord.id.in_(candidate_ids)]
-            ids_stmt = select(models.CardRecord)
-            if filters:
-                ids_stmt = ids_stmt.where(*filters)
-            count_filters = filters
-            records = session.exec(ids_stmt).all()
-
-    if not records:
-        filters = [*base_filters]
-        if name_norm:
-            prefix = name_norm[:3] if len(name_norm) > 3 else name_norm
-            if prefix:
-                filters.append(models.CardRecord.name_normalized.contains(prefix))
-                name_filter_applied = True
-        stmt = select(models.CardRecord)
-        if filters:
-            stmt = stmt.where(*filters)
-        count_filters = filters
-        records = session.exec(stmt.limit(fetch_limit)).all()
-
-    if not records and name_filter_applied and name_norm:
-        filters = [*base_filters, models.CardRecord.name_normalized.contains(name_norm)]
-        fallback_stmt = select(models.CardRecord).where(*filters)
-        count_filters = filters
-        records = session.exec(fallback_stmt.limit(fetch_limit)).all()
-
-    if not records:
-        fallback_stmt = select(models.CardRecord)
-        if base_filters:
-            fallback_stmt = fallback_stmt.where(*base_filters)
-        count_filters = base_filters
-        records = session.exec(fallback_stmt.limit(fetch_limit)).all()
-
-    if not count_filters:
-        count_filters = base_filters
-
-    count_stmt = select(func.count()).select_from(models.CardRecord)
-    if count_filters:
-        count_stmt = count_stmt.where(*count_filters)
-    total_count = session.exec(count_stmt).one()
-    if isinstance(total_count, tuple):
-        total_count = total_count[0]
-    total_count = int(total_count or 0)
-
-    scored = []
-    best_entry: tuple[float, models.CardRecord] | None = None
-    for record in records:
-        final_score = _score_card_record(
-            record,
-            query_text=query_norm or search_term,
+    cards = session.exec(select(models.Card)).all()
+    matched = [
+        card
+        for card in cards
+        if _matches_filters(
+            card,
+            name_filter=name_filter,
             number_clean=number_clean,
-            set_norm=set_norm,
-            total_clean=total_clean,
+            set_filter=set_filter,
+            query_filter=query_filter,
         )
-        if best_entry is None or final_score > best_entry[0]:
-            best_entry = (final_score, record)
-        scored.append((final_score, record))
+    ]
 
-    scored.sort(
-        key=lambda item: (
-            -item[0],
-            item[1].set_name or "",
-            item[1].number or "",
-            item[1].name or "",
+    matched.sort(
+        key=lambda card: (
+            (card.set_name or "").lower(),
+            text.sanitize_number(card.number or ""),
+            (card.name or "").lower(),
         )
     )
-    threshold = SCORE_THRESHOLD
-    filtered = [entry for entry in scored if entry[0] >= threshold]
-    filtered_total = len(filtered)
-    visible = [record for _score, record in filtered[:result_cap]]
-    if threshold and total_count:
-        total_count = min(total_count, filtered_total)
-    else:
-        total_count = filtered_total
-    total_count = min(total_count, result_cap)
-    return visible, total_count, best_entry[1] if best_entry else None
+
+    suggestion = matched[0].name if matched else None
+    visible = matched[:limit]
+    return visible, min(len(matched), limit), suggestion
 
 
-def _select_best_record(
-    records: list["models.CardRecord"],
-    *,
-    set_code: str | None = None,
-    set_name: str | None = None,
-) -> "models.CardRecord" | None:
-    code_clean = set_utils.clean_code(set_code)
-    if code_clean:
-        for record in records:
-            if record.set_code_clean == code_clean:
-                return record
-    set_norm = text.normalize(set_name or "") if set_name else ""
-    if set_norm:
-        for record in records:
-            if (record.set_name_normalized or "") == set_norm:
-                return record
-            if text.normalize(record.set_name or "") == set_norm:
-                return record
-    return records[0] if records else None
-
-
-def _locate_catalogue_record(
+def _load_related_cards(
     session: Session,
-    *,
-    name: str,
-    number: str,
-    set_code: str | None = None,
-    set_name: str | None = None,
-) -> "models.CardRecord" | None:
-    number_clean = text.sanitize_number(str(number or ""))
-    if not number_clean:
-        return None
-
-    candidates: list[models.CardRecord] = []
-    code_clean = set_utils.clean_code(set_code)
-    if code_clean:
-        candidates = session.exec(
-            select(models.CardRecord).where(
-                (models.CardRecord.number == number_clean)
-                & (models.CardRecord.set_code_clean == code_clean)
-            )
-        ).all()
-    if not candidates and set_name:
-        set_norm = _normalise_search_value(set_name)
-        candidates = session.exec(
-            select(models.CardRecord).where(
-                (models.CardRecord.number == number_clean)
-                & (models.CardRecord.set_name_normalized == set_norm)
-            )
-        ).all()
-    if not candidates:
-        name_norm = _normalise_search_value(name)
-        if name_norm:
-            candidates = session.exec(
-                select(models.CardRecord).where(
-                    (models.CardRecord.number == number_clean)
-                    & (models.CardRecord.name_normalized == name_norm)
-                )
-            ).all()
-    if not candidates:
-        candidates = session.exec(
-            select(models.CardRecord).where(models.CardRecord.number == number_clean)
-        ).all()
-    return _select_best_record(candidates, set_code=set_code, set_name=set_name)
-
-
-def _load_related_catalogue(
-    session: Session,
-    base: "models.CardRecord" | None,
+    base: models.Card | None,
     limit: int,
-) -> list["models.CardRecord"]:
+) -> list[models.Card]:
     if not base or limit <= 0:
         return []
-    base_name_norm = base.name_normalized or text.normalize(base.name or "")
-    if not base_name_norm:
-        return []
-
     stmt = (
-        select(models.CardRecord)
-        .where(
-            (models.CardRecord.id != base.id)
-            & (models.CardRecord.name_normalized == base_name_norm)
-        )
-        .order_by(
-            models.CardRecord.set_name,
-            models.CardRecord.release_date,
-            models.CardRecord.number,
-        )
+        select(models.Card)
+        .where(models.Card.id != base.id)
+        .where(models.Card.name == base.name)
+        .order_by(models.Card.set_name, models.Card.number, models.Card.id)
         .limit(limit)
     )
     return session.exec(stmt).all()
 
-def _find_card_record(
+
+def _find_card(
     session: Session,
     *,
     name: str,
@@ -460,31 +222,53 @@ def _find_card_record(
     set_name_value = (set_name or "").strip()
     set_code_value = (set_code or "").strip()
 
-    stmt = select(models.Card).where(
-        (models.Card.name == name_value) & (models.Card.number == number_value)
-    )
-    if set_name_value:
-        stmt = stmt.where(models.Card.set_name == set_name_value)
-    card = session.exec(stmt).first()
-    if card:
-        return card
-
-    if set_code_value:
-        card = session.exec(
-            select(models.Card).where(
-                (models.Card.number == number_value)
-                & (models.Card.set_code == set_code_value)
-            )
-        ).first()
+    if number_value:
+        stmt = select(models.Card).where(models.Card.number == number_value)
+        if set_name_value:
+            stmt = stmt.where(models.Card.set_name == set_name_value)
+        card = session.exec(stmt).first()
         if card:
             return card
 
-    return session.exec(
-        select(models.Card).where(
+    number_clean = text.sanitize_number(number_value)
+    if number_clean and number_clean != number_value:
+        stmt = select(models.Card).where(models.Card.number == number_clean)
+        if set_name_value:
+            stmt = stmt.where(models.Card.set_name == set_name_value)
+        card = session.exec(stmt).first()
+        if card:
+            return card
+        if name_value:
+            candidates = session.exec(
+                select(models.Card).where(models.Card.name == name_value)
+            ).all()
+            for candidate in candidates:
+                candidate_clean = text.sanitize_number(candidate.number or "")
+                if candidate_clean == number_clean:
+                    return candidate
+
+    if set_code_value:
+        stmt = select(models.Card).where(models.Card.set_code == set_code_value)
+        if number_value:
+            stmt = stmt.where(models.Card.number == number_value)
+        elif number_clean and number_clean != number_value:
+            stmt = stmt.where(models.Card.number == number_clean)
+        card = session.exec(stmt).first()
+        if card:
+            return card
+
+    if name_value and number_value:
+        stmt = select(models.Card).where(
             (models.Card.name == name_value) & (models.Card.number == number_value)
         )
-    ).first()
+        card = session.exec(stmt).first()
+        if card:
+            return card
 
+    if name_value:
+        return session.exec(select(models.Card).where(models.Card.name == name_value)).first()
+
+    return None
 
 
 def _apply_card_images(card: models.Card, card_data: schemas.CardBase) -> bool:
@@ -544,92 +328,34 @@ def search_cards_endpoint(
 
     parsed_name = ""
     parsed_number: str | None = None
-    parsed_total: str | None = None
     if query:
-        parsed_name, parsed_number, parsed_total = _parse_card_query(query)
+        parsed_name, parsed_number, _ = _parse_card_query(query)
 
     name_value = (name or parsed_name or "").strip()
     number_value = number or parsed_number
-    total_value = total or parsed_total
     result_cap = MAX_SEARCH_RESULTS
     if limit is not None and limit > 0:
         result_cap = max(1, min(limit, MAX_SEARCH_RESULTS))
     search_query = query or _compose_query(name_value, number_value, set_name)
     if not (search_query or name_value):
-        return schemas.CardSearchResponse(
-            items=[],
-            total=0,
-        )
+        return schemas.CardSearchResponse(items=[], total=0)
     if not name_value:
         name_value = search_query
 
-    def _apply_assets(records: Sequence[models.CardRecord]) -> None:
-        updated = False
-        for record in records:
-            updated = _ensure_record_assets(session, record) or updated
-        if updated:
-            session.commit()
-
-    records, total_count, suggestion_record = _search_catalogue(
+    records, total_count, suggestion = _search_cards(
         session,
         query=search_query,
         name=name_value,
         number=number_value,
-        total=total_value,
         set_name=set_name,
         limit=result_cap,
     )
-    suggestion_name = _suggested_query_label(suggestion_record)
-    _apply_assets(records)
 
-    if not records:
-        api_results = tcg_api.search_cards(
-            name=name_value,
-            number=number_value,
-            total=total_value,
-            set_name=set_name,
-            limit=result_cap,
-        )
-        stored = False
-        cached_records: list[models.CardRecord] = []
-        for payload in api_results:
-            record, changed = catalogue.upsert_card_record(session, payload)
-            if record:
-                cached_records.append(record)
-                if _ensure_record_assets(session, record):
-                    changed = True
-            if changed:
-                stored = True
-        if stored:
-            session.commit()
-            records, total_count, suggestion_record = _search_catalogue(
-                session,
-                query=search_query,
-                name=name_value,
-                number=number_value,
-                total=total_value,
-                set_name=set_name,
-                limit=result_cap,
-            )
-            suggestion_name = _suggested_query_label(suggestion_record)
-            _apply_assets(records)
-        elif cached_records:
-            records = cached_records[:result_cap]
-            total_count = min(len(cached_records), result_cap)
-            suggestion_name = _suggested_query_label(cached_records[0])
-            _apply_assets(records)
-        else:
-            records = []
-            total_count = 0
-            if not suggestion_name:
-                suggestion_name = _suggested_query_label(suggestion_record)
-
-    items = [_record_to_search_schema(record) for record in records]
-    total_value = len(items)
+    items = [_card_to_search_schema(record) for record in records]
     return schemas.CardSearchResponse(
         items=items,
-        total=total_value,
-        suggested_query=suggestion_name,
+        total=total_count,
+        suggested_query=suggestion,
     )
 
 
@@ -644,260 +370,28 @@ def card_info(
     current_user: models.User | None = Depends(get_optional_user),
     session: Session = Depends(get_session),
 ):
-    number_clean = text.sanitize_number(str(number))
-    total_clean = text.sanitize_number(str(total)) if total else None
-    search_query = _compose_query(name, number, set_name)
+    del current_user  # Kept for parity with authenticated view.
 
-    remote_results: list[dict[str, Any]] = []
+    limit_value = max(0, min(related_limit, 24))
 
-    def _fetch_remote_results() -> list[dict[str, Any]]:
-        nonlocal remote_results
-        if remote_results:
-            return remote_results
-
-        candidate_names: list[str | None] = [set_name]
-        info = set_utils.get_set_info(set_code=set_code, set_name=set_name)
-        if info:
-            canonical = info.get("name")
-            if canonical and canonical not in candidate_names:
-                candidate_names.append(canonical)
-        candidate_names.append(None)
-
-        tried: set[str | None] = set()
-        for candidate in candidate_names:
-            if candidate in tried:
-                continue
-            tried.add(candidate)
-            results = tcg_api.search_cards(
-                name=name,
-                number=number,
-                total=total,
-                set_name=candidate,
-                limit=20,
-            )
-            if results:
-                remote_results = results
-                break
-        else:
-            remote_results = []
-
-        return remote_results
-
-    record = _locate_catalogue_record(
+    card = _find_card(
         session,
         name=name,
         number=number,
-        set_code=set_code,
         set_name=set_name,
+        set_code=set_code,
     )
-    if record is None:
-        records, _total, _suggestion = _search_catalogue(
-            session,
-            query=search_query,
-            name=name,
-            number=number,
-            total=total,
-            set_name=set_name,
-            limit=20,
-        )
-        record = _select_best_record(records, set_code=set_code, set_name=set_name)
-
-    if record is None:
-        stored = False
-        for payload in _fetch_remote_results():
-            candidate, changed = catalogue.upsert_card_record(session, payload)
-            if candidate:
-                if _ensure_record_assets(session, candidate):
-                    changed = True
-            if changed:
-                stored = True
-        if stored:
-            session.commit()
-            record = _locate_catalogue_record(
-                session,
-                name=name,
-                number=number,
-                set_code=set_code,
-                set_name=set_name,
-            )
-            if record is None:
-                records, _total, _suggestion = _search_catalogue(
-                    session,
-                    query=search_query,
-                    name=name,
-                    number=number,
-                    total=total,
-                    set_name=set_name,
-                    limit=20,
-                )
-                record = _select_best_record(records, set_code=set_code, set_name=set_name)
-
-    if record is None:
+    if card is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nie znaleziono karty.")
 
-    needs_refresh = any(
-        not getattr(record, field)
-        for field in ("series", "artist", "image_large", "image_small", "rarity")
-    )
-    if needs_refresh:
-        stored = False
-        for payload in _fetch_remote_results():
-            candidate, changed = catalogue.upsert_card_record(session, payload)
-            if candidate:
-                if _ensure_record_assets(session, candidate):
-                    changed = True
-            if changed:
-                stored = True
-        if stored:
-            session.commit()
-            record = _locate_catalogue_record(
-                session,
-                name=name,
-                number=number,
-                set_code=set_code,
-                set_name=set_name,
-            )
-            if record is None:
-                records, _total, _suggestion = _search_catalogue(
-                    session,
-                    query=search_query,
-                    name=name,
-                    number=number,
-                    total=total,
-                    set_name=set_name,
-                    limit=20,
-                )
-                record = _select_best_record(records, set_code=set_code, set_name=set_name)
-            if record is None:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nie znaleziono karty.")
+    detail = _card_to_detail(card)
+    if total and not detail.total:
+        detail.total = text.sanitize_number(total)
 
-    if _ensure_record_assets(session, record):
-        session.commit()
+    related_cards = _load_related_cards(session, card, limit_value)
+    related_items = [_card_to_search_schema(item) for item in related_cards[:limit_value]]
 
-    detail_data = _record_to_detail_payload(record)
-    if not detail_data.get("name"):
-        detail_data["name"] = name
-    if total_clean and not detail_data.get("total"):
-        detail_data["total"] = total_clean
-
-    number_value = detail_data.get("number") or number_clean
-    detail_data["number"] = number_value
-    if not detail_data.get("number_display"):
-        detail_data["number_display"] = number
-
-    resolved_set_name = detail_data.get("set_name") or set_name or ""
-    resolved_set_code = detail_data.get("set_code") or set_code or ""
-
-    should_commit = False
-    card = _find_card_record(
-        session,
-        name=detail_data.get("name") or name,
-        number=number_value,
-        set_name=resolved_set_name,
-        set_code=set_utils.clean_code(resolved_set_code) or resolved_set_code,
-    )
-
-    if card is None and detail_data.get("name") and resolved_set_name:
-        card = models.Card(
-            name=detail_data.get("name") or name,
-            number=number_value,
-            set_name=resolved_set_name,
-            set_code=set_utils.clean_code(resolved_set_code) or resolved_set_code or None,
-            rarity=detail_data.get("rarity"),
-        )
-        card_data = schemas.CardBase(
-            name=card.name,
-            number=card.number,
-            set_name=card.set_name,
-            set_code=card.set_code,
-            rarity=card.rarity,
-            image_small=detail_data.get("image_small"),
-            image_large=detail_data.get("image_large"),
-        )
-        _apply_card_images(card, card_data)
-        session.add(card)
-        session.flush()
-        session.refresh(card)
-        should_commit = True
-
-    limit_value = max(0, min(related_limit, 24))
-    related_items: list[schemas.CardSearchResult] = []
-    if limit_value:
-        related_records = _load_related_catalogue(session, record, limit_value + 1)
-        base_name_norm = record.name_normalized or text.normalize(
-            detail_data.get("name") or record.name or "",
-        )
-        if len(related_records) < limit_value and base_name_norm:
-            stored_related = False
-            seen_payloads: set[tuple[str, str, str]] = set()
-
-            def _payload_key(payload: dict[str, Any]) -> tuple[str, str, str]:
-                return (
-                    text.normalize(payload.get("name") or ""),
-                    text.sanitize_number(str(payload.get("number") or "")),
-                    text.normalize(payload.get("set_name") or ""),
-                )
-
-            candidate_payloads: list[dict[str, Any]] = []
-            for payload in _fetch_remote_results():
-                if text.normalize(payload.get("name") or "") == base_name_norm:
-                    candidate_payloads.append(payload)
-
-            character_name = detail_data.get("name") or record.name or ""
-            if character_name:
-                search_results = tcg_api.search_cards(
-                    name=character_name,
-                    limit=limit_value + 5,
-                )
-                for payload in search_results:
-                    if text.normalize(payload.get("name") or "") == base_name_norm:
-                        candidate_payloads.append(payload)
-
-            for payload in candidate_payloads:
-                key = _payload_key(payload)
-                if key in seen_payloads:
-                    continue
-                seen_payloads.add(key)
-                candidate, changed = catalogue.upsert_card_record(session, payload)
-                if candidate and _ensure_record_assets(session, candidate):
-                    changed = True
-                if changed:
-                    stored_related = True
-
-            if stored_related:
-                session.commit()
-                related_records = _load_related_catalogue(session, record, limit_value + 1)
-
-        def is_same_record(candidate: models.CardRecord) -> bool:
-            if candidate.number != number_value:
-                return False
-            candidate_code = candidate.set_code_clean
-            detail_code = record.set_code_clean
-            if candidate_code and detail_code:
-                return candidate_code == detail_code
-            candidate_name = text.normalize(candidate.set_name or "")
-            detail_name = text.normalize(record.set_name or "")
-            if candidate_name and detail_name:
-                return candidate_name == detail_name
-            return False
-
-        for item in related_records:
-            if is_same_record(item):
-                continue
-            if _ensure_record_assets(session, item):
-                should_commit = True
-            related_items.append(_record_to_search_schema(item))
-            if len(related_items) >= limit_value:
-                break
-
-    if should_commit:
-        session.commit()
-
-    detail = schemas.CardDetail.model_validate(detail_data)
-    return schemas.CardDetailResponse(
-        card=detail,
-        related=related_items,
-    )
+    return schemas.CardDetailResponse(card=detail, related=related_items)
 
 
 @router.get("/", response_model=list[schemas.CollectionEntryRead])
@@ -926,33 +420,18 @@ def add_card(
     set_code_value = (card_data.set_code or "").strip() or None
     rarity_value = (card_data.rarity or "").strip() or None
 
-    catalog_payload = card_data.model_dump(exclude_unset=True)
-    catalog_payload.setdefault("name", name_value)
-    catalog_payload.setdefault("number", number_value)
-    catalog_payload.setdefault("set_name", set_name_value)
-    catalog_payload.setdefault("set_code", set_code_value)
-    catalog_payload.setdefault("rarity", rarity_value)
-    catalog_record_candidate, _ = catalogue.upsert_card_record(session, catalog_payload)
-    if catalog_record_candidate:
-        _ensure_record_assets(session, catalog_record_candidate)
+    if not name_value or not number_value or not set_name_value:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing card details")
 
-    catalog_record = _locate_catalogue_record(
+    card = _find_card(
         session,
         name=name_value,
         number=number_value,
-        set_code=set_code_value,
         set_name=set_name_value,
+        set_code=set_code_value,
     )
 
-    card = session.exec(
-        select(models.Card)
-        .where(
-            (models.Card.name == name_value)
-            & (models.Card.number == number_value)
-            & (models.Card.set_name == set_name_value)
-        )
-    ).first()
-    if not card:
+    if card is None:
         card = models.Card(
             name=name_value,
             number=number_value,
@@ -976,6 +455,8 @@ def add_card(
             updated = True
         if updated:
             session.add(card)
+            session.commit()
+            session.refresh(card)
 
     owner_id = current_user.id
     if owner_id is None:
@@ -993,8 +474,6 @@ def add_card(
         is_reverse=payload.is_reverse,
         is_holo=payload.is_holo,
     )
-
-
 
     session.add(entry)
     session.commit()
@@ -1055,5 +534,3 @@ def delete_entry(
     session.delete(entry)
     session.commit()
     return None
-
-

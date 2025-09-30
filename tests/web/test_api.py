@@ -201,21 +201,20 @@ def test_requires_authentication(api_client):
 
 def test_card_info_allows_anonymous_access(api_client):
     client, _server = api_client
-    from kartoteka_web import catalogue, database
+    from kartoteka_web import database, models
 
     database.init_db()
     with database.session_scope() as session:
-        record, _ = catalogue.upsert_card_record(
-            session,
-            {
-                "name": "Pikachu",
-                "number": "25",
-                "set_name": "Base Set",
-                "set_code": "base",
-                "rarity": "Common",
-            },
+        session.add(
+            models.Card(
+                name="Pikachu",
+                number="25",
+                set_name="Base Set",
+                set_code="base",
+                rarity="Common",
+            )
         )
-        assert record is not None
+        session.commit()
 
     res = client.get(
         "/cards/info",
@@ -238,35 +237,35 @@ def test_card_info_authenticated_features_intact(api_client):
     token = perform_register_and_login(client, username="brock", password="onix")
     headers = {"Authorization": f"Bearer {token}"}
 
-    from kartoteka_web import catalogue, database
+    from kartoteka_web import database, models
 
     database.init_db()
     with database.session_scope() as session:
-        for payload in (
-            {
-                "name": "Eevee",
-                "number": "133",
-                "set_name": "Jungle",
-                "set_code": "jng",
-                "rarity": "Common",
-            },
-            {
-                "name": "Eevee",
-                "number": "133",
-                "set_name": "Fossil",
-                "set_code": "fsl",
-                "rarity": "Common",
-            },
-            {
-                "name": "Eevee",
-                "number": "133",
-                "set_name": "Neo Discovery",
-                "set_code": "neo4",
-                "rarity": "Common",
-            },
+        for card in (
+            models.Card(
+                name="Eevee",
+                number="133",
+                set_name="Jungle",
+                set_code="jng",
+                rarity="Common",
+            ),
+            models.Card(
+                name="Eevee",
+                number="133",
+                set_name="Fossil",
+                set_code="fsl",
+                rarity="Common",
+            ),
+            models.Card(
+                name="Eevee",
+                number="133",
+                set_name="Neo Discovery",
+                set_code="neo4",
+                rarity="Common",
+            ),
         ):
-            record, _ = catalogue.upsert_card_record(session, payload)
-            assert record is not None
+            session.add(card)
+        session.commit()
 
     res = client.get(
         "/cards/info",

@@ -2,12 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
-import datetime as dt
-import logging
 from pathlib import Path
-from typing import Any, Callable, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
@@ -20,202 +16,16 @@ from sqlmodel import select
 
 load_dotenv(Path(__file__).resolve().with_name(".env"))
 
-from kartoteka_web import catalogue, models
+from kartoteka_web import models
 from kartoteka_web.auth import get_current_user, oauth2_scheme
 from kartoteka_web.database import init_db, session_scope
 from kartoteka_web.routes import cards, users
 from kartoteka_web.utils import images as image_utils, sets as set_utils, text
 
-logger = logging.getLogger(__name__)
-
-ProgressCallback = Callable[[str, dict[str, Any]], None]
-
-def _refresh_catalogue(
-    *,
-    force: bool = False,
-    progress: ProgressCallback | None = None,
-) -> int:
-    logger.info("Catalogue refresh requested%s", " (forced)" if force else "")
-
-    def _handle(event: str, payload: dict[str, Any]) -> None:
-        data = dict(payload)
-        if progress:
-            try:
-                progress(event, data)
-            except Exception:  # pragma: no cover - defensive guard around hooks
-                logger.warning(
-                    "External catalogue progress hook raised during %s", event, exc_info=True
-                )
-
-        message: str | None = None
-        if event == "start":
-            total_sets = data.get("total_sets")
-            forced_text = " (forced)" if force else ""
-            if total_sets is None:
-                message = f"Catalogue refresh started{forced_text}"
-            elif total_sets == 0:
-                message = f"Catalogue refresh started{forced_text} with no sets to process"
-            else:
-                message = f"Catalogue refresh will process {total_sets} sets{forced_text}"
-        elif event == "resume":
-            next_set = data.get("next_set") or "?"
-            index = data.get("index") or "?"
-            total = data.get("total_sets") or "?"
-            message = f"Catalogue refresh resuming from set {next_set} ({index}/{total})"
-        elif event == "set.start":
-            index = data.get("index") or "?"
-            total = data.get("total_sets") or "?"
-            set_code = data.get("set_code") or "?"
-            request_number = data.get("request_number") or "?"
-            request_limit = data.get("request_limit") or "?"
-            message = (
-                f"Catalogue refresh [{index}/{total}]: syncing set {set_code} "
-                f"(request {request_number}/{request_limit})"
-            )
-        elif event == "set.complete":
-            set_code = data.get("set_code") or "?"
-            changed = data.get("changed")
-            card_count = data.get("card_count")
-            processed_sets = data.get("processed_sets")
-            total = data.get("total_sets")
-            remaining = data.get("remaining_sets")
-            message = (
-                f"Catalogue refresh completed set {set_code} "
-                f"({changed if changed is not None else 0} updates out of {card_count or 0} cards). "
-                f"Progress: {processed_sets or 0}/{total or '?'} sets finished, "
-                f"{remaining if remaining is not None else '?'} sets remaining."
-            )
-        elif event == "limit":
-            used = data.get("requests_used")
-            limit = data.get("request_limit")
-            remaining = data.get("remaining_sets")
-            message = (
-                f"Catalogue refresh reached request limit {used}/{limit}; "
-                f"{remaining if remaining is not None else '?'} sets remaining."
-            )
-        elif event == "paused":
-            last_set = data.get("last_completed_set") or "?"
-            processed_sets = data.get("processed_sets")
-            total = data.get("total_sets")
-            total_changed = data.get("total_changed")
-            used = data.get("requests_used")
-            limit = data.get("request_limit")
-            next_set = data.get("next_set")
-            continuation = f" Next run will continue with {next_set}." if next_set else ""
-            message = (
-                f"Catalogue refresh paused after set {last_set}: "
-                f"{processed_sets or 0}/{total or '?'} sets processed, {total_changed or 0} updates "
-                f"using {used or 0}/{limit or '?'} requests.{continuation}"
-            )
-        elif event == "complete":
-            total_changed = data.get("total_changed") or 0
-            used = data.get("requests_used") or 0
-            processed_sets = data.get("processed_sets")
-            total = data.get("total_sets")
-            message = (
-                f"Catalogue refresh completed with {total_changed} updates across {used} requests"
-            )
-            if processed_sets is not None and total is not None:
-                message += f" ({processed_sets}/{total} sets processed)"
-        elif event == "skipped":
-            reason = data.get("reason") or "no refresh required"
-            message = f"Catalogue refresh skipped: {reason}"
-
-        if message:
-            logger.info(message)
-
-    with session_scope() as session:
-        return catalogue.refresh_catalogue(
-            session,
-            force=force,
-            progress=_handle,
-        )
-
-
-def _seconds_until_next_midnight(now: dt.datetime | None = None) -> float:
-    """Return seconds until the next UTC midnight."""
-
-    current = now or dt.datetime.now(dt.timezone.utc)
-    if current.tzinfo is None:
-        current = current.replace(tzinfo=dt.timezone.utc)
-    tomorrow = (current + dt.timedelta(days=1)).replace(
-        hour=0,
-        minute=0,
-        second=0,
-        microsecond=0,
-    )
-    return max((tomorrow - current).total_seconds(), 0.0)
-
-
-async def _catalogue_update_loop() -> None:
-    while True:
-        try:
-            await asyncio.sleep(_seconds_until_next_midnight())
-        except asyncio.CancelledError:
-            raise
-        updated = await asyncio.to_thread(_refresh_catalogue)
-        if updated:
-            logger.info("Background catalogue refresh changed %s records", updated)
-
-
-async def _run_background(task: asyncio.Task[Any] | None) -> None:
-    if task is None:
-        return
-    if not isinstance(task, asyncio.Task):
-        return
-    task_name = task.get_name() if hasattr(task, "get_name") else repr(task)
-    try:
-        if task.done():
-            await task
-            return
-        task.cancel()
-        await task
-    except asyncio.CancelledError:
-        pass
-    except Exception:  # pragma: no cover - shutdown logging only
-        logger.exception("Background task %s raised during shutdown", task_name)
-
-
-async def _start_catalogue_bootstrap(progress: ProgressCallback | None = None) -> None:
-    logger.info("Initial catalogue bootstrap starting")
-    if progress:
-        try:
-            progress("bootstrap.start", {})
-        except Exception:  # pragma: no cover - defensive guard around hooks
-            logger.warning("Bootstrap progress hook raised during start", exc_info=True)
-    try:
-        updated = await asyncio.to_thread(_refresh_catalogue, progress=progress)
-    except Exception:  # pragma: no cover - defensive guard for startup
-        if progress:
-            try:
-                progress("bootstrap.error", {})
-            except Exception:  # pragma: no cover - defensive guard around hooks
-                logger.warning("Bootstrap progress hook raised during error", exc_info=True)
-        logger.exception("Initial catalogue refresh failed")
-    else:
-        logger.info("Initial catalogue bootstrap completed with %s updates", updated)
-        if progress:
-            try:
-                progress("bootstrap.complete", {"updated": updated})
-            except Exception:  # pragma: no cover - defensive guard around hooks
-                logger.warning("Bootstrap progress hook raised during completion", exc_info=True)
-
-
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    bootstrap_task = asyncio.create_task(_start_catalogue_bootstrap())
-    catalogue_task = asyncio.create_task(_catalogue_update_loop())
-    app.state.catalogue_task = catalogue_task
-    app.state.bootstrap_task = bootstrap_task
-    try:
-        yield
-    finally:
-        for task in (
-            getattr(app.state, "catalogue_task", None),
-            getattr(app.state, "bootstrap_task", None),
-        ):
-            await _run_background(task)
+    yield
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -253,8 +63,6 @@ app.include_router(users.router)
 app.include_router(cards.router)
 
 app.mount("/static", StaticFiles(directory="kartoteka_web/static"), name="static")
-if Path("set_logos").exists():
-    app.mount("/set-logos", StaticFiles(directory="set_logos"), name="set-logos")
 
 image_utils.ensure_directory()
 card_image_mount = image_utils.CARD_IMAGE_URL_PREFIX
@@ -391,86 +199,75 @@ async def card_detail_page(request: Request, set_identifier: str, number: str) -
     resolved_total = total
 
     identifier = set_utils.clean_code(set_identifier) or set_identifier.strip().lower()
-    identifier_guess = (
-        set_identifier.replace("-", " ").replace("_", " ").strip()
-    )
-    set_info = set_utils.get_set_info(set_code=identifier)
-    if not set_info and identifier_guess and identifier_guess != set_identifier:
-        set_info = set_utils.get_set_info(set_name=identifier_guess)
-    if not set_info:
-        set_info = set_utils.get_set_info(set_name=set_identifier)
-
-    if set_info:
-        resolved_set_name = set_info.get("name") or resolved_set_name or ""
-        if set_info.get("code"):
-            resolved_set_code = set_info.get("code") or resolved_set_code or ""
-        if not resolved_total and set_info.get("total"):
-            resolved_total = str(set_info.get("total"))
-
     with session_scope() as session:
-        record = None
-        if resolved_number:
-            candidates = session.exec(
-                select(models.CardRecord).where(models.CardRecord.number == resolved_number)
-            ).all()
+        record: models.Card | None = None
+
+        def _pick_candidate(candidates: list[models.Card]) -> models.Card | None:
+            if not candidates:
+                return None
             for candidate in candidates:
-                candidate_identifier = set_utils.slugify_set_identifier(
+                slug = set_utils.slugify_set_identifier(
                     set_code=candidate.set_code, set_name=candidate.set_name
                 )
-                candidate_name = (candidate.set_name or "").strip().lower()
-                if identifier and candidate_identifier == identifier:
-                    record = candidate
-                    break
-                if resolved_set_name and candidate_name == resolved_set_name.lower():
-                    record = candidate
-                    break
-            if record is None and candidates:
-                record = candidates[0]
+                if identifier and slug == identifier:
+                    return candidate
+            target_name = (resolved_set_name or "").strip().lower()
+            if target_name:
+                for candidate in candidates:
+                    if (candidate.set_name or "").strip().lower() == target_name:
+                        return candidate
+            target_code = (resolved_set_code or "").strip().lower()
+            if target_code:
+                for candidate in candidates:
+                    if (candidate.set_code or "").strip().lower() == target_code:
+                        return candidate
+            target_card_name = (resolved_name or "").strip().lower()
+            if target_card_name:
+                for candidate in candidates:
+                    if (candidate.name or "").strip().lower() == target_card_name:
+                        return candidate
+            return candidates[0]
 
-        if record is None and resolved_number:
-            record = cards._locate_catalogue_record(
-                session,
-                name=resolved_name or "",
-                number=resolved_number,
-                set_code=resolved_set_code or identifier,
-                set_name=(
-                    resolved_set_name
-                    or (set_info.get("name") if set_info else None)
-                    or (identifier_guess or None)
-                ),
-            )
+        if resolved_number:
+            candidate_stmt = select(models.Card).where(models.Card.number == resolved_number)
+            candidates = session.exec(candidate_stmt).all()
+            record = _pick_candidate(candidates)
 
-        if record:
-            if record.name:
-                resolved_name = record.name
-            if record.set_name:
-                resolved_set_name = record.set_name
-            if record.set_code_clean or record.set_code:
-                resolved_set_code = (
-                    record.set_code_clean or record.set_code or ""
+        if record is None and resolved_number and resolved_number != number:
+            candidate_stmt = select(models.Card).where(models.Card.number == number)
+            candidates = session.exec(candidate_stmt).all()
+            record = _pick_candidate(candidates)
+
+        if record is None and resolved_name:
+            candidate_stmt = select(models.Card).where(models.Card.name == resolved_name)
+            candidates = session.exec(candidate_stmt).all()
+            record = _pick_candidate(candidates)
+
+        if record is None and identifier:
+            all_cards = session.exec(select(models.Card)).all()
+            candidates = [
+                candidate
+                for candidate in all_cards
+                if set_utils.slugify_set_identifier(
+                    set_code=candidate.set_code, set_name=candidate.set_name
                 )
-            if record.total:
-                resolved_total = record.total
-            if not resolved_number:
-                resolved_number = record.number
+                == identifier
+            ]
+            record = _pick_candidate(candidates) or (candidates[0] if candidates else None)
+
+        if record and not resolved_name:
+            resolved_name = record.name
+        if record and record.set_name:
+            resolved_set_name = record.set_name
+        if record and record.set_code:
+            resolved_set_code = record.set_code
+        if record and not resolved_number:
+            resolved_number = record.number
 
     if not resolved_name:
-        raise HTTPException(
-            status_code=404, detail="Nie znaleziono karty w katalogu."
-        )
+        raise HTTPException(status_code=404, detail="Nie znaleziono karty.")
 
-    if resolved_set_code and not resolved_set_name:
-        info = set_utils.get_set_info(set_code=resolved_set_code)
-        if info:
-            resolved_set_name = info.get("name") or resolved_set_name
-            if not resolved_total and info.get("total"):
-                resolved_total = str(info.get("total"))
-    elif resolved_set_name and not resolved_set_code:
-        guessed_code = set_utils.guess_set_code(resolved_set_name)
-        if guessed_code:
-            resolved_set_code = guessed_code
-
-    resolved_set_code = set_utils.clean_code(resolved_set_code) or ""
+    resolved_set_code = set_utils.clean_code(resolved_set_code) or identifier or ""
 
     context = {
         "request": request,
