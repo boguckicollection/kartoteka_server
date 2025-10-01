@@ -6,11 +6,7 @@ Kartoteka is a FastAPI service and JavaScript dashboard for organising a private
 JWT-secured endpoints for synchronising cards, storage locations and valuations with the hosted single-page application.
 
 ## Python Compatibility
-Kartoteka supports Python 3.9 through 3.13. The default requirements use `Pillow>=10.4`, which ships pre-built wheels for Python
-3.13.
-
-If you must stay on an older Python release that cannot install Pillow 10.4 or later, pin `Pillow<10.4` in `requirements.txt` and
-use a compatible Python version (for example, Python 3.12).
+Kartoteka supports Python 3.9 through 3.13. The dependency stack now focuses on the FastAPI/SQLModel backend and supporting tooling (authentication, templating and HTTP clients). All listed requirements ship pre-built wheels for current CPython releases, so no system compilation should be required on the supported versions.
 
 ## Running the web API and dashboard
 

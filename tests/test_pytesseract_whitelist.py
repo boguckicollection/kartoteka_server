@@ -1,7 +1,10 @@
 import shutil
+
 import pytest
-from PIL import Image, ImageDraw, ImageFont
-import pytesseract
+
+pytesseract = pytest.importorskip("pytesseract")
+pytest.importorskip("PIL")
+from PIL import Image, ImageDraw, ImageFont  # type: ignore # noqa: E402
 
 @pytest.mark.skipif(shutil.which("tesseract") is None, reason="tesseract not installed")
 def test_pytesseract_recognizes_fraction():
