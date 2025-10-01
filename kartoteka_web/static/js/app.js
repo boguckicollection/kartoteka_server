@@ -14,6 +14,133 @@
     }
   })();
 
+  const THEME_KEY = "kartoteka_theme";
+  const themeMediaQuery =
+    typeof window.matchMedia === "function"
+      ? window.matchMedia("(prefers-color-scheme: dark)")
+      : null;
+  let currentThemePreference = "auto";
+
+  const readStoredTheme = () => {
+    if (!storage) return null;
+    try {
+      return storage.getItem(THEME_KEY);
+    } catch (error) {
+      console.warn("Unable to read theme preference", error);
+      return null;
+    }
+  };
+
+  const persistThemePreference = (preference) => {
+    if (!storage) return;
+    try {
+      if (preference === "auto") {
+        storage.removeItem(THEME_KEY);
+      } else {
+        storage.setItem(THEME_KEY, preference);
+      }
+    } catch (error) {
+      console.warn("Unable to persist theme preference", error);
+    }
+  };
+
+  const resolveEffectiveTheme = (preference) => {
+    if (preference === "dark" || preference === "light") {
+      return preference;
+    }
+    if (themeMediaQuery && typeof themeMediaQuery.matches === "boolean") {
+      return themeMediaQuery.matches ? "dark" : "light";
+    }
+    return "light";
+  };
+
+  const updateThemeMetaTag = () => {
+    const meta = document.querySelector("meta[data-theme-color]");
+    const root = document.body || document.documentElement;
+    if (!meta || !root) return;
+    const styles = getComputedStyle(root);
+    const fallback = resolveEffectiveTheme(currentThemePreference) === "dark"
+      ? "#0b1220"
+      : "#ffffff";
+    const surface =
+      styles.getPropertyValue("--color-surface").trim() ||
+      styles.getPropertyValue("--color-background").trim() ||
+      fallback;
+    meta.setAttribute("content", surface || fallback);
+  };
+
+  const updateThemeToggleDisplay = (preference) => {
+    const toggle = document.querySelector("[data-theme-toggle]");
+    if (!toggle) return;
+    const icon = toggle.querySelector("[data-theme-toggle-icon]");
+    const effective = resolveEffectiveTheme(preference);
+    let label = "Motyw systemowy";
+    let iconSymbol = "🌓";
+    if (preference === "dark") {
+      label = "Motyw ciemny";
+      iconSymbol = "🌙";
+    } else if (preference === "light") {
+      label = "Motyw jasny";
+      iconSymbol = "☀️";
+    } else {
+      label =
+        effective === "dark" ? "Motyw systemowy (ciemny)" : "Motyw systemowy (jasny)";
+      iconSymbol = "🌓";
+    }
+    toggle.dataset.mode = preference;
+    toggle.setAttribute("aria-label", `${label}. Kliknij, aby zmienić motyw.`);
+    toggle.setAttribute("title", `${label} – kliknij, aby zmienić motyw`);
+    if (icon) {
+      icon.textContent = iconSymbol;
+    }
+  };
+
+  const applyThemePreference = (preference, options = {}) => {
+    const target = document.body;
+    if (!target) return;
+    const normalized = preference === "dark" || preference === "light" ? preference : "auto";
+    target.setAttribute("data-theme", normalized);
+    if (options.persist !== false) {
+      persistThemePreference(normalized);
+    }
+    currentThemePreference = normalized;
+    updateThemeToggleDisplay(normalized);
+    updateThemeMetaTag();
+  };
+
+  const initializeTheme = () => {
+    const stored = readStoredTheme();
+    const initial = stored === "dark" || stored === "light" ? stored : "auto";
+    applyThemePreference(initial, { persist: false });
+
+    const toggle = document.querySelector("[data-theme-toggle]");
+    if (toggle) {
+      toggle.addEventListener("click", () => {
+        const next =
+          currentThemePreference === "light"
+            ? "dark"
+            : currentThemePreference === "dark"
+              ? "auto"
+              : "light";
+        applyThemePreference(next);
+      });
+    }
+
+    if (themeMediaQuery) {
+      const handleChange = () => {
+        if (currentThemePreference === "auto") {
+          applyThemePreference("auto", { persist: false });
+        }
+      };
+      if (typeof themeMediaQuery.addEventListener === "function") {
+        themeMediaQuery.addEventListener("change", handleChange);
+      } else if (typeof themeMediaQuery.addListener === "function") {
+        themeMediaQuery.addListener(handleChange);
+      }
+      handleChange();
+    }
+  };
+
   const getToken = () => (storage ? storage.getItem(TOKEN_KEY) : null);
   const setToken = (token) => {
     if (!storage) return;
@@ -802,6 +929,8 @@
       });
     }
   };
+
+  initializeTheme();
 
   const init = async () => {
     setupNavigation();

@@ -1,6 +1,7 @@
 :root {
   color-scheme: light;
   --color-background: #f5f6fb;
+  --color-background-alt: #eef1f9;
   --color-surface: #ffffff;
   --color-surface-alt: #f0f3fa;
   --color-border: #d9deeb;
@@ -29,10 +30,63 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: linear-gradient(180deg, var(--color-background) 0%, #eef1f9 100%);
+  background: linear-gradient(
+    180deg,
+    var(--color-background) 0%,
+    var(--color-background-alt, var(--color-background)) 100%
+  );
   color: var(--color-text);
   display: flex;
   flex-direction: column;
+}
+
+body[data-theme="light"] {
+  color-scheme: light;
+}
+
+body[data-theme="dark"] {
+  color-scheme: dark;
+  --color-background: #0b1220;
+  --color-background-alt: #111a2c;
+  --color-surface: #111a2c;
+  --color-surface-alt: #1a2742;
+  --color-border: #253556;
+  --color-border-strong: #314469;
+  --color-text: #f8fbff;
+  --color-muted: #9fb3d9;
+  --color-accent: #60a5fa;
+  --color-accent-dark: #3b82f6;
+  --color-accent-soft: rgba(59, 130, 246, 0.22);
+  --color-success: #22c55e;
+  --color-danger: #f87171;
+  --shadow-soft: 0 18px 48px rgba(8, 14, 26, 0.65);
+  --shadow-card: 0 10px 32px rgba(8, 14, 26, 0.45);
+}
+
+body[data-theme="auto"] {
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  body[data-theme="auto"],
+  body:not([data-theme]) {
+    color-scheme: dark;
+    --color-background: #0b1220;
+    --color-background-alt: #111a2c;
+    --color-surface: #111a2c;
+    --color-surface-alt: #1a2742;
+    --color-border: #253556;
+    --color-border-strong: #314469;
+    --color-text: #f8fbff;
+    --color-muted: #9fb3d9;
+    --color-accent: #60a5fa;
+    --color-accent-dark: #3b82f6;
+    --color-accent-soft: rgba(59, 130, 246, 0.22);
+    --color-success: #22c55e;
+    --color-danger: #f87171;
+    --shadow-soft: 0 18px 48px rgba(8, 14, 26, 0.65);
+    --shadow-card: 0 10px 32px rgba(8, 14, 26, 0.45);
+  }
 }
 
 main {
@@ -229,6 +283,20 @@ img {
 .ghost:focus-visible {
   border-color: var(--color-accent);
   color: var(--color-accent-dark);
+}
+
+.theme-toggle {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+
+.theme-toggle span {
+  line-height: 1;
 }
 
 .page-hero {

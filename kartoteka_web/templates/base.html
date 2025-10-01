@@ -14,7 +14,11 @@
   <script defer src="{{ url_for('static', path='/js/app.js') }}"></script>
   {% block head_extra %}{% endblock %}
 </head>
-<body data-username="{{ username | default('') }}" data-avatar="{{ avatar_url | default('') }}">
+<body
+  data-theme="auto"
+  data-username="{{ username | default('') }}"
+  data-avatar="{{ avatar_url | default('') }}"
+>
   {% set current_path = request.url.path %}
   <header class="app-header">
     <div class="brand">
@@ -41,6 +45,15 @@
       >Dodaj kartę</a>
     </nav>
     <div class="header-actions">
+      <button
+        type="button"
+        class="ghost theme-toggle"
+        data-theme-toggle
+        aria-label="Przełącz motyw"
+        title="Przełącz motyw"
+      >
+        <span aria-hidden="true" data-theme-toggle-icon>🌓</span>
+      </button>
       <span class="user-pill" data-user-pill>
         <span class="user-pill-label" data-username-display>Gość</span>
       </span>
