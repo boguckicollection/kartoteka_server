@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
@@ -126,56 +127,46 @@ async def _resolve_request_user(request: Request) -> tuple[str, bool, str]:
         return user.username, False, user.avatar_url or ""
 
 
-@app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard_page(request: Request) -> HTMLResponse:
+async def _render_authenticated_page(
+    request: Request, template_name: str, extra_context: dict[str, Any] | None = None
+) -> HTMLResponse:
     username, invalid_credentials, avatar_url = await _resolve_request_user(request)
     if invalid_credentials:
-        return templates.TemplateResponse(
-            "login.html", {"request": request, "username": ""}
-        )
-    return templates.TemplateResponse(
-        "dashboard.html",
-        {"request": request, "username": username, "avatar_url": avatar_url},
-    )
+        return templates.TemplateResponse("login.html", {"request": request, "username": ""})
+
+    context: dict[str, Any] = {
+        "request": request,
+        "username": username,
+        "avatar_url": avatar_url,
+    }
+    if extra_context:
+        context.update(extra_context)
+    return templates.TemplateResponse(template_name, context)
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_page(request: Request) -> HTMLResponse:
+    return await _render_authenticated_page(request, "dashboard.html")
+
+
+@app.get("/collection", response_class=HTMLResponse)
+async def collection_page(request: Request) -> HTMLResponse:
+    return await _render_authenticated_page(request, "dashboard.html")
 
 
 @app.get("/cards/add", response_class=HTMLResponse)
 async def add_card_page(request: Request) -> HTMLResponse:
-    username, invalid_credentials, avatar_url = await _resolve_request_user(request)
-    if invalid_credentials:
-        return templates.TemplateResponse(
-            "login.html", {"request": request, "username": ""}
-        )
-    return templates.TemplateResponse(
-        "add_card.html",
-        {"request": request, "username": username, "avatar_url": avatar_url},
-    )
+    return await _render_authenticated_page(request, "add_card.html")
 
 
 @app.get("/portfolio", response_class=HTMLResponse)
 async def portfolio_page(request: Request) -> HTMLResponse:
-    username, invalid_credentials, avatar_url = await _resolve_request_user(request)
-    if invalid_credentials:
-        return templates.TemplateResponse(
-            "login.html", {"request": request, "username": ""}
-        )
-    return templates.TemplateResponse(
-        "portfolio.html",
-        {"request": request, "username": username, "avatar_url": avatar_url},
-    )
+    return await _render_authenticated_page(request, "portfolio.html")
 
 
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request) -> HTMLResponse:
-    username, invalid_credentials, avatar_url = await _resolve_request_user(request)
-    if invalid_credentials:
-        return templates.TemplateResponse(
-            "login.html", {"request": request, "username": ""}
-        )
-    return templates.TemplateResponse(
-        "settings.html",
-        {"request": request, "username": username, "avatar_url": avatar_url},
-    )
+    return await _render_authenticated_page(request, "settings.html")
 
 
 @app.get("/cards/{set_identifier}/{number}", response_class=HTMLResponse)

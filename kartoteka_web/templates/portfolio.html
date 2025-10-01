@@ -1,45 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Portfel - Kartoteka{% endblock %}
+{% block title %}Zapisane karty - Kartoteka{% endblock %}
 {% block content %}
-<section class="page-hero">
+<section class="page-hero portfolio-hero">
   <div>
-    <p class="eyebrow">Analiza kolekcji</p>
-    <h1>Portfel kolekcjonera</h1>
-    <p>Przeglądaj swoją kolekcję i analizuj liczbę kart oraz zadeklarowane koszty.</p>
+    <p class="eyebrow">Zapisane karty</p>
+    <h1>Przegląd kolekcji</h1>
+    <p>
+      Ten widok przedstawia Twoje wpisy w formie prostych kart. To wygodne miejsce na szybkie
+      sprawdzenie, które pozycje masz już w kolekcji.
+    </p>
     <div class="hero-actions">
-      <a class="button secondary" href="/dashboard">Powrót do kolekcji</a>
-      <button id="refresh-portfolio" class="primary" type="button">Odśwież dane</button>
-    </div>
-  </div>
-</section>
-
-<section class="panel portfolio-performance-panel">
-  <div class="panel-header">
-    <div>
-      <h2 id="portfolio-chart-heading">Historia kolekcji</h2>
-      <p>Podgląd trendów jest obecnie niedostępny w uproszczonym trybie.</p>
-    </div>
-    <div class="portfolio-change" id="portfolio-change" data-direction="flat">
-      <span class="portfolio-change-icon" aria-hidden="true">→</span>
-      <div>
-        <strong id="portfolio-change-value">0.00 PLN</strong>
-        <span>Zmiana w 24h</span>
-      </div>
-    </div>
-  </div>
-  <div class="portfolio-chart-wrapper">
-    <div
-      class="portfolio-chart"
-      id="portfolio-chart"
-      role="group"
-      aria-live="polite"
-      aria-labelledby="portfolio-chart-heading"
-    >
-      <p>Ładuję dane wykresu…</p>
-    </div>
-    <div class="portfolio-chart-meta">
-      <div class="portfolio-chart-stats" hidden></div>
-      <div class="portfolio-chart-range" hidden></div>
+      <a class="button secondary" href="/collection">Przejdź do listy edycji</a>
+      <button id="refresh-portfolio" class="button primary" type="button">Odśwież listę</button>
     </div>
   </div>
 </section>
@@ -47,38 +19,28 @@
 <section class="panel">
   <div class="panel-header">
     <div>
-      <h2>Podsumowanie portfela</h2>
-      <p>Kluczowe wskaźniki obejmujące liczbę wpisów, egzemplarzy i łączny koszt zakupu.</p>
+      <h2>Karty w kolekcji</h2>
+      <p>Podstawowe metadane o każdej karcie i zadeklarowane ilości.</p>
     </div>
-  </div>
-  <div class="stat-grid" id="portfolio-overview">
-    <article class="stat-card">
-      <h3>Wpisy w kolekcji</h3>
-      <p id="portfolio-count">0</p>
-      <span>Unikalne rekordy w bazie</span>
-    </article>
-    <article class="stat-card">
-      <h3>Łączna ilość kart</h3>
-      <p id="portfolio-quantity">0</p>
-      <span>Sumaryczna liczba egzemplarzy</span>
-    </article>
-    <article class="stat-card">
-      <h3>Łączna kwota zakupu [PLN]</h3>
-      <p id="portfolio-value">0.00</p>
-      <span>Suma zadeklarowanych kosztów kart</span>
-    </article>
   </div>
   <div class="alert" id="portfolio-alert" hidden></div>
+  <div class="portfolio-list" id="portfolio-cards"></div>
+  <p class="empty-state" id="portfolio-empty" hidden>Brak kart w kolekcji. Dodaj wpisy, by zobaczyć je tutaj.</p>
 </section>
 
 <section class="panel">
   <div class="panel-header">
     <div>
-      <h2>Karty w portfelu</h2>
-      <p>Przeglądaj zapisane karty wraz z ich szczegółami i cenami zakupu.</p>
+      <h2>Chcesz zaktualizować dane?</h2>
+      <p>Wszystkie zmiany ilości lub cen wykonasz w widoku kolekcji.</p>
     </div>
   </div>
-  <div class="portfolio-grid" id="portfolio-cards"></div>
-  <p class="portfolio-empty" id="portfolio-empty" hidden>Brak kart w portfelu. Dodaj pozycje do kolekcji, aby pojawiły się w tym miejscu.</p>
+  <div class="collection-followup">
+    <p>
+      Kliknij przycisk poniżej, aby przejść do tabeli umożliwiającej edycję wpisów oraz usuwanie
+      niepotrzebnych kart.
+    </p>
+    <a class="button secondary" href="/collection">Otwórz widok edycji</a>
+  </div>
 </section>
 {% endblock %}
