@@ -5,6 +5,7 @@ from __future__ import annotations
 from sqlmodel import select
 
 from kartoteka_web import database, models
+from kartoteka_web.routes import cards as cards_routes
 
 
 def _auth_headers(client, username: str = "ash", password: str = "pikachu") -> dict[str, str]:
@@ -131,7 +132,16 @@ def test_card_search_and_detail(api_client, monkeypatch):
 
     captured: dict[str, object] = {}
 
-    def fake_search_cards(*, name, number=None, set_name=None, total=None, limit):
+    def fake_search_cards(
+        *,
+        name,
+        number=None,
+        set_name=None,
+        total=None,
+        limit,
+        rapidapi_key=None,
+        rapidapi_host=None,
+    ):
         captured.update(
             {
                 "name": name,
@@ -139,6 +149,8 @@ def test_card_search_and_detail(api_client, monkeypatch):
                 "set_name": set_name,
                 "total": total,
                 "limit": limit,
+                "rapidapi_key": rapidapi_key,
+                "rapidapi_host": rapidapi_host,
             }
         )
         return search_results
@@ -215,3 +227,47 @@ def test_card_search_and_detail(api_client, monkeypatch):
 
     unauthenticated_search = api_client.get("/cards/search", params={"query": "Eevee"})
     assert unauthenticated_search.status_code == 401
+
+
+def test_card_search_passes_rapidapi_credentials(api_client, monkeypatch):
+    headers = _auth_headers(api_client, username="misty", password="starmie")
+
+    captured: dict[str, object] = {}
+
+    def fake_search_cards(
+        *,
+        name,
+        number=None,
+        set_name=None,
+        total=None,
+        limit,
+        rapidapi_key=None,
+        rapidapi_host=None,
+    ):
+        captured.update(
+            {
+                "name": name,
+                "number": number,
+                "set_name": set_name,
+                "total": total,
+                "limit": limit,
+                "rapidapi_key": rapidapi_key,
+                "rapidapi_host": rapidapi_host,
+            }
+        )
+        return []
+
+    monkeypatch.setattr(cards_routes.tcg_api, "search_cards", fake_search_cards)
+    monkeypatch.setattr(cards_routes, "RAPIDAPI_KEY", "rapid-key")
+    monkeypatch.setattr(cards_routes, "RAPIDAPI_HOST", "rapid.example.com")
+
+    response = api_client.get(
+        "/cards/search",
+        params={"query": "Starmie"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert captured["rapidapi_key"] == "rapid-key"
+    assert captured["rapidapi_host"] == "rapid.example.com"
+    assert captured["name"].startswith("Starmie")
