@@ -1,4 +1,4 @@
-"""Tests for Pokémon TCG API helper utilities."""
+"""Tests for RapidAPI Pokémon TCG helper utilities."""
 
 from __future__ import annotations
 
@@ -30,10 +30,7 @@ class _DummySession:
         return _Response()
 
 
-def test_search_cards_uses_rapidapi_headers(monkeypatch):
-    monkeypatch.setattr(tcg_api, "POKEMONTCG_API_URL", "https://api.pokemontcg.io/v2/cards")
-    monkeypatch.setattr(tcg_api, "POKEMONTCG_API_KEY", "official-key")
-
+def test_search_cards_uses_rapidapi_headers():
     session = _DummySession()
     tcg_api.search_cards(
         name="Pikachu",
@@ -48,17 +45,12 @@ def test_search_cards_uses_rapidapi_headers(monkeypatch):
     headers = call["headers"]
     assert headers.get("X-RapidAPI-Key") == "rapid-key"
     assert headers.get("X-RapidAPI-Host") == "pokemon-tcg.p.rapidapi.com"
-    assert "X-Api-Key" not in headers
     params = call["params"] or {}
     assert "search" in params
-    assert "q" not in params
     assert params["search"] == "pikachu"
 
 
-def test_search_cards_uses_default_host_when_missing(monkeypatch):
-    monkeypatch.setattr(tcg_api, "POKEMONTCG_API_URL", "https://api.pokemontcg.io/v2/cards")
-    monkeypatch.setattr(tcg_api, "POKEMONTCG_API_KEY", "official-key")
-
+def test_search_cards_uses_default_host_when_missing():
     session = _DummySession()
     tcg_api.search_cards(
         name="Eevee",
@@ -73,17 +65,12 @@ def test_search_cards_uses_default_host_when_missing(monkeypatch):
     headers = call["headers"]
     assert headers.get("X-RapidAPI-Key") == "rapid-key"
     assert headers.get("X-RapidAPI-Host") == "pokemon-tcg.p.rapidapi.com"
-    assert "X-Api-Key" not in headers
     params = call["params"] or {}
     assert "search" in params
-    assert "q" not in params
     assert params["search"] == "eevee"
 
 
-def test_list_set_cards_uses_rapidapi_headers(monkeypatch):
-    monkeypatch.setattr(tcg_api, "POKEMONTCG_API_URL", "https://api.pokemontcg.io/v2/cards")
-    monkeypatch.setattr(tcg_api, "POKEMONTCG_API_KEY", "official-key")
-
+def test_list_set_cards_uses_rapidapi_headers():
     session = _DummySession()
     cards, request_count = tcg_api.list_set_cards(
         "base",
@@ -101,20 +88,15 @@ def test_list_set_cards_uses_rapidapi_headers(monkeypatch):
     headers = call["headers"]
     assert headers.get("X-RapidAPI-Key") == "rapid-key"
     assert headers.get("X-RapidAPI-Host") == "pokemon-tcg.p.rapidapi.com"
-    assert "X-Api-Key" not in headers
     params = call["params"] or {}
     assert "search" in params
-    assert "q" not in params
     query = params["search"]
     assert 'setId:"base"' in query
     assert 'setPtcgoCode:"base"' in query
     assert 'setName:"*base*"' in query
 
 
-def test_search_cards_uses_official_query_params(monkeypatch):
-    monkeypatch.setattr(tcg_api, "POKEMONTCG_API_URL", "https://api.pokemontcg.io/v2/cards")
-    monkeypatch.setattr(tcg_api, "POKEMONTCG_API_KEY", "official-key")
-
+def test_search_cards_builds_compound_query():
     session = _DummySession()
     tcg_api.search_cards(
         name="Pikachu",
@@ -126,30 +108,20 @@ def test_search_cards_uses_official_query_params(monkeypatch):
     assert session.calls, "Expected a single HTTP request"
     call = session.calls[0]
     params = call["params"] or {}
-    assert "q" in params
-    assert "search" not in params
-    query = params["q"]
-    assert 'name:"*pikachu*"' in query
-    assert 'set.id:"base"' in query
-    assert 'set.ptcgoCode:"base"' in query
-    assert 'set.name:"*base*"' in query
-    assert "set.total:102" in query
-    assert "set.printedTotal:102" in query
+    assert params["search"] == "pikachu base 102"
 
 
-def test_list_set_cards_uses_official_query_params(monkeypatch):
-    monkeypatch.setattr(tcg_api, "POKEMONTCG_API_URL", "https://api.pokemontcg.io/v2/cards")
-    monkeypatch.setattr(tcg_api, "POKEMONTCG_API_KEY", "official-key")
-
+def test_list_set_cards_without_key_uses_default_headers():
     session = _DummySession()
     tcg_api.list_set_cards("base", limit=1, session=session)
 
     assert session.calls, "Expected at least one HTTP request"
     call = session.calls[0]
+    headers = call["headers"]
+    assert "X-RapidAPI-Key" not in headers
+    assert headers.get("X-RapidAPI-Host") == "pokemon-tcg.p.rapidapi.com"
     params = call["params"] or {}
-    assert "q" in params
-    assert "search" not in params
-    query = params["q"]
-    assert 'set.id:"base"' in query
-    assert 'set.ptcgoCode:"base"' in query
-    assert 'set.name:"*base*"' in query
+    query = params["search"]
+    assert 'setId:"base"' in query
+    assert 'setPtcgoCode:"base"' in query
+    assert 'setName:"*base*"' in query
