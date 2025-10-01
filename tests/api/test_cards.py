@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib
+
 from sqlmodel import select
 
 from kartoteka_web import database, models
@@ -271,3 +273,58 @@ def test_card_search_passes_rapidapi_credentials(api_client, monkeypatch):
     assert captured["rapidapi_key"] == "rapid-key"
     assert captured["rapidapi_host"] == "rapid.example.com"
     assert captured["name"].startswith("Starmie")
+
+
+def test_cards_module_uses_generic_rapidapi_env(monkeypatch):
+    for variable in (
+        "KARTOTEKA_RAPIDAPI_KEY",
+        "POKEMONTCG_RAPIDAPI_KEY",
+        "KARTOTEKA_RAPIDAPI_HOST",
+        "POKEMONTCG_RAPIDAPI_HOST",
+    ):
+        monkeypatch.delenv(variable, raising=False)
+
+    monkeypatch.setenv("RAPIDAPI_KEY", "generic-rapid-key")
+    monkeypatch.setenv("RAPIDAPI_HOST", "generic-rapid.example.com")
+
+    reloaded_cards = importlib.reload(cards_routes)
+
+    captured: dict[str, object] = {}
+
+    def fake_search_cards(
+        *,
+        name,
+        number=None,
+        set_name=None,
+        total=None,
+        limit,
+        rapidapi_key=None,
+        rapidapi_host=None,
+    ):
+        captured.update(
+            {
+                "name": name,
+                "number": number,
+                "set_name": set_name,
+                "total": total,
+                "limit": limit,
+                "rapidapi_key": rapidapi_key,
+                "rapidapi_host": rapidapi_host,
+            }
+        )
+        return []
+
+    monkeypatch.setattr(reloaded_cards.tcg_api, "search_cards", fake_search_cards)
+
+    dummy_user = models.User(id=1, username="misty", hashed_password="hashed:pw")
+
+    response = reloaded_cards.search_cards_endpoint(
+        query="Eevee",
+        limit=5,
+        current_user=dummy_user,
+        session=None,
+    )
+
+    assert response.total == 0
+    assert captured["rapidapi_key"] == "generic-rapid-key"
+    assert captured["rapidapi_host"] == "generic-rapid.example.com"
