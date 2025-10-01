@@ -95,6 +95,110 @@ def _extract_images(card: dict[str, Any]) -> tuple[Optional[str], Optional[str]]
     return image_small, image_large
 
 
+def _normalize_price_value(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        price = float(value)
+    elif isinstance(value, str):
+        text_value = value.strip()
+        if not text_value:
+            return None
+        text_value = text_value.replace(",", ".")
+        try:
+            price = float(text_value)
+        except ValueError:
+            return None
+    else:
+        return None
+    if price != price or price in (float("inf"), float("-inf")) or price < 0:
+        return None
+    return round(price, 2)
+
+
+def _extract_cardmarket_price(card: dict[str, Any]) -> Optional[float]:
+    cardmarket = (
+        card.get("cardmarket")
+        or card.get("cardMarket")
+        or card.get("card_market")
+        or {}
+    )
+    if not isinstance(cardmarket, dict):
+        return None
+    prices = cardmarket.get("prices")
+    if isinstance(prices, dict):
+        for key in (
+            "averageSellPrice",
+            "trendPrice",
+            "avg7",
+            "avg30",
+            "avg1",
+            "lowPrice",
+        ):
+            price = _normalize_price_value(prices.get(key))
+            if price is not None:
+                return price
+    for key in ("price", "marketPrice"):
+        price = _normalize_price_value(cardmarket.get(key))
+        if price is not None:
+            return price
+    return None
+
+
+def _extract_tcgplayer_price(card: dict[str, Any]) -> Optional[float]:
+    tcgplayer = card.get("tcgplayer") or card.get("tcgPlayer") or {}
+    if not isinstance(tcgplayer, dict):
+        return None
+    prices = tcgplayer.get("prices")
+    if isinstance(prices, dict):
+        for variant in prices.values():
+            if not isinstance(variant, dict):
+                continue
+            for key in ("market", "mid", "directLow", "low", "high"):
+                price = _normalize_price_value(variant.get(key))
+                if price is not None:
+                    return price
+    for key in ("market", "mid", "price"):
+        price = _normalize_price_value(tcgplayer.get(key))
+        if price is not None:
+            return price
+    return None
+
+
+def _extract_generic_price(card: dict[str, Any]) -> Optional[float]:
+    for key in ("price", "marketPrice", "current_price", "currentPrice"):
+        price = _normalize_price_value(card.get(key))
+        if price is not None:
+            return price
+    prices = card.get("prices")
+    if isinstance(prices, dict):
+        for value in prices.values():
+            if isinstance(value, dict):
+                for nested in value.values():
+                    price = _normalize_price_value(nested)
+                    if price is not None:
+                        return price
+            else:
+                price = _normalize_price_value(value)
+                if price is not None:
+                    return price
+    return None
+
+
+def _extract_card_price(card: dict[str, Any]) -> Optional[float]:
+    for extractor in (
+        _extract_cardmarket_price,
+        _extract_tcgplayer_price,
+        _extract_generic_price,
+    ):
+        price = extractor(card)
+        if price is not None:
+            return price
+    return None
+
+
 def _build_cards_endpoint(
     rapidapi_host: Optional[str], *path_parts: str
 ) -> str:
@@ -220,6 +324,7 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
     )
 
     image_small, image_large = _extract_images(card)
+    price = _extract_card_price(card)
 
     return {
         "name": card.get("name") or "",
@@ -235,6 +340,7 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
         "series": series,
         "release_date": release_date,
         "set_icon": set_icon,
+        "price": price,
     }
 
 
@@ -246,6 +352,7 @@ def search_cards(
     total: Optional[str] = None,
     limit: int = 10,
     sort: Optional[str] = None,
+    order: Optional[str] = None,
     rapidapi_key: Optional[str] = None,
     rapidapi_host: Optional[str] = None,
     session: Optional[requests.sessions.Session] = None,
@@ -302,6 +409,8 @@ def search_cards(
     }
     if sort:
         params["sort"] = sort
+    if order:
+        params["order"] = order
 
     try:
         response = http.get(url, params=params, headers=headers, timeout=timeout)
