@@ -1,9 +1,8 @@
-"""Minimal Pokémon TCG API helpers for catalogue operations."""
+"""Minimal RapidAPI Pokémon TCG helpers for catalogue operations."""
 
 from __future__ import annotations
 
 import logging
-import os
 from difflib import SequenceMatcher
 from typing import Any, Optional
 from urllib.parse import urlparse
@@ -14,8 +13,6 @@ from ..utils import text
 
 logger = logging.getLogger(__name__)
 
-POKEMONTCG_API_URL = os.getenv("POKEMONTCG_API_URL", "https://api.pokemontcg.io/v2/cards")
-POKEMONTCG_API_KEY = os.getenv("POKEMONTCG_API_KEY")
 RAPIDAPI_DEFAULT_HOST = "pokemon-tcg.p.rapidapi.com"
 
 
@@ -90,15 +87,12 @@ def _extract_images(card: dict[str, Any]) -> tuple[Optional[str], Optional[str]]
 
 
 def _build_cards_endpoint(rapidapi_host: Optional[str]) -> str:
-    """Return an absolute API endpoint for the Pokémon TCG cards resource."""
+    """Return an absolute RapidAPI endpoint for the cards resource."""
 
-    parsed = urlparse(POKEMONTCG_API_URL)
     host = rapidapi_host or RAPIDAPI_DEFAULT_HOST
-    path = parsed.path or "/v2/cards"
-    if not path.startswith("/"):
-        path = "/" + path
-    query = f"?{parsed.query}" if parsed.query else ""
-    return f"https://{host}{path}{query}"
+    parsed = urlparse(f"https://{host}")
+    path = "/v2/cards"
+    return f"https://{parsed.netloc or host}{path}"
 
 
 def _normalize_text_field(value: Any) -> Optional[str]:
@@ -250,87 +244,31 @@ def search_cards(
     name_api = text.normalize(name, keep_spaces=True)
     headers: dict[str, str] = {}
     _apply_default_user_agent(headers, session)
-    use_rapidapi = bool(rapidapi_key or rapidapi_host)
-    if use_rapidapi:
-        api_host = rapidapi_host or RAPIDAPI_DEFAULT_HOST
-        url = _build_cards_endpoint(api_host)
-        if rapidapi_key:
-            headers["X-RapidAPI-Key"] = rapidapi_key
-        headers["X-RapidAPI-Host"] = api_host
-    else:
-        url = POKEMONTCG_API_URL
-        if POKEMONTCG_API_KEY:
-            headers["X-Api-Key"] = POKEMONTCG_API_KEY
+    api_host = rapidapi_host or RAPIDAPI_DEFAULT_HOST
+    url = _build_cards_endpoint(api_host)
+    if rapidapi_key:
+        headers["X-RapidAPI-Key"] = rapidapi_key
+    headers["X-RapidAPI-Host"] = api_host
 
-    def _escape_query(value: str) -> str:
-        return value.replace("\\", "\\\\").replace('"', r"\"")
-
-    if use_rapidapi:
-        rapid_search_parts: list[str] = []
-        if name_api:
-            rapid_search_parts.append(name_api)
-        if number_clean:
-            rapid_search_parts.append(number_clean)
-        if set_name:
-            set_query = text.normalize(set_name, keep_spaces=True)
-            if set_query:
-                rapid_search_parts.append(set_query)
-        if total_clean:
-            rapid_search_parts.append(total_clean)
-        query_value = " ".join(part for part in rapid_search_parts if part)
-        if not query_value:
-            return []
-    else:
-        query_parts: list[str] = []
-        if name_api:
-            query_parts.append(f'name:"*{_escape_query(name_api)}*"')
-        if number_clean:
-            query_parts.append(f'number:"{_escape_query(number_clean)}"')
-        if set_name:
-            set_query = text.normalize(set_name, keep_spaces=True)
-            if set_query:
-                escaped = _escape_query(set_query)
-                set_fields = (
-                    "set.id",
-                    "set.ptcgoCode",
-                    "set.name",
-                )
-                query_parts.append(
-                    "(" +
-                    " OR ".join(
-                        (
-                            f'{set_fields[0]}:"{escaped}"',
-                            f'{set_fields[1]}:"{escaped}"',
-                            f'{set_fields[2]}:"*{escaped}*"',
-                        )
-                    ) +
-                    ")"
-                )
-        if total_clean:
-            escaped_total = _escape_query(total_clean)
-            total_fields = (
-                "set.total",
-                "set.printedTotal",
-            )
-            query_parts.append(
-                "(" 
-                + " OR ".join(
-                    (
-                        f"{total_fields[0]}:{escaped_total}",
-                        f"{total_fields[1]}:{escaped_total}",
-                    )
-                )
-                + ")"
-            )
-
-        if not query_parts:
-            return []
-        query_value = " and ".join(query_parts)
+    rapid_search_parts: list[str] = []
+    if name_api:
+        rapid_search_parts.append(name_api)
+    if number_clean:
+        rapid_search_parts.append(number_clean)
+    if set_name:
+        set_query = text.normalize(set_name, keep_spaces=True)
+        if set_query:
+            rapid_search_parts.append(set_query)
+    if total_clean:
+        rapid_search_parts.append(total_clean)
+    query_value = " ".join(part for part in rapid_search_parts if part)
+    if not query_value:
+        return []
 
     page_size = max(limit * 5, 50)
     page_size = min(page_size, 250)
     params = {
-        ("search" if use_rapidapi else "q"): query_value,
+        "search": query_value,
         "page": "1",
         "pageSize": str(page_size),
     }
@@ -345,7 +283,7 @@ def search_cards(
         logger.warning("Request timed out")
         return []
     except (requests.RequestException, ValueError) as exc:  # pragma: no cover
-        logger.warning("Fetching cards from the Pokémon TCG API failed: %s", exc)
+        logger.warning("Fetching cards from RapidAPI failed: %s", exc)
         return []
 
     if isinstance(cards, dict):
@@ -454,17 +392,11 @@ def list_set_cards(
     http = session or requests
     headers: dict[str, str] = {}
     _apply_default_user_agent(headers, session)
-    use_rapidapi = bool(rapidapi_key or rapidapi_host)
-    if use_rapidapi:
-        api_host = rapidapi_host or RAPIDAPI_DEFAULT_HOST
-        url = _build_cards_endpoint(api_host)
-        if rapidapi_key:
-            headers["X-RapidAPI-Key"] = rapidapi_key
-        headers["X-RapidAPI-Host"] = api_host
-    else:
-        url = POKEMONTCG_API_URL
-        if POKEMONTCG_API_KEY:
-            headers["X-Api-Key"] = POKEMONTCG_API_KEY
+    api_host = rapidapi_host or RAPIDAPI_DEFAULT_HOST
+    url = _build_cards_endpoint(api_host)
+    if rapidapi_key:
+        headers["X-RapidAPI-Key"] = rapidapi_key
+    headers["X-RapidAPI-Host"] = api_host
 
     def _escape_query(value: str) -> str:
         return value.replace("\\", "\\\\").replace('"', r"\"")
@@ -473,8 +405,6 @@ def list_set_cards(
     normalized = text.normalize(set_code, keep_spaces=True)
     escaped_value = _escape_query(set_value)
     def _map_query_field(field: str) -> str:
-        if not use_rapidapi:
-            return field
         mapping = {
             "set.id": "setId",
             "set.ptcgoCode": "setPtcgoCode",
@@ -502,7 +432,7 @@ def list_set_cards(
 
     while True:
         params = {
-            ("search" if use_rapidapi else "q"): query,
+            "search": query,
             "page": str(page),
             "pageSize": str(page_size),
         }
