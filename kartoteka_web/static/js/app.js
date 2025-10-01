@@ -614,12 +614,44 @@
     for (const item of items) {
       const article = document.createElement("article");
       article.className = "card-search-item";
-      const numberLabel = item.number_display || item.number;
+      const numberLabel = item.number_display || item.number || "";
+      const cardName = (item.name || "").trim() || "Bez nazwy";
+      const setName = (item.set_name || "").trim() || "Nieznany dodatek";
+      const hasThumbnail = Boolean(item.image_small);
+      const hasSetIcon = Boolean(item.set_icon);
+      const cardAlt = `Miniatura karty ${cardName}`;
+      const setAlt = `Ikona dodatku ${setName}`;
       article.innerHTML = `
+        <div class="card-search-media">
+          <div class="card-search-thumbnail">
+            ${
+              hasThumbnail
+                ? `<img src="${escapeHtml(item.image_small)}" alt="${escapeHtml(cardAlt)}" loading="lazy" decoding="async" data-card-thumbnail />`
+                : ""
+            }
+            <div class="card-search-thumbnail-fallback"${hasThumbnail ? " hidden" : ""} data-card-thumbnail-fallback>
+              Brak miniatury
+            </div>
+          </div>
+          <div class="card-search-set">
+            <div class="card-search-set-icon">
+              ${
+                hasSetIcon
+                  ? `<img src="${escapeHtml(item.set_icon)}" alt="${escapeHtml(setAlt)}" loading="lazy" decoding="async" data-card-set-icon />`
+                  : ""
+              }
+              <span class="card-search-set-icon-fallback"${hasSetIcon ? " hidden" : ""} data-card-set-icon-fallback aria-hidden="true">?</span>
+            </div>
+            <div class="card-search-set-text">
+              <span class="card-search-set-label">Dodatek</span>
+              <span class="card-search-set-value">${escapeHtml(setName)}</span>
+            </div>
+          </div>
+        </div>
         <div class="card-search-info">
-          <h3>${escapeHtml(item.name)}</h3>
-          <p>${escapeHtml(item.set_name || "")}</p>
-          <p class="card-search-meta">${escapeHtml(numberLabel || "")}</p>
+          <h3>${escapeHtml(cardName)}</h3>
+          <p>${escapeHtml(setName)}</p>
+          <p class="card-search-meta">${escapeHtml(numberLabel)}</p>
         </div>
         <form class="card-search-form" data-card-form>
           <input type="hidden" name="card_name" value="${escapeHtml(item.name)}" />
@@ -648,6 +680,24 @@
           </div>
         </form>
       `;
+      const thumbnail = article.querySelector("[data-card-thumbnail]");
+      const thumbnailFallback = article.querySelector("[data-card-thumbnail-fallback]");
+      if (thumbnail && thumbnailFallback) {
+        const handleThumbnailError = () => {
+          thumbnail.remove();
+          thumbnailFallback.hidden = false;
+        };
+        thumbnail.addEventListener("error", handleThumbnailError, { once: true });
+      }
+      const setIcon = article.querySelector("[data-card-set-icon]");
+      const setIconFallback = article.querySelector("[data-card-set-icon-fallback]");
+      if (setIcon && setIconFallback) {
+        const handleSetIconError = () => {
+          setIcon.remove();
+          setIconFallback.hidden = false;
+        };
+        setIcon.addEventListener("error", handleSetIconError, { once: true });
+      }
       container.appendChild(article);
     }
   };
