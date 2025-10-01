@@ -37,8 +37,8 @@
     <div class="card-search-toolbar-group" role="group" aria-label="Przełącz widok wyników wyszukiwania">
       <span class="card-search-toolbar-label">Widok</span>
       <div class="card-search-view-toggle">
-        <button type="button" data-card-view="grid" aria-pressed="false">Kratka</button>
-        <button type="button" data-card-view="list" aria-pressed="true">Lista</button>
+        <button type="button" data-card-view="grid" aria-pressed="true" class="is-active">Kratka</button>
+        <button type="button" data-card-view="list" aria-pressed="false">Lista</button>
       </div>
     </div>
     <div class="card-search-toolbar-group card-search-toolbar-group--sort">
@@ -58,9 +58,9 @@
   <p id="card-search-summary" class="search-summary" hidden aria-live="polite"></p>
   <div
     id="card-search-results"
-    class="card-search-results card-search-results--list"
+    class="card-search-results card-search-results--grid"
     role="list"
-    data-view-mode="list"
+    data-view-mode="grid"
   ></div>
   <p id="card-search-empty" class="empty-state" hidden aria-live="polite"></p>
 </section>
