@@ -265,6 +265,18 @@ def search_cards(
     def _escape_query(value: str) -> str:
         return value.replace("\\", "\\\\").replace('"', r"\"")
 
+    def _map_query_field(field: str) -> str:
+        if not use_rapidapi:
+            return field
+        mapping = {
+            "set.id": "setId",
+            "set.ptcgoCode": "setPtcgoCode",
+            "set.name": "setName",
+            "set.total": "setTotal",
+            "set.printedTotal": "setPrintedTotal",
+        }
+        return mapping.get(field, field.replace(".", ""))
+
     query_parts: list[str] = []
     if name_api:
         query_parts.append(f'name:"*{_escape_query(name_api)}*"')
@@ -274,21 +286,37 @@ def search_cards(
         set_query = text.normalize(set_name, keep_spaces=True)
         if set_query:
             escaped = _escape_query(set_query)
+            set_fields = (
+                _map_query_field("set.id"),
+                _map_query_field("set.ptcgoCode"),
+                _map_query_field("set.name"),
+            )
             query_parts.append(
                 "(" +
                 " OR ".join(
                     (
-                        f'set.id:"{escaped}"',
-                        f'set.ptcgoCode:"{escaped}"',
-                        f'set.name:"*{escaped}*"',
+                        f'{set_fields[0]}:"{escaped}"',
+                        f'{set_fields[1]}:"{escaped}"',
+                        f'{set_fields[2]}:"*{escaped}*"',
                     )
                 ) +
                 ")"
             )
     if total_clean:
         escaped_total = _escape_query(total_clean)
+        total_fields = (
+            _map_query_field("set.total"),
+            _map_query_field("set.printedTotal"),
+        )
         query_parts.append(
-            f"(set.total:{escaped_total} OR set.printedTotal:{escaped_total})"
+            "("
+            + " OR ".join(
+                (
+                    f"{total_fields[0]}:{escaped_total}",
+                    f"{total_fields[1]}:{escaped_total}",
+                )
+            )
+            + ")"
         )
 
     if not query_parts:
@@ -297,7 +325,7 @@ def search_cards(
     page_size = max(limit * 5, 50)
     page_size = min(page_size, 250)
     params = {
-        "q": " and ".join(query_parts),
+        ("search" if use_rapidapi else "q"): " and ".join(query_parts),
         "page": "1",
         "pageSize": str(page_size),
     }
@@ -439,16 +467,26 @@ def list_set_cards(
     set_value = set_code.strip()
     normalized = text.normalize(set_code, keep_spaces=True)
     escaped_value = _escape_query(set_value)
+    def _map_query_field(field: str) -> str:
+        if not use_rapidapi:
+            return field
+        mapping = {
+            "set.id": "setId",
+            "set.ptcgoCode": "setPtcgoCode",
+            "set.name": "setName",
+        }
+        return mapping.get(field, field.replace(".", ""))
+
     set_filters = {
-        f'set.id:"{escaped_value}"',
-        f'set.ptcgoCode:"{escaped_value}"',
-        f'set.name:"*{escaped_value}*"',
+        f'{_map_query_field("set.id")}:"{escaped_value}"',
+        f'{_map_query_field("set.ptcgoCode")}:"{escaped_value}"',
+        f'{_map_query_field("set.name")}:"*{escaped_value}*"',
     }
     if normalized and normalized != set_value:
         escaped_normalized = _escape_query(normalized)
-        set_filters.add(f'set.id:"{escaped_normalized}"')
-        set_filters.add(f'set.ptcgoCode:"{escaped_normalized}"')
-        set_filters.add(f'set.name:"*{escaped_normalized}*"')
+        set_filters.add(f'{_map_query_field("set.id")}:"{escaped_normalized}"')
+        set_filters.add(f'{_map_query_field("set.ptcgoCode")}:"{escaped_normalized}"')
+        set_filters.add(f'{_map_query_field("set.name")}:"*{escaped_normalized}*"')
 
     query = "(" + " OR ".join(sorted(set_filters)) + ")"
     page = 1
@@ -459,7 +497,7 @@ def list_set_cards(
 
     while True:
         params = {
-            "q": query,
+            ("search" if use_rapidapi else "q"): query,
             "page": str(page),
             "pageSize": str(page_size),
         }
