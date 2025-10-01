@@ -13,7 +13,16 @@ from ..utils import text
 
 logger = logging.getLogger(__name__)
 
-RAPIDAPI_DEFAULT_HOST = "pokemon-tcg.p.rapidapi.com"
+RAPIDAPI_DEFAULT_HOST = "pokemon-tcg-api.p.rapidapi.com"
+
+
+def _normalize_host(rapidapi_host: Optional[str]) -> tuple[str, str]:
+    host_value = rapidapi_host or RAPIDAPI_DEFAULT_HOST
+    if "://" not in host_value:
+        return host_value, host_value
+    parsed = urlparse(host_value)
+    netloc = parsed.netloc or parsed.path
+    return host_value, netloc or host_value
 
 
 def _apply_default_user_agent(
@@ -86,13 +95,28 @@ def _extract_images(card: dict[str, Any]) -> tuple[Optional[str], Optional[str]]
     return image_small, image_large
 
 
-def _build_cards_endpoint(rapidapi_host: Optional[str]) -> str:
-    """Return an absolute RapidAPI endpoint for the cards resource."""
+def _build_cards_endpoint(
+    rapidapi_host: Optional[str], *path_parts: str
+) -> str:
+    """Return an absolute RapidAPI endpoint for the given cards resource path."""
 
     host = rapidapi_host or RAPIDAPI_DEFAULT_HOST
-    parsed = urlparse(f"https://{host}")
-    path = "/v2/cards"
-    return f"https://{parsed.netloc or host}{path}"
+    if "://" not in host:
+        host = f"https://{host}"
+    parsed = urlparse(host)
+    scheme = parsed.scheme or "https"
+    netloc = parsed.netloc or parsed.path
+    base_path = parsed.path.rstrip("/")
+    extra_path = "/".join(part.strip("/") for part in path_parts if part)
+    if base_path:
+        if extra_path:
+            path = f"{base_path.strip('/')}/{extra_path}"
+        else:
+            path = base_path.strip("/")
+    else:
+        path = extra_path
+    path = path.strip("/")
+    return f"{scheme}://{netloc}/{path}" if path else f"{scheme}://{netloc}"
 
 
 def _normalize_text_field(value: Any) -> Optional[str]:
@@ -247,11 +271,11 @@ def search_cards(
     name_api = text.normalize(name, keep_spaces=True)
     headers: dict[str, str] = {}
     _apply_default_user_agent(headers, session)
-    api_host = rapidapi_host or RAPIDAPI_DEFAULT_HOST
-    url = _build_cards_endpoint(api_host)
+    api_host_value, api_host_header = _normalize_host(rapidapi_host)
+    url = _build_cards_endpoint(api_host_value, "cards", "search")
     if rapidapi_key:
         headers["X-RapidAPI-Key"] = rapidapi_key
-    headers["X-RapidAPI-Host"] = api_host
+    headers["X-RapidAPI-Host"] = api_host_header
 
     rapid_search_parts: list[str] = []
     if name_api:
@@ -271,7 +295,7 @@ def search_cards(
     page_size = max(limit * 5, 50)
     page_size = min(page_size, 250)
     params = {
-        "search": query_value,
+        "q": query_value,
         "page": "1",
         "pageSize": str(page_size),
     }
@@ -395,11 +419,11 @@ def list_set_cards(
     http = session or requests
     headers: dict[str, str] = {}
     _apply_default_user_agent(headers, session)
-    api_host = rapidapi_host or RAPIDAPI_DEFAULT_HOST
-    url = _build_cards_endpoint(api_host)
+    api_host_value, api_host_header = _normalize_host(rapidapi_host)
+    url = _build_cards_endpoint(api_host_value, "cards")
     if rapidapi_key:
         headers["X-RapidAPI-Key"] = rapidapi_key
-    headers["X-RapidAPI-Host"] = api_host
+    headers["X-RapidAPI-Host"] = api_host_header
 
     def _escape_query(value: str) -> str:
         return value.replace("\\", "\\\\").replace('"', r"\"")
@@ -435,9 +459,10 @@ def list_set_cards(
 
     while True:
         params = {
-            "search": query,
+            "q": query,
             "page": str(page),
             "pageSize": str(page_size),
+            "orderBy": "number",
         }
         try:
             response = http.get(
@@ -498,3 +523,71 @@ def list_set_cards(
     if limit and limit > 0:
         results = results[:limit]
     return results, request_count
+
+
+def fetch_card_price_history(
+    card_id: str,
+    *,
+    rapidapi_key: Optional[str] = None,
+    rapidapi_host: Optional[str] = None,
+    session: Optional[requests.sessions.Session] = None,
+    timeout: float = 10.0,
+    market: Optional[str] = None,
+    currency: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """Fetch market price history for a Pokémon card via RapidAPI."""
+
+    if not card_id:
+        return []
+
+    http = session or requests
+    headers: dict[str, str] = {}
+    _apply_default_user_agent(headers, session)
+    api_host_value, api_host_header = _normalize_host(rapidapi_host)
+    url = _build_cards_endpoint(api_host_value, "cards", card_id, "history-prices")
+    if rapidapi_key:
+        headers["X-RapidAPI-Key"] = rapidapi_key
+    headers["X-RapidAPI-Host"] = api_host_header
+
+    params: dict[str, str] = {}
+    if market:
+        params["market"] = market
+    if currency:
+        params["currency"] = currency
+
+    try:
+        response = http.get(url, params=params or None, headers=headers, timeout=timeout)
+    except requests.Timeout:
+        logger.warning("Price history request timed out for card %s", card_id)
+        return []
+    except (requests.RequestException, ValueError) as exc:  # pragma: no cover
+        logger.warning("Fetching price history for %s failed: %s", card_id, exc)
+        return []
+
+    if response.status_code != 200:
+        logger.warning(
+            "API error while fetching price history for %s: %s",
+            card_id,
+            response.status_code,
+        )
+        return []
+
+    try:
+        payload = response.json()
+    except ValueError:
+        logger.warning("Failed to decode price history payload for card %s", card_id)
+        return []
+
+    history: list[dict[str, Any]] = []
+    if isinstance(payload, dict):
+        candidates = payload.get("data") or payload.get("history") or payload.get("prices")
+        if candidates is None and payload:
+            candidates = payload
+        if isinstance(candidates, dict):
+            candidates = [candidates]
+        if isinstance(candidates, list):
+            history = [item for item in candidates if isinstance(item, dict)]
+    elif isinstance(payload, list):
+        history = [item for item in payload if isinstance(item, dict)]
+
+    return history
