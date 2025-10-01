@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from typing import Any, Iterable
 
@@ -18,6 +19,9 @@ from ..utils import images as image_utils, text
 router = APIRouter(prefix="/cards", tags=["cards"])
 
 MAX_SEARCH_RESULTS = 200
+
+RAPIDAPI_KEY = os.getenv("KARTOTEKA_RAPIDAPI_KEY") or os.getenv("POKEMONTCG_RAPIDAPI_KEY")
+RAPIDAPI_HOST = os.getenv("KARTOTEKA_RAPIDAPI_HOST") or os.getenv("POKEMONTCG_RAPIDAPI_HOST")
 
 CARD_NUMBER_PATTERN = re.compile(
     r"(?i)([a-z]{0,5}\d+[a-z0-9]*)(?:\s*/\s*([a-z]{0,5}\d+[a-z0-9]*))?"
@@ -329,6 +333,8 @@ def search_cards_endpoint(
         set_name=set_name,
         total=total,
         limit=result_cap,
+        rapidapi_key=RAPIDAPI_KEY,
+        rapidapi_host=RAPIDAPI_HOST,
     )
 
     items = [_payload_to_search_schema(record) for record in records]
