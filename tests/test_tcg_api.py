@@ -52,7 +52,7 @@ def test_search_cards_uses_rapidapi_headers(monkeypatch):
     params = call["params"] or {}
     assert "search" in params
     assert "q" not in params
-    assert 'name:"*pikachu*"' in params["search"]
+    assert params["search"] == "pikachu"
 
 
 def test_search_cards_uses_default_host_when_missing(monkeypatch):
@@ -77,6 +77,7 @@ def test_search_cards_uses_default_host_when_missing(monkeypatch):
     params = call["params"] or {}
     assert "search" in params
     assert "q" not in params
+    assert params["search"] == "eevee"
 
 
 def test_list_set_cards_uses_rapidapi_headers(monkeypatch):
