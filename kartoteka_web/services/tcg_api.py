@@ -265,67 +265,72 @@ def search_cards(
     def _escape_query(value: str) -> str:
         return value.replace("\\", "\\\\").replace('"', r"\"")
 
-    def _map_query_field(field: str) -> str:
-        if not use_rapidapi:
-            return field
-        mapping = {
-            "set.id": "setId",
-            "set.ptcgoCode": "setPtcgoCode",
-            "set.name": "setName",
-            "set.total": "setTotal",
-            "set.printedTotal": "setPrintedTotal",
-        }
-        return mapping.get(field, field.replace(".", ""))
-
-    query_parts: list[str] = []
-    if name_api:
-        query_parts.append(f'name:"*{_escape_query(name_api)}*"')
-    if number_clean:
-        query_parts.append(f'number:"{_escape_query(number_clean)}"')
-    if set_name:
-        set_query = text.normalize(set_name, keep_spaces=True)
-        if set_query:
-            escaped = _escape_query(set_query)
-            set_fields = (
-                _map_query_field("set.id"),
-                _map_query_field("set.ptcgoCode"),
-                _map_query_field("set.name"),
+    if use_rapidapi:
+        rapid_search_parts: list[str] = []
+        if name_api:
+            rapid_search_parts.append(name_api)
+        if number_clean:
+            rapid_search_parts.append(number_clean)
+        if set_name:
+            set_query = text.normalize(set_name, keep_spaces=True)
+            if set_query:
+                rapid_search_parts.append(set_query)
+        if total_clean:
+            rapid_search_parts.append(total_clean)
+        query_value = " ".join(part for part in rapid_search_parts if part)
+        if not query_value:
+            return []
+    else:
+        query_parts: list[str] = []
+        if name_api:
+            query_parts.append(f'name:"*{_escape_query(name_api)}*"')
+        if number_clean:
+            query_parts.append(f'number:"{_escape_query(number_clean)}"')
+        if set_name:
+            set_query = text.normalize(set_name, keep_spaces=True)
+            if set_query:
+                escaped = _escape_query(set_query)
+                set_fields = (
+                    "set.id",
+                    "set.ptcgoCode",
+                    "set.name",
+                )
+                query_parts.append(
+                    "(" +
+                    " OR ".join(
+                        (
+                            f'{set_fields[0]}:"{escaped}"',
+                            f'{set_fields[1]}:"{escaped}"',
+                            f'{set_fields[2]}:"*{escaped}*"',
+                        )
+                    ) +
+                    ")"
+                )
+        if total_clean:
+            escaped_total = _escape_query(total_clean)
+            total_fields = (
+                "set.total",
+                "set.printedTotal",
             )
             query_parts.append(
-                "(" +
-                " OR ".join(
+                "(" 
+                + " OR ".join(
                     (
-                        f'{set_fields[0]}:"{escaped}"',
-                        f'{set_fields[1]}:"{escaped}"',
-                        f'{set_fields[2]}:"*{escaped}*"',
+                        f"{total_fields[0]}:{escaped_total}",
+                        f"{total_fields[1]}:{escaped_total}",
                     )
-                ) +
-                ")"
-            )
-    if total_clean:
-        escaped_total = _escape_query(total_clean)
-        total_fields = (
-            _map_query_field("set.total"),
-            _map_query_field("set.printedTotal"),
-        )
-        query_parts.append(
-            "("
-            + " OR ".join(
-                (
-                    f"{total_fields[0]}:{escaped_total}",
-                    f"{total_fields[1]}:{escaped_total}",
                 )
+                + ")"
             )
-            + ")"
-        )
 
-    if not query_parts:
-        return []
+        if not query_parts:
+            return []
+        query_value = " and ".join(query_parts)
 
     page_size = max(limit * 5, 50)
     page_size = min(page_size, 250)
     params = {
-        ("search" if use_rapidapi else "q"): " and ".join(query_parts),
+        ("search" if use_rapidapi else "q"): query_value,
         "page": "1",
         "pageSize": str(page_size),
     }
