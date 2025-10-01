@@ -6,6 +6,7 @@ import logging
 import os
 from difflib import SequenceMatcher
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 import requests
 
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 POKEMONTCG_API_URL = os.getenv("POKEMONTCG_API_URL", "https://api.pokemontcg.io/v2/cards")
 POKEMONTCG_API_KEY = os.getenv("POKEMONTCG_API_KEY")
+RAPIDAPI_DEFAULT_HOST = "pokemon-tcg.p.rapidapi.com"
 
 
 def _apply_default_user_agent(
@@ -85,6 +87,18 @@ def _extract_images(card: dict[str, Any]) -> tuple[Optional[str], Optional[str]]
     if image_large and isinstance(image_large, dict):
         image_large = image_large.get("url")
     return image_small, image_large
+
+
+def _build_cards_endpoint(rapidapi_host: Optional[str]) -> str:
+    """Return an absolute API endpoint for the Pokémon TCG cards resource."""
+
+    parsed = urlparse(POKEMONTCG_API_URL)
+    host = rapidapi_host or RAPIDAPI_DEFAULT_HOST
+    path = parsed.path or "/v2/cards"
+    if not path.startswith("/"):
+        path = "/" + path
+    query = f"?{parsed.query}" if parsed.query else ""
+    return f"https://{host}{path}{query}"
 
 
 def _normalize_text_field(value: Any) -> Optional[str]:
@@ -234,12 +248,19 @@ def search_cards(
     total_clean = text.sanitize_number(number_total) if number_total else ""
 
     name_api = text.normalize(name, keep_spaces=True)
-    api_key = rapidapi_key if rapidapi_key is not None else POKEMONTCG_API_KEY
-    url = POKEMONTCG_API_URL
     headers: dict[str, str] = {}
     _apply_default_user_agent(headers, session)
-    if api_key:
-        headers["X-Api-Key"] = api_key
+    use_rapidapi = bool(rapidapi_key or rapidapi_host)
+    if use_rapidapi:
+        url = _build_cards_endpoint(rapidapi_host)
+        if rapidapi_key:
+            headers["X-RapidAPI-Key"] = rapidapi_key
+        if rapidapi_host:
+            headers["X-RapidAPI-Host"] = rapidapi_host
+    else:
+        url = POKEMONTCG_API_URL
+        if POKEMONTCG_API_KEY:
+            headers["X-Api-Key"] = POKEMONTCG_API_KEY
 
     def _escape_query(value: str) -> str:
         return value.replace("\\", "\\\\").replace('"', r"\"")
@@ -398,11 +419,19 @@ def list_set_cards(
         return [], 0
 
     http = session or requests
-    api_key = rapidapi_key if rapidapi_key is not None else POKEMONTCG_API_KEY
     headers: dict[str, str] = {}
     _apply_default_user_agent(headers, session)
-    if api_key:
-        headers["X-Api-Key"] = api_key
+    use_rapidapi = bool(rapidapi_key or rapidapi_host)
+    if use_rapidapi:
+        url = _build_cards_endpoint(rapidapi_host)
+        if rapidapi_key:
+            headers["X-RapidAPI-Key"] = rapidapi_key
+        if rapidapi_host:
+            headers["X-RapidAPI-Host"] = rapidapi_host
+    else:
+        url = POKEMONTCG_API_URL
+        if POKEMONTCG_API_KEY:
+            headers["X-Api-Key"] = POKEMONTCG_API_KEY
 
     def _escape_query(value: str) -> str:
         return value.replace("\\", "\\\\").replace('"', r"\"")
@@ -436,7 +465,7 @@ def list_set_cards(
         }
         try:
             response = http.get(
-                POKEMONTCG_API_URL,
+                url,
                 params=params,
                 headers=headers,
                 timeout=timeout,
