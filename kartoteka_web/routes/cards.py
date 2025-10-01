@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Iterable
+from typing import Any, Iterable
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import selectinload
@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 from .. import models, schemas
 from ..auth import get_current_user, get_optional_user
 from ..database import get_session
+from ..services import tcg_api
 from ..utils import images as image_utils, text
 
 router = APIRouter(prefix="/cards", tags=["cards"])
@@ -152,46 +153,6 @@ def _matches_filters(
     return True
 
 
-def _search_cards(
-    session: Session,
-    *,
-    query: str,
-    name: str,
-    number: str | None = None,
-    set_name: str | None = None,
-    limit: int = MAX_SEARCH_RESULTS,
-) -> tuple[list[models.Card], int, str | None]:
-    name_filter = _normalize_lower(name)
-    set_filter = _normalize_lower(set_name)
-    query_filter = _normalize_lower(query)
-    number_clean = text.sanitize_number(number or "") if number else ""
-
-    cards = session.exec(select(models.Card)).all()
-    matched = [
-        card
-        for card in cards
-        if _matches_filters(
-            card,
-            name_filter=name_filter,
-            number_clean=number_clean,
-            set_filter=set_filter,
-            query_filter=query_filter,
-        )
-    ]
-
-    matched.sort(
-        key=lambda card: (
-            (card.set_name or "").lower(),
-            text.sanitize_number(card.number or ""),
-            (card.name or "").lower(),
-        )
-    )
-
-    suggestion = matched[0].name if matched else None
-    visible = matched[:limit]
-    return visible, min(len(matched), limit), suggestion
-
-
 def _load_related_cards(
     session: Session,
     base: models.Card | None,
@@ -313,6 +274,24 @@ def _serialize_entries(
     return [_serialize_entry(entry, session=session) for entry in entries]
 
 
+def _payload_to_search_schema(payload: dict[str, Any]) -> schemas.CardSearchResult:
+    return schemas.CardSearchResult(
+        name=payload.get("name") or "",
+        number=payload.get("number") or "",
+        number_display=payload.get("number_display"),
+        total=payload.get("total"),
+        set_name=payload.get("set_name") or "",
+        set_code=payload.get("set_code"),
+        rarity=payload.get("rarity"),
+        image_small=payload.get("image_small"),
+        image_large=payload.get("image_large"),
+        set_icon=payload.get("set_icon"),
+        artist=payload.get("artist"),
+        series=payload.get("series"),
+        release_date=payload.get("release_date"),
+    )
+
+
 @router.get("/search", response_model=schemas.CardSearchResponse)
 def search_cards_endpoint(
     query: str | None = None,
@@ -342,19 +321,21 @@ def search_cards_endpoint(
     if not name_value:
         name_value = search_query
 
-    records, total_count, suggestion = _search_cards(
-        session,
-        query=search_query,
-        name=name_value,
+    del session  # Database access unused when delegating to external API.
+
+    records = tcg_api.search_cards(
+        name=name_value or search_query,
         number=number_value,
         set_name=set_name,
+        total=total,
         limit=result_cap,
     )
 
-    items = [_card_to_search_schema(record) for record in records]
+    items = [_payload_to_search_schema(record) for record in records]
+    suggestion = records[0].get("name") if records else None
     return schemas.CardSearchResponse(
         items=items,
-        total=total_count,
+        total=len(records),
         suggested_query=suggestion,
     )
 
