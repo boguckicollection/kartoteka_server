@@ -51,6 +51,27 @@ def test_search_cards_uses_rapidapi_headers(monkeypatch):
     assert "X-Api-Key" not in headers
 
 
+def test_search_cards_uses_default_host_when_missing(monkeypatch):
+    monkeypatch.setattr(tcg_api, "POKEMONTCG_API_URL", "https://api.pokemontcg.io/v2/cards")
+    monkeypatch.setattr(tcg_api, "POKEMONTCG_API_KEY", "official-key")
+
+    session = _DummySession()
+    tcg_api.search_cards(
+        name="Eevee",
+        rapidapi_key="rapid-key",
+        rapidapi_host=None,
+        session=session,
+    )
+
+    assert session.calls, "Expected a single HTTP request"
+    call = session.calls[0]
+    assert call["url"] == "https://pokemon-tcg.p.rapidapi.com/v2/cards"
+    headers = call["headers"]
+    assert headers.get("X-RapidAPI-Key") == "rapid-key"
+    assert headers.get("X-RapidAPI-Host") == "pokemon-tcg.p.rapidapi.com"
+    assert "X-Api-Key" not in headers
+
+
 def test_list_set_cards_uses_rapidapi_headers(monkeypatch):
     monkeypatch.setattr(tcg_api, "POKEMONTCG_API_URL", "https://api.pokemontcg.io/v2/cards")
     monkeypatch.setattr(tcg_api, "POKEMONTCG_API_KEY", "official-key")
