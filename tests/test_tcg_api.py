@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from kartoteka_web.services import tcg_api
 
 
@@ -194,7 +196,13 @@ def test_list_set_cards_uses_default_host_when_missing():
     assert headers.get("X-RapidAPI-Host") == DEFAULT_HOST
 
 
-def test_build_card_payload_extracts_cardmarket_price():
+@pytest.fixture(autouse=True)
+def _stub_exchange_rate(monkeypatch):
+    monkeypatch.setattr(tcg_api, "get_eur_pln_rate", lambda: None)
+
+
+def test_build_card_payload_extracts_cardmarket_price(monkeypatch):
+    monkeypatch.setattr(tcg_api, "get_eur_pln_rate", lambda: 4.5)
     card = {
         "name": "Bulbasaur",
         "number": "1/102",
@@ -209,10 +217,11 @@ def test_build_card_payload_extracts_cardmarket_price():
     payload = tcg_api.build_card_payload(card)
 
     assert payload is not None
-    assert payload["price"] == 9.5
+    assert payload["price"] == round(9.5 * 4.5 * 1.24, 2)
 
 
-def test_build_card_payload_prefers_tcgplayer_price_when_available():
+def test_build_card_payload_prefers_tcgplayer_price_when_available(monkeypatch):
+    monkeypatch.setattr(tcg_api, "get_eur_pln_rate", lambda: 4.0)
     card = {
         "name": "Charmander",
         "number": "4/102",
@@ -229,7 +238,22 @@ def test_build_card_payload_prefers_tcgplayer_price_when_available():
     payload = tcg_api.build_card_payload(card)
 
     assert payload is not None
-    assert payload["price"] == 3.75
+    assert payload["price"] == round(3.75 * 4.0 * 1.24, 2)
+
+
+def test_build_card_payload_skips_price_when_rate_unavailable(monkeypatch):
+    monkeypatch.setattr(tcg_api, "get_eur_pln_rate", lambda: None)
+    card = {
+        "name": "Squirtle",
+        "number": "7/102",
+        "set": {"name": "Base Set"},
+        "cardmarket": {"prices": {"averageSellPrice": 2.5}},
+    }
+
+    payload = tcg_api.build_card_payload(card)
+
+    assert payload is not None
+    assert payload["price"] is None
 
 
 def test_build_cards_endpoint_supports_nested_paths():

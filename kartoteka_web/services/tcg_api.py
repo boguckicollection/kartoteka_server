@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from difflib import SequenceMatcher
 from typing import Any, Optional
 from urllib.parse import urlparse
@@ -14,6 +15,60 @@ from ..utils import text
 logger = logging.getLogger(__name__)
 
 RAPIDAPI_DEFAULT_HOST = "pokemon-tcg-api.p.rapidapi.com"
+_EUR_PLN_RATE_CACHE: dict[str, float | None] = {"value": None, "expires": 0.0}
+_EUR_PLN_RATE_TTL = 60 * 60  # 1 hour
+
+
+def get_eur_pln_rate(
+    session: Optional[requests.sessions.Session] = None,
+) -> Optional[float]:
+    """Return the EUR→PLN exchange rate using a simple in-memory cache."""
+
+    now = time.time()
+    cached_value = _EUR_PLN_RATE_CACHE.get("value")
+    expires_at = _EUR_PLN_RATE_CACHE.get("expires", 0.0)
+    if cached_value is not None and now < expires_at:
+        return cached_value
+
+    http = session or requests
+    url = "https://api.nbp.pl/api/exchangerates/rates/A/EUR"
+
+    try:
+        response = http.get(url, params={"format": "json"}, timeout=5.0)
+    except requests.Timeout:
+        logger.warning("Request for EUR/PLN rate timed out")
+        return cached_value
+    except requests.RequestException as exc:  # pragma: no cover - network errors
+        logger.warning("Fetching EUR/PLN rate failed: %s", exc)
+        return cached_value
+
+    if response.status_code != 200:
+        logger.warning("NBP API error: %s", response.status_code)
+        return cached_value
+
+    try:
+        payload = response.json()
+    except ValueError:
+        logger.warning("NBP API returned invalid JSON")
+        return cached_value
+
+    rates = payload.get("rates") if isinstance(payload, dict) else None
+    rate_value: Optional[float] = None
+    if isinstance(rates, list) and rates:
+        first_rate = rates[0] or {}
+        if isinstance(first_rate, dict):
+            for key in ("mid", "ask", "bid"):
+                rate_value = _normalize_price_value(first_rate.get(key))
+                if rate_value is not None:
+                    break
+
+    if rate_value is None:
+        logger.warning("NBP API payload did not contain a usable EUR/PLN rate")
+        return cached_value
+
+    _EUR_PLN_RATE_CACHE["value"] = rate_value
+    _EUR_PLN_RATE_CACHE["expires"] = now + _EUR_PLN_RATE_TTL
+    return rate_value
 
 
 def _normalize_host(rapidapi_host: Optional[str]) -> tuple[str, str]:
@@ -324,7 +379,12 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
     )
 
     image_small, image_large = _extract_images(card)
-    price = _extract_card_price(card)
+    price_eur = _extract_card_price(card)
+    price_pln = None
+    if price_eur is not None:
+        rate = get_eur_pln_rate()
+        if rate is not None:
+            price_pln = round(price_eur * rate * 1.24, 2)
 
     return {
         "name": card.get("name") or "",
@@ -340,7 +400,7 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
         "series": series,
         "release_date": release_date,
         "set_icon": set_icon,
-        "price": price,
+        "price": price_pln,
     }
 
 
