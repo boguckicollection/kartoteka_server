@@ -33,8 +33,33 @@
     </div>
   </form>
   <div class="alert" id="add-card-alert" hidden></div>
+  <div class="card-search-toolbar" data-card-search-toolbar>
+    <div class="card-search-toolbar-group" role="group" aria-label="Przełącz widok wyników wyszukiwania">
+      <span class="card-search-toolbar-label">Widok</span>
+      <div class="card-search-view-toggle">
+        <button type="button" data-card-view="grid" aria-pressed="false">Kratka</button>
+        <button type="button" data-card-view="list" aria-pressed="true">Lista</button>
+      </div>
+    </div>
+    <div class="card-search-toolbar-group card-search-toolbar-group--sort">
+      <label for="card-sort-select">Sortowanie</label>
+      <select id="card-sort-select" data-card-sort>
+        <option value="relevance">Domyślne</option>
+        <option value="name-asc">Nazwa (A–Z)</option>
+        <option value="name-desc">Nazwa (Z–A)</option>
+        <option value="set-asc">Dodatek (A–Z)</option>
+        <option value="number-asc">Numer rosnąco</option>
+        <option value="number-desc">Numer malejąco</option>
+      </select>
+    </div>
+  </div>
   <p id="card-search-summary" class="search-summary" hidden aria-live="polite"></p>
-  <div id="card-search-results" class="card-search-results" role="list"></div>
+  <div
+    id="card-search-results"
+    class="card-search-results card-search-results--list"
+    role="list"
+    data-view-mode="list"
+  ></div>
   <p id="card-search-empty" class="empty-state" hidden aria-live="polite"></p>
 </section>
 {% endblock %}

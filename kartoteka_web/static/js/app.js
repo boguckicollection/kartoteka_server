@@ -141,6 +141,104 @@
     }
   };
 
+  const CARD_VIEW_STORAGE_KEY = "kartoteka_card_view_mode";
+  const CARD_SORT_STORAGE_KEY = "kartoteka_card_sort_order";
+  let currentCardViewMode = "list";
+  let currentCardSortOrder = "relevance";
+
+  const readStoredCardViewMode = () => {
+    if (!storage) return null;
+    try {
+      const value = storage.getItem(CARD_VIEW_STORAGE_KEY);
+      return value === "grid" || value === "list" ? value : null;
+    } catch (error) {
+      console.warn("Unable to read card view mode", error);
+      return null;
+    }
+  };
+
+  const persistCardViewMode = (mode) => {
+    if (!storage) return;
+    try {
+      storage.setItem(CARD_VIEW_STORAGE_KEY, mode);
+    } catch (error) {
+      console.warn("Unable to persist card view mode", error);
+    }
+  };
+
+  const readStoredCardSortOrder = () => {
+    if (!storage) return null;
+    try {
+      const value = storage.getItem(CARD_SORT_STORAGE_KEY);
+      const allowed = [
+        "relevance",
+        "name-asc",
+        "name-desc",
+        "set-asc",
+        "number-asc",
+        "number-desc",
+      ];
+      return allowed.includes(value) ? value : null;
+    } catch (error) {
+      console.warn("Unable to read card sort order", error);
+      return null;
+    }
+  };
+
+  const persistCardSortOrder = (order) => {
+    if (!storage) return;
+    try {
+      storage.setItem(CARD_SORT_STORAGE_KEY, order);
+    } catch (error) {
+      console.warn("Unable to persist card sort order", error);
+    }
+  };
+
+  const applyCardResultsViewMode = (mode) => {
+    const container = document.getElementById("card-search-results");
+    if (!container) return;
+    const normalized = mode === "grid" ? "grid" : "list";
+    container.classList.toggle("card-search-results--grid", normalized === "grid");
+    container.classList.toggle("card-search-results--list", normalized === "list");
+    container.dataset.viewMode = normalized;
+    currentCardViewMode = normalized;
+  };
+
+  const cardResultsCollator =
+    typeof Intl !== "undefined" && typeof Intl.Collator === "function"
+      ? new Intl.Collator("pl", { numeric: true, sensitivity: "base" })
+      : null;
+
+  const compareText = (a = "", b = "") => {
+    if (cardResultsCollator) {
+      return cardResultsCollator.compare(a, b);
+    }
+    return a.localeCompare(b);
+  };
+
+  const sortCardSearchItems = (items = [], order = "relevance") => {
+    const list = Array.isArray(items) ? [...items] : [];
+    switch (order) {
+      case "name-asc":
+        return list.sort((a, b) => compareText(a.name || "", b.name || ""));
+      case "name-desc":
+        return list.sort((a, b) => compareText(b.name || "", a.name || ""));
+      case "set-asc":
+        return list.sort((a, b) => compareText(a.set_name || "", b.set_name || ""));
+      case "number-asc":
+        return list.sort((a, b) =>
+          compareText(a.number_display || a.number || "", b.number_display || b.number || ""),
+        );
+      case "number-desc":
+        return list.sort((a, b) =>
+          compareText(b.number_display || b.number || "", a.number_display || a.number || ""),
+        );
+      case "relevance":
+      default:
+        return list;
+    }
+  };
+
   const getToken = () => (storage ? storage.getItem(TOKEN_KEY) : null);
   const setToken = (token) => {
     if (!storage) return;
@@ -621,6 +719,7 @@
       const hasSetIcon = Boolean(item.set_icon);
       const cardAlt = `Miniatura karty ${cardName}`;
       const setAlt = `Ikona dodatku ${setName}`;
+      const quickAddLabel = `Dodaj kartę ${cardName} do kolekcji`;
       article.innerHTML = `
         <div class="card-search-media">
           <div class="card-search-thumbnail">
@@ -632,6 +731,15 @@
             <div class="card-search-thumbnail-fallback"${hasThumbnail ? " hidden" : ""} data-card-thumbnail-fallback>
               Brak miniatury
             </div>
+            <button
+              type="button"
+              class="card-quick-add"
+              data-card-quick-add
+              aria-label="${escapeHtml(quickAddLabel)}"
+              title="Dodaj do kolekcji"
+            >
+              <span aria-hidden="true">+</span>
+            </button>
           </div>
           <div class="card-search-set">
             <div class="card-search-set-icon">
@@ -708,6 +816,79 @@
     const alertBox = document.getElementById("add-card-alert");
     const summary = document.getElementById("card-search-summary");
     const emptyMessage = document.getElementById("card-search-empty");
+    const viewButtons = Array.from(document.querySelectorAll("[data-card-view]") || []);
+    const sortSelect = document.querySelector("[data-card-sort]");
+    const results = document.getElementById("card-search-results");
+    let latestItems = [];
+    let latestTotal = 0;
+
+    const updateViewButtons = (mode) => {
+      viewButtons.forEach((button) => {
+        const isActive = button.dataset.cardView === mode;
+        button.classList.toggle("is-active", isActive);
+        button.setAttribute("aria-pressed", isActive ? "true" : "false");
+      });
+    };
+
+    const applyViewMode = (mode, options = {}) => {
+      const normalized = mode === "grid" ? "grid" : "list";
+      applyCardResultsViewMode(normalized);
+      updateViewButtons(normalized);
+      if (options.persist !== false) {
+        persistCardViewMode(normalized);
+      }
+    };
+
+    const applySortOrder = (order, options = {}) => {
+      const allowed = new Set([
+        "relevance",
+        "name-asc",
+        "name-desc",
+        "set-asc",
+        "number-asc",
+        "number-desc",
+      ]);
+      const normalized = allowed.has(order) ? order : "relevance";
+      currentCardSortOrder = normalized;
+      if (sortSelect && sortSelect.value !== normalized) {
+        sortSelect.value = normalized;
+      }
+      if (options.persist !== false) {
+        persistCardSortOrder(normalized);
+      }
+    };
+
+    const renderLatestResults = () => {
+      const sortedItems = sortCardSearchItems(latestItems, currentCardSortOrder);
+      renderSearchResults(sortedItems, summary, emptyMessage, latestTotal);
+      applyViewMode(currentCardViewMode, { persist: false });
+    };
+
+    const storedView = readStoredCardViewMode();
+    const storedSort = readStoredCardSortOrder();
+    if (storedView) {
+      currentCardViewMode = storedView;
+    }
+    if (storedSort) {
+      currentCardSortOrder = storedSort;
+    }
+    if (sortSelect) {
+      sortSelect.value = currentCardSortOrder;
+    }
+    applyViewMode(currentCardViewMode, { persist: false });
+
+    viewButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        applyViewMode(button.dataset.cardView || "list");
+      });
+    });
+
+    if (sortSelect) {
+      sortSelect.addEventListener("change", (event) => {
+        applySortOrder(event.target.value);
+        renderLatestResults();
+      });
+    }
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -722,47 +903,72 @@
       try {
         const params = new URLSearchParams({ query });
         const data = await apiFetch(`/cards/search?${params.toString()}`);
-        renderSearchResults(data?.items || [], summary, emptyMessage, data?.total || 0);
+        latestItems = Array.isArray(data?.items) ? [...data.items] : [];
+        latestTotal = data?.total || 0;
+        renderLatestResults();
         showAlert(alertBox, "");
       } catch (error) {
         showAlert(alertBox, error.message || "Nie udało się pobrać wyników.", "error");
       }
     });
 
-    const results = document.getElementById("card-search-results");
+    const handleCardFormSubmission = async (target, trigger) => {
+      const alertTarget = document.getElementById("add-card-alert");
+      const quantity = Number.parseInt(target.elements.quantity?.value || "1", 10);
+      const priceRaw = target.elements.purchase_price?.value?.trim() || "";
+      const price = priceRaw ? Number.parseFloat(priceRaw.replace(",", ".")) : null;
+      const payload = {
+        quantity: Number.isFinite(quantity) && quantity >= 0 ? quantity : 0,
+        purchase_price:
+          priceRaw && Number.isFinite(price) && price >= 0 ? Number(price.toFixed(2)) : null,
+        is_reverse: Boolean(target.elements.is_reverse?.checked),
+        is_holo: Boolean(target.elements.is_holo?.checked),
+        card: buildCardPayload(target),
+      };
+      if (!payload.card.name || !payload.card.number || !payload.card.set_name) {
+        showAlert(alertTarget, "Brakuje danych karty.", "error");
+        return;
+      }
+      showAlert(alertTarget, "Dodaję kartę do kolekcji…");
+      try {
+        await apiFetch("/cards/", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        showAlert(alertTarget, "Karta została dodana do kolekcji.", "success");
+        target.reset();
+        if (trigger && typeof trigger.focus === "function") {
+          trigger.focus();
+        } else {
+          target.querySelector('button[type="submit"]')?.focus();
+        }
+        loadCollection();
+      } catch (error) {
+        showAlert(alertTarget, error.message || "Nie udało się dodać karty.", "error");
+        if (trigger && typeof trigger.focus === "function") {
+          trigger.focus();
+        }
+      }
+    };
+
     if (results) {
       results.addEventListener("submit", async (event) => {
         const target = event.target;
         if (!(target instanceof HTMLFormElement)) return;
         event.preventDefault();
-        const alertTarget = document.getElementById("add-card-alert");
-        const quantity = Number.parseInt(target.elements.quantity?.value || "1", 10);
-        const priceRaw = target.elements.purchase_price?.value?.trim() || "";
-        const price = priceRaw ? Number.parseFloat(priceRaw.replace(",", ".")) : null;
-        const payload = {
-          quantity: Number.isFinite(quantity) && quantity >= 0 ? quantity : 0,
-          purchase_price:
-            priceRaw && Number.isFinite(price) && price >= 0 ? Number(price.toFixed(2)) : null,
-          is_reverse: Boolean(target.elements.is_reverse?.checked),
-          is_holo: Boolean(target.elements.is_holo?.checked),
-          card: buildCardPayload(target),
-        };
-        if (!payload.card.name || !payload.card.number || !payload.card.set_name) {
-          showAlert(alertTarget, "Brakuje danych karty.", "error");
-          return;
-        }
-        showAlert(alertTarget, "Dodaję kartę do kolekcji…");
-        try {
-          await apiFetch("/cards/", {
-            method: "POST",
-            body: JSON.stringify(payload),
-          });
-          showAlert(alertTarget, "Karta została dodana do kolekcji.", "success");
-          target.reset();
-          loadCollection();
-        } catch (error) {
-          showAlert(alertTarget, error.message || "Nie udało się dodać karty.", "error");
-        }
+        const trigger = event.submitter || target.querySelector('button[type="submit"]');
+        await handleCardFormSubmission(target, trigger);
+      });
+
+      results.addEventListener("click", async (event) => {
+        const button = event.target instanceof Element
+          ? event.target.closest("[data-card-quick-add]")
+          : null;
+        if (!button) return;
+        const formTarget = button.closest("form[data-card-form]");
+        if (!(formTarget instanceof HTMLFormElement)) return;
+        event.preventDefault();
+        await handleCardFormSubmission(formTarget, button);
       });
     }
   };
