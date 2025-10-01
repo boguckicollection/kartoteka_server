@@ -152,7 +152,7 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
     )
 
     card_number_part, card_total_from_number = _split_number_total(raw_number)
-    card_number_clean = text.sanitize_number(card_number_part.lower())
+    card_number_clean = text.sanitize_number(card_number_part.casefold())
     if not card_number_clean:
         return None
     card_total_clean = text.sanitize_number(card_total_from_number or raw_total)
@@ -238,7 +238,10 @@ def search_cards(
     if total:
         _, forced_total = _split_number_total(str(total))
         number_total = forced_total or number_total
-    number_clean = text.sanitize_number(number_part) if number_part else ""
+    number_part_normalized = number_part.casefold() if number_part else ""
+    number_clean = (
+        text.sanitize_number(number_part_normalized) if number_part_normalized else ""
+    )
     total_clean = text.sanitize_number(number_total) if number_total else ""
 
     name_api = text.normalize(name, keep_spaces=True)

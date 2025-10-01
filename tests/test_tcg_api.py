@@ -6,9 +6,15 @@ from kartoteka_web.services import tcg_api
 
 
 class _DummySession:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        response_data: dict[str, object] | None = None,
+        status_code: int = 200,
+    ) -> None:
         self.calls: list[dict[str, object]] = []
         self.headers = {"User-Agent": "pytest-agent"}
+        self._response_data = response_data or {"data": []}
+        self._status_code = status_code
 
     def get(self, url, params=None, headers=None, timeout=None):
         self.calls.append(
@@ -21,13 +27,14 @@ class _DummySession:
         )
 
         class _Response:
-            status_code = 200
+            def __init__(self, data: dict[str, object], status_code: int) -> None:
+                self._data = data
+                self.status_code = status_code
 
-            @staticmethod
-            def json():
-                return {"data": []}
+            def json(self):
+                return self._data
 
-        return _Response()
+        return _Response(self._response_data, self._status_code)
 
 
 def test_search_cards_uses_rapidapi_headers():
@@ -122,6 +129,24 @@ def test_search_cards_builds_compound_query():
     call = session.calls[0]
     params = call["params"] or {}
     assert params["search"] == "pikachu base 102"
+
+
+def test_search_cards_matches_uppercase_collector_number():
+    card_payload = {
+        "name": "Pikachu",
+        "number": "RC5a",
+        "set": {"name": "Radiant Collection"},
+    }
+    session = _DummySession(response_data={"data": [card_payload]})
+
+    results = tcg_api.search_cards(
+        name="Pikachu",
+        number="RC5A",
+        session=session,
+    )
+
+    assert results, "Expected to receive at least one suggestion"
+    assert results[0]["number"] == "rc5a"
 
 
 def test_list_set_cards_without_key_uses_default_headers():
