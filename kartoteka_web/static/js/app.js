@@ -154,7 +154,7 @@
     "price-desc",
   ];
   const CARD_SORT_ALLOWED = new Set(CARD_SORT_OPTIONS);
-  let currentCardViewMode = "list";
+  let currentCardViewMode = "grid";
   let currentCardSortOrder = "relevance";
 
   const readStoredCardViewMode = () => {
@@ -973,9 +973,7 @@
 
     const storedView = readStoredCardViewMode();
     const storedSort = readStoredCardSortOrder();
-    if (storedView) {
-      currentCardViewMode = storedView;
-    }
+    currentCardViewMode = storedView ?? "grid";
     if (storedSort) {
       currentCardSortOrder = storedSort;
     }
