@@ -70,6 +70,19 @@ def test_search_cards_uses_default_host_when_missing():
     assert params["search"] == "eevee"
 
 
+def test_search_cards_without_key_omits_auth_header():
+    session = _DummySession()
+    tcg_api.search_cards(name="Ditto", rapidapi_host="pokemon-tcg.p.rapidapi.com", session=session)
+
+    assert session.calls, "Expected a single HTTP request"
+    call = session.calls[0]
+    headers = call["headers"]
+    assert "X-RapidAPI-Key" not in headers
+    assert headers.get("X-RapidAPI-Host") == "pokemon-tcg.p.rapidapi.com"
+    params = call["params"] or {}
+    assert params.get("search") == "ditto"
+
+
 def test_list_set_cards_uses_rapidapi_headers():
     session = _DummySession()
     cards, request_count = tcg_api.list_set_cards(
@@ -117,6 +130,7 @@ def test_list_set_cards_without_key_uses_default_headers():
 
     assert session.calls, "Expected at least one HTTP request"
     call = session.calls[0]
+    assert call["url"] == "https://pokemon-tcg.p.rapidapi.com/v2/cards"
     headers = call["headers"]
     assert "X-RapidAPI-Key" not in headers
     assert headers.get("X-RapidAPI-Host") == "pokemon-tcg.p.rapidapi.com"
@@ -125,3 +139,21 @@ def test_list_set_cards_without_key_uses_default_headers():
     assert 'setId:"base"' in query
     assert 'setPtcgoCode:"base"' in query
     assert 'setName:"*base*"' in query
+
+
+def test_list_set_cards_uses_default_host_when_missing():
+    session = _DummySession()
+    tcg_api.list_set_cards(
+        "base",
+        limit=1,
+        rapidapi_key="rapid-key",
+        rapidapi_host=None,
+        session=session,
+    )
+
+    assert session.calls, "Expected at least one HTTP request"
+    call = session.calls[0]
+    assert call["url"] == "https://pokemon-tcg.p.rapidapi.com/v2/cards"
+    headers = call["headers"]
+    assert headers.get("X-RapidAPI-Key") == "rapid-key"
+    assert headers.get("X-RapidAPI-Host") == "pokemon-tcg.p.rapidapi.com"
