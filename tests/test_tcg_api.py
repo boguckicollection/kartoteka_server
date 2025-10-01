@@ -50,6 +50,7 @@ def test_search_cards_uses_rapidapi_headers():
         rapidapi_host=DEFAULT_HOST,
         session=session,
         sort="name",
+        order="asc",
     )
 
     assert session.calls, "Expected a single HTTP request"
@@ -62,6 +63,7 @@ def test_search_cards_uses_rapidapi_headers():
     assert "search" in params
     assert params["search"] == "pikachu"
     assert params.get("sort") == "name"
+    assert params.get("order") == "asc"
 
 
 def test_search_cards_uses_default_host_when_missing():
@@ -190,6 +192,44 @@ def test_list_set_cards_uses_default_host_when_missing():
     headers = call["headers"]
     assert headers.get("X-RapidAPI-Key") == "rapid-key"
     assert headers.get("X-RapidAPI-Host") == DEFAULT_HOST
+
+
+def test_build_card_payload_extracts_cardmarket_price():
+    card = {
+        "name": "Bulbasaur",
+        "number": "1/102",
+        "set": {"name": "Base Set"},
+        "cardmarket": {
+            "prices": {
+                "averageSellPrice": "9,50",
+            }
+        },
+    }
+
+    payload = tcg_api.build_card_payload(card)
+
+    assert payload is not None
+    assert payload["price"] == 9.5
+
+
+def test_build_card_payload_prefers_tcgplayer_price_when_available():
+    card = {
+        "name": "Charmander",
+        "number": "4/102",
+        "set": {"name": "Base Set"},
+        "tcgplayer": {
+            "prices": {
+                "normal": {
+                    "market": 3.75,
+                }
+            }
+        },
+    }
+
+    payload = tcg_api.build_card_payload(card)
+
+    assert payload is not None
+    assert payload["price"] == 3.75
 
 
 def test_build_cards_endpoint_supports_nested_paths():

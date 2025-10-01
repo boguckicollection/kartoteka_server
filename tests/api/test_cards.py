@@ -114,6 +114,7 @@ def test_card_search_and_detail(api_client, monkeypatch):
             "artist": "Keiji Kinebuchi",
             "series": "Base",
             "release_date": "1999/06/16",
+            "price": 12.34,
         },
         {
             "name": "Eevee",
@@ -129,6 +130,7 @@ def test_card_search_and_detail(api_client, monkeypatch):
             "artist": "Mitsuhiro Arita",
             "series": "Base",
             "release_date": "1999/10/10",
+            "price": 8.5,
         },
     ]
 
@@ -141,6 +143,8 @@ def test_card_search_and_detail(api_client, monkeypatch):
         set_name=None,
         total=None,
         limit,
+        sort=None,
+        order=None,
         rapidapi_key=None,
         rapidapi_host=None,
     ):
@@ -151,6 +155,8 @@ def test_card_search_and_detail(api_client, monkeypatch):
                 "set_name": set_name,
                 "total": total,
                 "limit": limit,
+                "sort": sort,
+                "order": order,
                 "rapidapi_key": rapidapi_key,
                 "rapidapi_host": rapidapi_host,
             }
@@ -175,9 +181,12 @@ def test_card_search_and_detail(api_client, monkeypatch):
     assert captured["name"].startswith("Eevee")
     assert captured["number"] == "133"
     assert captured["limit"] == 5
+    assert captured["sort"] is None
+    assert captured["order"] is None
     assert payload["total"] == len(search_results)
     assert payload["suggested_query"] == "Eevee"
     assert {item["set_code"] for item in payload["items"]} == {"jng", "fsl"}
+    assert sorted(item["price"] for item in payload["items"]) == [8.5, 12.34]
 
     with database.session_scope() as session:
         session.add_all(
@@ -243,6 +252,8 @@ def test_card_search_passes_rapidapi_credentials(api_client, monkeypatch):
         set_name=None,
         total=None,
         limit,
+        sort=None,
+        order=None,
         rapidapi_key=None,
         rapidapi_host=None,
     ):
@@ -253,6 +264,8 @@ def test_card_search_passes_rapidapi_credentials(api_client, monkeypatch):
                 "set_name": set_name,
                 "total": total,
                 "limit": limit,
+                "sort": sort,
+                "order": order,
                 "rapidapi_key": rapidapi_key,
                 "rapidapi_host": rapidapi_host,
             }
@@ -265,7 +278,7 @@ def test_card_search_passes_rapidapi_credentials(api_client, monkeypatch):
 
     response = api_client.get(
         "/cards/search",
-        params={"query": "Starmie"},
+        params={"query": "Starmie", "sort": "price", "order": "desc"},
         headers=headers,
     )
 
@@ -273,6 +286,8 @@ def test_card_search_passes_rapidapi_credentials(api_client, monkeypatch):
     assert captured["rapidapi_key"] == "rapid-key"
     assert captured["rapidapi_host"] == "rapid.example.com"
     assert captured["name"].startswith("Starmie")
+    assert captured["sort"] == "price"
+    assert captured["order"] == "desc"
 
 
 def test_cards_module_uses_generic_rapidapi_env(monkeypatch):
@@ -298,6 +313,8 @@ def test_cards_module_uses_generic_rapidapi_env(monkeypatch):
         set_name=None,
         total=None,
         limit,
+        sort=None,
+        order=None,
         rapidapi_key=None,
         rapidapi_host=None,
     ):
@@ -308,6 +325,8 @@ def test_cards_module_uses_generic_rapidapi_env(monkeypatch):
                 "set_name": set_name,
                 "total": total,
                 "limit": limit,
+                "sort": sort,
+                "order": order,
                 "rapidapi_key": rapidapi_key,
                 "rapidapi_host": rapidapi_host,
             }

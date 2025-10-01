@@ -68,6 +68,7 @@ class CardSearchResult(SQLModel):
     artist: Optional[str] = None
     series: Optional[str] = None
     release_date: Optional[str] = None
+    price: Optional[float] = None
 
 
 class CardSearchResponse(SQLModel):

@@ -143,6 +143,17 @@
 
   const CARD_VIEW_STORAGE_KEY = "kartoteka_card_view_mode";
   const CARD_SORT_STORAGE_KEY = "kartoteka_card_sort_order";
+  const CARD_SORT_OPTIONS = [
+    "relevance",
+    "name-asc",
+    "name-desc",
+    "set-asc",
+    "number-asc",
+    "number-desc",
+    "price-asc",
+    "price-desc",
+  ];
+  const CARD_SORT_ALLOWED = new Set(CARD_SORT_OPTIONS);
   let currentCardViewMode = "list";
   let currentCardSortOrder = "relevance";
 
@@ -170,15 +181,7 @@
     if (!storage) return null;
     try {
       const value = storage.getItem(CARD_SORT_STORAGE_KEY);
-      const allowed = [
-        "relevance",
-        "name-asc",
-        "name-desc",
-        "set-asc",
-        "number-asc",
-        "number-desc",
-      ];
-      return allowed.includes(value) ? value : null;
+      return CARD_SORT_ALLOWED.has(value) ? value : null;
     } catch (error) {
       console.warn("Unable to read card sort order", error);
       return null;
@@ -209,6 +212,56 @@
       ? new Intl.Collator("pl", { numeric: true, sensitivity: "base" })
       : null;
 
+  const cardPriceFormatter =
+    typeof Intl !== "undefined" && typeof Intl.NumberFormat === "function"
+      ? new Intl.NumberFormat("pl-PL", {
+          style: "currency",
+          currency: "PLN",
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : null;
+
+  const normalizePriceInput = (value) => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return Number(value);
+    }
+    if (typeof value === "string") {
+      const normalized = value.replace(/,/g, ".").trim();
+      if (!normalized) return null;
+      const parsed = Number.parseFloat(normalized);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  };
+
+  const getCardPriceValue = (item) => {
+    if (!item) return null;
+    return normalizePriceInput(item.price);
+  };
+
+  const formatCardPrice = (price) => {
+    if (!Number.isFinite(price)) return "";
+    if (cardPriceFormatter) {
+      try {
+        return cardPriceFormatter.format(price);
+      } catch (error) {
+        console.debug("Unable to format card price", error);
+      }
+    }
+    return `${price.toFixed(2)} zł`;
+  };
+
+  const stableSort = (items, compare) =>
+    items
+      .map((item, index) => ({ item, index }))
+      .sort((a, b) => {
+        const result = compare(a.item, b.item);
+        if (result !== 0) return result;
+        return a.index - b.index;
+      })
+      .map((entry) => entry.item);
+
   const compareText = (a = "", b = "") => {
     if (cardResultsCollator) {
       return cardResultsCollator.compare(a, b);
@@ -216,26 +269,81 @@
     return a.localeCompare(b);
   };
 
+  const comparePriceAsc = (a, b) => {
+    const priceA = getCardPriceValue(a);
+    const priceB = getCardPriceValue(b);
+    if (priceA === null && priceB === null) return 0;
+    if (priceA === null) return 1;
+    if (priceB === null) return -1;
+    if (priceA < priceB) return -1;
+    if (priceA > priceB) return 1;
+    return 0;
+  };
+
+  const comparePriceDesc = (a, b) => {
+    const priceA = getCardPriceValue(a);
+    const priceB = getCardPriceValue(b);
+    if (priceA === null && priceB === null) return 0;
+    if (priceA === null) return 1;
+    if (priceB === null) return -1;
+    if (priceA > priceB) return -1;
+    if (priceA < priceB) return 1;
+    return 0;
+  };
+
   const sortCardSearchItems = (items = [], order = "relevance") => {
     const list = Array.isArray(items) ? [...items] : [];
+    if (list.length <= 1) return list;
     switch (order) {
       case "name-asc":
-        return list.sort((a, b) => compareText(a.name || "", b.name || ""));
+        return stableSort(list, (a, b) => compareText(a.name || "", b.name || ""));
       case "name-desc":
-        return list.sort((a, b) => compareText(b.name || "", a.name || ""));
+        return stableSort(list, (a, b) => compareText(b.name || "", a.name || ""));
       case "set-asc":
-        return list.sort((a, b) => compareText(a.set_name || "", b.set_name || ""));
+        return stableSort(list, (a, b) => compareText(a.set_name || "", b.set_name || ""));
       case "number-asc":
-        return list.sort((a, b) =>
-          compareText(a.number_display || a.number || "", b.number_display || b.number || ""),
+        return stableSort(list, (a, b) =>
+          compareText(
+            a.number_display || a.number || "",
+            b.number_display || b.number || "",
+          ),
         );
       case "number-desc":
-        return list.sort((a, b) =>
-          compareText(b.number_display || b.number || "", a.number_display || a.number || ""),
+        return stableSort(list, (a, b) =>
+          compareText(
+            b.number_display || b.number || "",
+            a.number_display || a.number || "",
+          ),
         );
+      case "price-asc":
+        return stableSort(list, comparePriceAsc);
+      case "price-desc":
+        return stableSort(list, comparePriceDesc);
       case "relevance":
       default:
         return list;
+    }
+  };
+
+  const mapSortOrderToRequest = (order) => {
+    switch (order) {
+      case "name-asc":
+        return { sort: "name", order: "asc" };
+      case "name-desc":
+        return { sort: "name", order: "desc" };
+      case "set-asc":
+        return { sort: "set.name", order: "asc" };
+      case "number-asc":
+        return { sort: "number", order: "asc" };
+      case "number-desc":
+        return { sort: "number", order: "desc" };
+      case "price-asc":
+        return { sort: "price", order: "asc" };
+      case "price-desc":
+        return { sort: "price", order: "desc" };
+      case "relevance":
+      default:
+        return { sort: null, order: null };
     }
   };
 
@@ -720,6 +828,8 @@
       const cardAlt = `Miniatura karty ${cardName}`;
       const setAlt = `Ikona dodatku ${setName}`;
       const quickAddLabel = `Dodaj kartę ${cardName} do kolekcji`;
+      const priceValue = getCardPriceValue(item);
+      const priceText = priceValue === null ? "" : formatCardPrice(priceValue);
       article.innerHTML = `
         <div class="card-search-media">
           <div class="card-search-thumbnail">
@@ -760,6 +870,11 @@
           <h3>${escapeHtml(cardName)}</h3>
           <p>${escapeHtml(setName)}</p>
           <p class="card-search-meta">${escapeHtml(numberLabel)}</p>
+          ${
+            priceText
+              ? `<p class="card-search-price" data-card-price>Cena: ${escapeHtml(priceText)}</p>`
+              : ""
+          }
         </div>
         <form class="card-search-form" data-card-form>
           <input type="hidden" name="card_name" value="${escapeHtml(item.name)}" />
@@ -840,15 +955,7 @@
     };
 
     const applySortOrder = (order, options = {}) => {
-      const allowed = new Set([
-        "relevance",
-        "name-asc",
-        "name-desc",
-        "set-asc",
-        "number-asc",
-        "number-desc",
-      ]);
-      const normalized = allowed.has(order) ? order : "relevance";
+      const normalized = CARD_SORT_ALLOWED.has(order) ? order : "relevance";
       currentCardSortOrder = normalized;
       if (sortSelect && sortSelect.value !== normalized) {
         sortSelect.value = normalized;
@@ -902,6 +1009,13 @@
       showAlert(alertBox, "Szukam kart…");
       try {
         const params = new URLSearchParams({ query });
+        const requestSort = mapSortOrderToRequest(currentCardSortOrder);
+        if (requestSort.sort) {
+          params.set("sort", requestSort.sort);
+        }
+        if (requestSort.order) {
+          params.set("order", requestSort.order);
+        }
         const data = await apiFetch(`/cards/search?${params.toString()}`);
         latestItems = Array.isArray(data?.items) ? [...data.items] : [];
         latestTotal = data?.total || 0;

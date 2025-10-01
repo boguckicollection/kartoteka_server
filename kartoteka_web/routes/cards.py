@@ -114,6 +114,7 @@ def _card_to_search_schema(card: models.Card) -> schemas.CardSearchResult:
         artist=None,
         series=None,
         release_date=None,
+        price=None,
     )
 
 
@@ -301,6 +302,7 @@ def _payload_to_search_schema(payload: dict[str, Any]) -> schemas.CardSearchResu
         artist=payload.get("artist"),
         series=payload.get("series"),
         release_date=payload.get("release_date"),
+        price=payload.get("price"),
     )
 
 
@@ -312,6 +314,8 @@ def search_cards_endpoint(
     total: str | None = None,
     set_name: str | None = None,
     limit: int | None = None,
+    sort: str | None = None,
+    order: str | None = None,
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
@@ -341,6 +345,8 @@ def search_cards_endpoint(
         set_name=set_name,
         total=total,
         limit=result_cap,
+        sort=sort,
+        order=order,
         rapidapi_key=RAPIDAPI_KEY,
         rapidapi_host=RAPIDAPI_HOST,
     )
