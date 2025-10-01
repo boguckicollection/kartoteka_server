@@ -93,8 +93,77 @@ def test_collection_endpoints_require_authentication(api_client):
     assert response.status_code == 401
 
 
-def test_card_search_and_detail(api_client):
+def test_card_search_and_detail(api_client, monkeypatch):
     headers = _auth_headers(api_client, username="gary", password="eevee")
+
+    search_results = [
+        {
+            "name": "Eevee",
+            "number": "133",
+            "number_display": "133/151",
+            "total": "151",
+            "set_name": "Jungle",
+            "set_code": "jng",
+            "rarity": "Common",
+            "image_small": "https://example.com/eevee-jungle-small.jpg",
+            "image_large": "https://example.com/eevee-jungle-large.jpg",
+            "set_icon": "https://example.com/jungle.png",
+            "artist": "Keiji Kinebuchi",
+            "series": "Base",
+            "release_date": "1999/06/16",
+        },
+        {
+            "name": "Eevee",
+            "number": "133",
+            "number_display": "133/151",
+            "total": "151",
+            "set_name": "Fossil",
+            "set_code": "fsl",
+            "rarity": "Common",
+            "image_small": "https://example.com/eevee-fossil-small.jpg",
+            "image_large": "https://example.com/eevee-fossil-large.jpg",
+            "set_icon": None,
+            "artist": "Mitsuhiro Arita",
+            "series": "Base",
+            "release_date": "1999/10/10",
+        },
+    ]
+
+    captured: dict[str, object] = {}
+
+    def fake_search_cards(*, name, number=None, set_name=None, total=None, limit):
+        captured.update(
+            {
+                "name": name,
+                "number": number,
+                "set_name": set_name,
+                "total": total,
+                "limit": limit,
+            }
+        )
+        return search_results
+
+    monkeypatch.setattr(
+        "kartoteka_web.routes.cards.tcg_api.search_cards",
+        fake_search_cards,
+    )
+
+    with database.session_scope() as session:
+        assert session.exec(select(models.Card)).all() == []
+
+    search = api_client.get(
+        "/cards/search",
+        params={"query": "Eevee 133", "limit": 5},
+        headers=headers,
+    )
+    assert search.status_code == 200, search.text
+    payload = search.json()
+    assert captured["name"].startswith("Eevee")
+    assert captured["number"] == "133"
+    assert captured["limit"] == 5
+    assert payload["total"] == len(search_results)
+    assert payload["suggested_query"] == "Eevee"
+    assert {item["set_code"] for item in payload["items"]} == {"jng", "fsl"}
 
     with database.session_scope() as session:
         session.add_all(
@@ -122,16 +191,6 @@ def test_card_search_and_detail(api_client):
                 ),
             ]
         )
-
-    search = api_client.get(
-        "/cards/search",
-        params={"query": "Eevee 133", "limit": 5},
-        headers=headers,
-    )
-    assert search.status_code == 200, search.text
-    payload = search.json()
-    assert payload["total"] == 2
-    assert {item["set_code"] for item in payload["items"]} == {"jng", "fsl"}
 
     info = api_client.get(
         "/cards/info",
