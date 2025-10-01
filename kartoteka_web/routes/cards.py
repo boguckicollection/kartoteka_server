@@ -20,8 +20,16 @@ router = APIRouter(prefix="/cards", tags=["cards"])
 
 MAX_SEARCH_RESULTS = 200
 
-RAPIDAPI_KEY = os.getenv("KARTOTEKA_RAPIDAPI_KEY") or os.getenv("POKEMONTCG_RAPIDAPI_KEY")
-RAPIDAPI_HOST = os.getenv("KARTOTEKA_RAPIDAPI_HOST") or os.getenv("POKEMONTCG_RAPIDAPI_HOST")
+RAPIDAPI_KEY = (
+    os.getenv("KARTOTEKA_RAPIDAPI_KEY")
+    or os.getenv("POKEMONTCG_RAPIDAPI_KEY")
+    or os.getenv("RAPIDAPI_KEY")
+)
+RAPIDAPI_HOST = (
+    os.getenv("KARTOTEKA_RAPIDAPI_HOST")
+    or os.getenv("POKEMONTCG_RAPIDAPI_HOST")
+    or os.getenv("RAPIDAPI_HOST")
+)
 
 CARD_NUMBER_PATTERN = re.compile(
     r"(?i)([a-z]{0,5}\d+[a-z0-9]*)(?:\s*/\s*([a-z]{0,5}\d+[a-z0-9]*))?"
