@@ -6,4 +6,10 @@ ceny_kart_*.xlsx
 name
 last_location.txt
 last_catalogue_sync.txt
+last_*.txt
+last_*.json
+store_export.csv
+*_export.csv
+logs/
+*.log
 card_images/

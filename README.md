@@ -1,5 +1,3 @@
-![Kartoteka web banner](banner22.png)
-
 # Kartoteka Web Collection App
 
 ## Overview
@@ -51,6 +49,4 @@ The shipped UI is compiled into `kartoteka_web/static`. When iterating on the ne
 3. Reload the Uvicorn process to pick up the new files.
 
 ## Branding Assets
-![Kartoteka interface preview](LOGO_male.png)
-
-Updated badges, favicons and screenshots should reflect the latest design language and live in the repository root for convenient reuse across documentation and the deployed UI.
+Updated badges, favicons and screenshots should reflect the latest design language and live under `kartoteka_web/static/` for convenient reuse across documentation and the deployed UI.
