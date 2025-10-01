@@ -252,11 +252,11 @@ def search_cards(
     _apply_default_user_agent(headers, session)
     use_rapidapi = bool(rapidapi_key or rapidapi_host)
     if use_rapidapi:
-        url = _build_cards_endpoint(rapidapi_host)
+        api_host = rapidapi_host or RAPIDAPI_DEFAULT_HOST
+        url = _build_cards_endpoint(api_host)
         if rapidapi_key:
             headers["X-RapidAPI-Key"] = rapidapi_key
-        if rapidapi_host:
-            headers["X-RapidAPI-Host"] = rapidapi_host
+        headers["X-RapidAPI-Host"] = api_host
     else:
         url = POKEMONTCG_API_URL
         if POKEMONTCG_API_KEY:
@@ -423,11 +423,11 @@ def list_set_cards(
     _apply_default_user_agent(headers, session)
     use_rapidapi = bool(rapidapi_key or rapidapi_host)
     if use_rapidapi:
-        url = _build_cards_endpoint(rapidapi_host)
+        api_host = rapidapi_host or RAPIDAPI_DEFAULT_HOST
+        url = _build_cards_endpoint(api_host)
         if rapidapi_key:
             headers["X-RapidAPI-Key"] = rapidapi_key
-        if rapidapi_host:
-            headers["X-RapidAPI-Host"] = rapidapi_host
+        headers["X-RapidAPI-Host"] = api_host
     else:
         url = POKEMONTCG_API_URL
         if POKEMONTCG_API_KEY:
