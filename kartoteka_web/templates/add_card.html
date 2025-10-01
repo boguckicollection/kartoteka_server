@@ -1,25 +1,22 @@
 {% extends "base.html" %}
 {% block title %}Dodaj kartę - Kartoteka{% endblock %}
 {% block content %}
-<section class="page-hero">
+<section class="page-hero add-card-hero">
   <div>
     <p class="eyebrow">Rozszerz swoją kolekcję</p>
-    <h1>Wyszukaj kartę w bazie</h1>
-    <p>
-      Aby wyszukać kartę w bazie, wpisz jej nazwę lub nazwę z numerem w polu poniżej, a następnie
-      wybierz interesujący Cię wynik z listy.
-    </p>
+    <h1>Dodaj kartę z katalogu</h1>
+    <p>Wpisz nazwę lub numer karty. Wyniki możesz od razu zapisać w kolekcji, ustawiając ilość i podstawowe oznaczenia.</p>
   </div>
 </section>
 
 <section class="panel" id="add-card-page">
   <div class="panel-header">
     <div>
-      <h2>Znajdź kartę w bazie</h2>
-      <p>Wpisz nazwę karty – możesz dodać numer, aby szybciej odnaleźć konkretny egzemplarz.</p>
+      <h2>Wyszukiwarka kart</h2>
+      <p>Dodaj numer lub kod seta, aby szybciej znaleźć właściwy wariant.</p>
     </div>
   </div>
-  <form id="add-card-form" class="form-grid" autocomplete="off">
+  <form id="add-card-form" class="add-card-form" autocomplete="off" data-card-search-form>
     <label>
       Nazwa lub numer karty
       <input
@@ -27,45 +24,17 @@
         name="query"
         id="add-card-query"
         autocomplete="off"
-        placeholder="np. Giovanni's Charisma 78/132"
+        placeholder="np. Pikachu 25/102"
         required
       />
     </label>
-    <p class="search-hint" id="card-search-hint" aria-live="polite" hidden></p>
-    <input type="hidden" name="rarity" id="add-card-rarity" />
     <div class="form-footer">
-      <button type="submit" class="secondary" id="card-search-trigger">Szukaj</button>
+      <button type="submit" class="button primary" id="card-search-trigger">Szukaj</button>
     </div>
   </form>
-</section>
-
-<section class="panel card-search-results-panel" id="card-search-results-section" hidden>
-  <div class="panel-header card-search-results-header">
-      <div>
-        <h2>Wyniki wyszukiwania</h2>
-        <p>Otwórz kartę z listy, aby zobaczyć jej szczegóły.</p>
-      </div>
-    <div class="card-search-controls">
-      <label class="card-search-sort">
-        Sortuj według
-        <select id="card-search-sort" name="card-search-sort">
-          <option value="relevance">Trafność</option>
-          <option value="name_asc">Nazwa A–Z</option>
-          <option value="name_desc">Nazwa Z–A</option>
-          <option value="number_asc">Numer rosnąco</option>
-          <option value="number_desc">Numer malejąco</option>
-          <option value="set_asc">Set A–Z</option>
-          <option value="set_desc">Set Z–A</option>
-        </select>
-      </label>
-    </div>
-  </div>
-  <p id="card-search-summary" class="card-search-summary" hidden aria-live="polite"></p>
+  <div class="alert" id="add-card-alert" hidden></div>
+  <p id="card-search-summary" class="search-summary" hidden aria-live="polite"></p>
   <div id="card-search-results" class="card-search-results" role="list"></div>
-  <p id="card-search-empty" class="card-search-empty" hidden aria-live="polite"></p>
+  <p id="card-search-empty" class="empty-state" hidden aria-live="polite"></p>
 </section>
-
-<div class="toast-container">
-  <div class="alert" id="add-card-alert" role="status" aria-live="polite" hidden></div>
-</div>
 {% endblock %}

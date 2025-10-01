@@ -1,108 +1,62 @@
 {% extends "base.html" %}
 {% block title %}Kolekcja - Kartoteka{% endblock %}
 {% block content %}
-<section class="page-hero">
+<section class="page-hero collection-hero">
   <div>
-    <p class="eyebrow">Pokemon TCG Manager</p>
+    <p class="eyebrow">Twoja kolekcja</p>
     <h1>Witaj, {{ username or 'Trenerze' }}!</h1>
-    <p>Z poziomu kokpitu błyskawicznie sprawdzisz stan swojej kolekcji, dodasz nowe karty i zaktualizujesz informacje o swoich wpisach.</p>
-    <div class="hero-actions">
-      <a class="button primary" href="/cards/add">Wyszukaj kartę</a>
-      <a class="button secondary" href="#collection-section">Przeglądaj kolekcję</a>
-    </div>
-  </div>
-</section>
-
-<section class="panel">
-  <div class="panel-header">
-    <div>
-      <h2>Podsumowanie kolekcji</h2>
-      <p>Najważniejsze statystyki Twojego zbioru aktualizowane w czasie rzeczywistym.</p>
-    </div>
-  </div>
-  <div class="stat-grid" id="portfolio-summary">
-    <article class="stat-card">
-      <h3>Liczba wpisów</h3>
-      <p id="summary-count">0</p>
-      <span>Wszystkie pozycje w bazie</span>
-    </article>
-    <article class="stat-card">
-      <h3>Łączna liczba kart</h3>
-      <p id="summary-quantity">0</p>
-      <span>Sumaryczna ilość egzemplarzy</span>
-    </article>
-    <article class="stat-card">
-      <h3>Łączna kwota zakupu [PLN]</h3>
-      <p id="summary-value">0.00</p>
-      <span>Łączny koszt zadeklarowanych kart</span>
-    </article>
-  </div>
-</section>
-
-<section class="panel">
-  <div class="panel-header">
-    <div>
-      <h2>Akcje szybkie</h2>
-      <p>Skróty, które pozwalają przechodzić do najczęściej wykonywanych zadań.</p>
-    </div>
-  </div>
-  <div class="quick-actions">
-    <a class="action-card" href="/cards/add">
-      <span class="action-emoji">➕</span>
-      <strong>Dodaj kartę</strong>
-      <span>Rozszerz swoją kolekcję o nowy wpis.</span>
-    </a>
-    <a class="action-card" href="#collection-section">
-      <span class="action-emoji">📚</span>
-      <strong>Zobacz kolekcję</strong>
-      <span>Przeglądaj karty i zarządzaj wpisami.</span>
-    </a>
-    <a class="action-card" href="/portfolio">
-      <span class="action-emoji">💰</span>
-      <strong>Sprawdź portfel</strong>
-      <span>Analizuj strukturę swojej kolekcji.</span>
-    </a>
-  </div>
-</section>
-
-<section class="panel" id="add-card-panel">
-  <div class="panel-header">
-    <div>
-      <h2>Dodaj kartę</h2>
-      <p>Skorzystaj z wyszukiwarki, aby odnaleźć kartę przed dodaniem jej do kolekcji.</p>
-    </div>
-  </div>
-  <div class="add-card-cta">
     <p>
-      Nowe wpisy dodasz na dedykowanej stronie wyszukiwania kart. Wprowadź nazwę, opcjonalnie
-      numer lub zestaw, wybierz odpowiednią kartę i potwierdź dodanie do kolekcji.
+      Poniżej znajdziesz prostą listę wszystkich kart dodanych do kolekcji. Aktualizuj ilości,
+      oznaczaj wersje reverse lub holo i usuwaj wpisy, gdy przestaną być potrzebne.
     </p>
-    <a class="button primary" href="/cards/add">Szukaj kart</a>
+    <div class="hero-actions">
+      <a class="button primary" href="/cards/add">Dodaj nową kartę</a>
+      <button class="button secondary" id="refresh-collection" type="button">Odśwież listę</button>
+    </div>
   </div>
 </section>
 
 <section class="panel" id="collection-section">
   <div class="panel-header">
     <div>
-      <h2>Aktualna kolekcja</h2>
-      <p>Pełna lista kart z możliwością aktualizacji ilości oraz usuwania wpisów.</p>
+      <h2>Zapisane wpisy</h2>
+      <p>Zarządzaj podstawowymi metadanymi dla każdej karty z kolekcji.</p>
     </div>
-    <button id="refresh-collection" class="secondary" type="button">Odśwież dane</button>
   </div>
+  <div class="alert" id="collection-alert" hidden></div>
   <div class="table-responsive">
-    <table>
+    <table class="collection-table">
       <thead>
         <tr>
-          <th>Nazwa</th>
-          <th>Numer</th>
-          <th>Set</th>
-          <th>Ilość</th>
-          <th>Cena zakupu</th>
-          <th>Akcje</th>
+          <th scope="col">Karta</th>
+          <th scope="col">Set</th>
+          <th scope="col">Numer</th>
+          <th scope="col">Ilość</th>
+          <th scope="col">Reverse</th>
+          <th scope="col">Holo</th>
+          <th scope="col">Cena zakupu</th>
+          <th scope="col">Akcje</th>
         </tr>
       </thead>
       <tbody id="collection-table"></tbody>
     </table>
+    <p class="empty-state" id="collection-empty" hidden>Brak kart w kolekcji. Dodaj pierwszą kartę, aby rozpocząć.</p>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Porządkuj zbiory krok po kroku</h2>
+      <p>Użyj widoku kart, aby skupić się na pojedynczych wpisach i dodać dodatkowe notatki.</p>
+    </div>
+  </div>
+  <div class="collection-followup">
+    <p>
+      Widok kart prezentuje te same dane w formie kafelków. To dobre miejsce, aby planować wymiany
+      lub zaznaczać priorytetowe pozycje w kolekcji.
+    </p>
+    <a class="button secondary" href="/portfolio">Otwórz widok kart</a>
   </div>
 </section>
 {% endblock %}
