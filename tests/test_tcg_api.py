@@ -49,6 +49,7 @@ def test_search_cards_uses_rapidapi_headers():
         rapidapi_key="rapid-key",
         rapidapi_host=DEFAULT_HOST,
         session=session,
+        sort="name",
     )
 
     assert session.calls, "Expected a single HTTP request"
@@ -58,8 +59,9 @@ def test_search_cards_uses_rapidapi_headers():
     assert headers.get("X-RapidAPI-Key") == "rapid-key"
     assert headers.get("X-RapidAPI-Host") == DEFAULT_HOST
     params = call["params"] or {}
-    assert "q" in params
-    assert params["q"] == "pikachu"
+    assert "search" in params
+    assert params["search"] == "pikachu"
+    assert params.get("sort") == "name"
 
 
 def test_search_cards_uses_default_host_when_missing():
@@ -78,8 +80,8 @@ def test_search_cards_uses_default_host_when_missing():
     assert headers.get("X-RapidAPI-Key") == "rapid-key"
     assert headers.get("X-RapidAPI-Host") == DEFAULT_HOST
     params = call["params"] or {}
-    assert "q" in params
-    assert params["q"] == "eevee"
+    assert "search" in params
+    assert params["search"] == "eevee"
 
 
 def test_search_cards_without_key_omits_auth_header():
@@ -92,7 +94,7 @@ def test_search_cards_without_key_omits_auth_header():
     assert "X-RapidAPI-Key" not in headers
     assert headers.get("X-RapidAPI-Host") == DEFAULT_HOST
     params = call["params"] or {}
-    assert params.get("q") == "ditto"
+    assert params.get("search") == "ditto"
 
 
 def test_list_set_cards_uses_rapidapi_headers():
@@ -114,12 +116,12 @@ def test_list_set_cards_uses_rapidapi_headers():
     assert headers.get("X-RapidAPI-Key") == "rapid-key"
     assert headers.get("X-RapidAPI-Host") == DEFAULT_HOST
     params = call["params"] or {}
-    assert "q" in params
-    query = params["q"]
+    assert "search" in params
+    query = params["search"]
     assert 'setId:"base"' in query
     assert 'setPtcgoCode:"base"' in query
     assert 'setName:"*base*"' in query
-    assert params.get("orderBy") == "number"
+    assert params.get("sort") == "number"
 
 
 def test_search_cards_builds_compound_query():
@@ -134,7 +136,7 @@ def test_search_cards_builds_compound_query():
     assert session.calls, "Expected a single HTTP request"
     call = session.calls[0]
     params = call["params"] or {}
-    assert params["q"] == "pikachu base 102"
+    assert params["search"] == "pikachu base 102"
 
 
 def test_search_cards_matches_uppercase_collector_number():
@@ -166,7 +168,7 @@ def test_list_set_cards_without_key_uses_default_headers():
     assert "X-RapidAPI-Key" not in headers
     assert headers.get("X-RapidAPI-Host") == DEFAULT_HOST
     params = call["params"] or {}
-    query = params["q"]
+    query = params["search"]
     assert 'setId:"base"' in query
     assert 'setPtcgoCode:"base"' in query
     assert 'setName:"*base*"' in query

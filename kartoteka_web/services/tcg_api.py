@@ -245,6 +245,7 @@ def search_cards(
     set_name: Optional[str] = None,
     total: Optional[str] = None,
     limit: int = 10,
+    sort: Optional[str] = None,
     rapidapi_key: Optional[str] = None,
     rapidapi_host: Optional[str] = None,
     session: Optional[requests.sessions.Session] = None,
@@ -295,10 +296,12 @@ def search_cards(
     page_size = max(limit * 5, 50)
     page_size = min(page_size, 250)
     params = {
-        "q": query_value,
+        "search": query_value,
         "page": "1",
         "pageSize": str(page_size),
     }
+    if sort:
+        params["sort"] = sort
 
     try:
         response = http.get(url, params=params, headers=headers, timeout=timeout)
@@ -459,10 +462,10 @@ def list_set_cards(
 
     while True:
         params = {
-            "q": query,
+            "search": query,
             "page": str(page),
             "pageSize": str(page_size),
-            "orderBy": "number",
+            "sort": "number",
         }
         try:
             response = http.get(
