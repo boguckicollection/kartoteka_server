@@ -1054,10 +1054,6 @@
     const sortSelect = document.querySelector("[data-card-sort]");
     const results = document.getElementById("card-search-results");
     const pagination = document.getElementById("card-search-pagination");
-    const paginationStatus = pagination?.querySelector("[data-page-status]");
-    const paginationPrev = pagination?.querySelector("[data-page-action='prev']");
-    const paginationNext = pagination?.querySelector("[data-page-action='next']");
-    const paginationIndexList = document.querySelector("[data-page-index-list]");
     let latestItems = [];
     let latestTotalCount = 0;
     let latestQuery = "";
@@ -1107,67 +1103,86 @@
     };
 
     const renderPageIndexButtons = (totalPages) => {
-      if (!paginationIndexList) return;
+      if (!pagination) return;
+      pagination.innerHTML = "";
       if (!Number.isFinite(totalPages) || totalPages <= 1) {
-        paginationIndexList.hidden = true;
-        paginationIndexList.innerHTML = "";
         return;
       }
-      const maxPagesToRender = Math.min(totalPages, 5);
+
       const fragment = document.createDocumentFragment();
-      for (let page = 1; page <= maxPagesToRender; page += 1) {
-        const item = document.createElement("li");
+
+      const createButton = ({ text, action, page, disabled, ariaLabel }) => {
         const button = document.createElement("button");
         button.type = "button";
-        button.textContent = String(page);
-        button.dataset.pageIndex = String(page);
+        button.textContent = text;
+        if (action) {
+          button.dataset.pageAction = action;
+        }
+        if (Number.isFinite(page) && page) {
+          button.dataset.pageIndex = String(page);
+        }
+        if (ariaLabel) {
+          button.setAttribute("aria-label", ariaLabel);
+        }
+        if (disabled) {
+          button.disabled = true;
+        }
+        return button;
+      };
+
+      const prevButton = createButton({
+        text: "<",
+        action: "prev",
+        disabled: latestPage <= 1,
+        ariaLabel: "Poprzednia strona",
+      });
+      fragment.appendChild(prevButton);
+
+      const maxPagesToRender = Math.min(totalPages, 5);
+      let startPage = Math.max(1, latestPage - Math.floor(maxPagesToRender / 2));
+      let endPage = startPage + maxPagesToRender - 1;
+      if (endPage > totalPages) {
+        endPage = totalPages;
+        startPage = Math.max(1, endPage - maxPagesToRender + 1);
+      }
+
+      for (let page = startPage; page <= endPage; page += 1) {
         const isCurrent = page === latestPage;
-        button.disabled = isCurrent;
+        const button = createButton({
+          text: String(page),
+          page,
+          disabled: isCurrent,
+          ariaLabel: `Przejdź do strony ${page}`,
+        });
         button.classList.toggle("is-active", isCurrent);
-        button.setAttribute("aria-label", `Przejdź do strony ${page}`);
         if (isCurrent) {
           button.setAttribute("aria-current", "page");
-        } else {
-          button.removeAttribute("aria-current");
         }
-        item.appendChild(button);
-        fragment.appendChild(item);
+        fragment.appendChild(button);
       }
-      paginationIndexList.innerHTML = "";
-      paginationIndexList.appendChild(fragment);
-      paginationIndexList.hidden = false;
+
+      const nextButton = createButton({
+        text: ">",
+        action: "next",
+        disabled: latestPage >= totalPages,
+        ariaLabel: "Następna strona",
+      });
+      fragment.appendChild(nextButton);
+
+      pagination.appendChild(fragment);
     };
 
     const updatePaginationControls = () => {
-      if (!pagination && !paginationIndexList) return;
+      if (!pagination) return;
       const totalAvailable = latestTotalCount > 0 ? latestTotalCount : latestItems.length;
       if (!latestItems.length || !totalAvailable) {
-        if (pagination) {
-          pagination.hidden = true;
-          if (paginationStatus) paginationStatus.textContent = "";
-          if (paginationPrev) paginationPrev.disabled = true;
-          if (paginationNext) paginationNext.disabled = true;
-        }
-        if (paginationIndexList) {
-          paginationIndexList.hidden = true;
-          paginationIndexList.innerHTML = "";
-        }
+        pagination.hidden = true;
+        pagination.innerHTML = "";
         return;
       }
       const perPage = latestPerPage > 0 ? latestPerPage : latestItems.length;
       const totalPages = Math.max(1, Math.ceil(totalAvailable / perPage));
-      if (pagination) {
-        pagination.hidden = totalPages <= 1 && latestPage <= 1;
-        if (paginationStatus) {
-          paginationStatus.textContent = `Strona ${latestPage} z ${totalPages}`;
-        }
-        if (paginationPrev) {
-          paginationPrev.disabled = latestPage <= 1;
-        }
-        if (paginationNext) {
-          paginationNext.disabled = latestPage >= totalPages;
-        }
-      }
+      pagination.hidden = totalPages <= 1 && latestPage <= 1;
       renderPageIndexButtons(totalPages);
     };
 
@@ -1260,14 +1275,28 @@
       }
     };
 
-    if (paginationIndexList) {
-      paginationIndexList.addEventListener("click", async (event) => {
+    if (pagination) {
+      pagination.addEventListener("click", async (event) => {
         if (isFetching) return;
         const target = event.target instanceof Element
-          ? event.target.closest("[data-page-index]")
+          ? event.target.closest("[data-page-action],[data-page-index]")
           : null;
         if (!target || !(target instanceof HTMLElement)) return;
         if (target.hasAttribute("disabled")) return;
+
+        if (target.dataset.pageAction === "prev") {
+          const targetPage = Math.max(1, latestPage - 1);
+          if (targetPage === latestPage) return;
+          await fetchResults({ page: targetPage, message: "Ładuję poprzednią stronę…" });
+          return;
+        }
+
+        if (target.dataset.pageAction === "next") {
+          const targetPage = latestPage + 1;
+          await fetchResults({ page: targetPage, message: "Ładuję kolejną stronę…" });
+          return;
+        }
+
         const page = toPositiveInteger(target.dataset.pageIndex, 0);
         if (!page || page === latestPage) return;
         await fetchResults({ page, message: `Ładuję stronę ${page}…` });
@@ -1287,23 +1316,6 @@
       latestPage = 1;
       await fetchResults({ query, page: 1, message: "Szukam kart…" });
     });
-
-    if (paginationPrev) {
-      paginationPrev.addEventListener("click", async () => {
-        if (paginationPrev.disabled || isFetching) return;
-        const targetPage = Math.max(1, latestPage - 1);
-        if (targetPage === latestPage) return;
-        await fetchResults({ page: targetPage, message: "Ładuję poprzednią stronę…" });
-      });
-    }
-
-    if (paginationNext) {
-      paginationNext.addEventListener("click", async () => {
-        if (paginationNext.disabled || isFetching) return;
-        const targetPage = latestPage + 1;
-        await fetchResults({ page: targetPage, message: "Ładuję kolejną stronę…" });
-      });
-    }
 
     const handleCardFormSubmission = async (target, trigger) => {
       const alertTarget = document.getElementById("add-card-alert");

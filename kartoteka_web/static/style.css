@@ -619,6 +619,48 @@ img {
   margin-top: 24px;
 }
 
+.card-search-pagination {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.card-search-pagination button {
+  border: none;
+  background: none;
+  padding: 6px 12px;
+  font: inherit;
+  color: var(--color-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-search-pagination button:hover:not(:disabled),
+.card-search-pagination button:focus-visible:not(:disabled) {
+  color: var(--color-accent);
+  background-color: var(--color-accent-soft);
+}
+
+.card-search-pagination button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.card-search-pagination button.is-active {
+  color: var(--color-accent-dark);
+  background-color: var(--color-accent-soft);
+  cursor: default;
+}
+
+.card-search-pagination button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .card-search-results--list {
   display: grid;
   gap: 16px;
