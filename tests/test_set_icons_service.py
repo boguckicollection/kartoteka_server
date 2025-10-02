@@ -185,3 +185,12 @@ def test_set_icons_closes_created_session(monkeypatch, tmp_path: Path):
 
     assert session.closed is True
 
+
+def test_extract_clean_code_prefers_code_over_id():
+    payload = {
+        "id": "special-set",
+        "code": "base1",
+    }
+
+    assert set_icons._extract_clean_code(payload) == "base1"
+

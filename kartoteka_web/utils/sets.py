@@ -50,12 +50,13 @@ def resolve_cached_set_icon(
     raw_candidates: Sequence[Optional[str]]
     if set_payload is not None:
         raw_candidates = (
-            set_payload.get("id"),
+            set_code,
             set_payload.get("code"),
             set_payload.get("setCode"),
             set_payload.get("ptcgoCode"),
+            set_payload.get("slug"),
+            set_payload.get("id"),
             set_payload.get("name"),
-            set_code,
             set_name,
         )
     else:
