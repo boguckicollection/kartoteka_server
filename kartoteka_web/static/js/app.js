@@ -856,66 +856,61 @@
       const rarityAlt = `Symbol rzadkości ${rarityText}`;
       const rarityFallback = rarityRaw ? rarityRaw.charAt(0).toUpperCase() : "?";
       if (isListView) {
+        const previewImage = item.image_large || item.image_small || "";
+        const hasPreviewImage = Boolean(previewImage);
+        const fallbackInitial = escapeHtml(cardName.charAt(0) || "?");
         article.innerHTML = `
-          <div class="card-search-info">
-            <h3>${escapeHtml(cardName)}</h3>
-            <div class="card-search-inline-fields">
-              <span class="card-search-inline-field">
-                <span class="card-search-inline-label">Numer</span>
-                <span class="card-search-inline-value">${escapeHtml(numberLabel)}</span>
-              </span>
-              <span class="card-search-inline-field">
-                <span class="card-search-inline-label">Dodatek</span>
-                <span class="card-search-inline-value">${escapeHtml(setName)}</span>
-              </span>
-              <span class="card-search-inline-field">
-                <span class="card-search-inline-label">Rzadkość</span>
-                <span class="card-search-inline-value">${escapeHtml(rarityText)}</span>
-              </span>
+          <div class="card-search-list-row">
+            <div class="card-search-list-thumb" ${hasPreviewImage ? "data-has-preview=\"true\"" : ""}>
               ${
-                priceText
-                  ? `<span class="card-search-inline-field">
-                      <span class="card-search-inline-label">Cena</span>
-                      <span class="card-search-inline-value" data-card-price>${escapeHtml(priceText)}</span>
-                    </span>`
+                hasThumbnail
+                  ? `<img src="${escapeHtml(item.image_small)}" alt="${escapeHtml(cardAlt)}" loading="lazy" />`
+                  : hasSetIcon
+                    ? `<img src="${escapeHtml(item.set_icon)}" alt="${escapeHtml(setAlt)}" loading="lazy" />`
+                    : `<span class="card-search-list-thumb-fallback" aria-hidden="true">${fallbackInitial}</span>`
+              }
+              ${
+                hasPreviewImage
+                  ? `<img class="card-search-list-preview" src="${escapeHtml(previewImage)}" alt="${escapeHtml(cardAlt)}" loading="lazy" />`
                   : ""
               }
             </div>
-          </div>
-          <form class="card-search-form" data-card-form>
-            <input type="hidden" name="card_name" value="${escapeHtml(item.name)}" />
-            <input type="hidden" name="card_number" value="${escapeHtml(item.number)}" />
-            <input type="hidden" name="card_set_name" value="${escapeHtml(item.set_name)}" />
-            <input type="hidden" name="card_set_code" value="${escapeHtml(item.set_code || "")}" />
-            <input type="hidden" name="card_rarity" value="${escapeHtml(item.rarity || "")}" />
-            <input type="hidden" name="card_image_small" value="${escapeHtml(item.image_small || "")}" />
-            <input type="hidden" name="card_image_large" value="${escapeHtml(item.image_large || "")}" />
-            <label>
-              Ilość
-              <input type="number" name="quantity" min="0" step="1" value="1" />
-            </label>
-            <label>
-              Cena zakupu
-              <input type="number" name="purchase_price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" />
-            </label>
-            <label class="checkbox">
-              <input type="checkbox" name="is_reverse" /> Reverse
-            </label>
-            <label class="checkbox">
-              <input type="checkbox" name="is_holo" /> Holo
-            </label>
-            <div class="form-footer">
-              <button
-                type="submit"
-                class="card-quick-add"
-                data-card-quick-add
-                aria-label="${escapeHtml(quickAddLabel)}"
-                title="Dodaj do kolekcji"
-              >
-                <span aria-hidden="true">+</span>
-              </button>
+            <div class="card-search-list-main">
+              <h3 class="card-search-list-title">${escapeHtml(cardName)}</h3>
+              <div class="card-search-list-meta">
+                <span class="card-search-list-meta-item card-search-list-set">${escapeHtml(setName)}</span>
+                <span class="card-search-list-meta-divider" aria-hidden="true">•</span>
+                <span class="card-search-list-meta-item card-search-list-number">${escapeHtml(numberLabel)}</span>
+                ${
+                  priceText
+                    ? `<span class="card-search-list-meta-divider" aria-hidden="true">•</span>
+                       <span class="card-search-list-meta-item card-search-list-price" data-card-price>${escapeHtml(priceText)}</span>`
+                    : ""
+                }
+              </div>
             </div>
-          </form>
+            <form class="card-search-form" data-card-form>
+              <input type="hidden" name="card_name" value="${escapeHtml(item.name)}" />
+              <input type="hidden" name="card_number" value="${escapeHtml(item.number)}" />
+              <input type="hidden" name="card_set_name" value="${escapeHtml(item.set_name)}" />
+              <input type="hidden" name="card_set_code" value="${escapeHtml(item.set_code || "")}" />
+              <input type="hidden" name="card_rarity" value="${escapeHtml(item.rarity || "")}" />
+              <input type="hidden" name="card_image_small" value="${escapeHtml(item.image_small || "")}" />
+              <input type="hidden" name="card_image_large" value="${escapeHtml(item.image_large || "")}" />
+              <input type="hidden" name="quantity" value="1" />
+              <div class="form-footer">
+                <button
+                  type="submit"
+                  class="card-quick-add"
+                  data-card-quick-add
+                  aria-label="${escapeHtml(quickAddLabel)}"
+                  title="Dodaj do kolekcji"
+                >
+                  <span aria-hidden="true">+</span>
+                </button>
+              </div>
+            </form>
+          </div>
         `;
       } else {
         article.innerHTML = `
