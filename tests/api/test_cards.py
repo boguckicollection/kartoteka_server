@@ -184,7 +184,6 @@ def test_card_search_and_detail(api_client, monkeypatch):
     payload = search.json()
     assert captured["name"].startswith("Eevee")
     assert captured["number"] == "133"
-    assert captured["limit"] == 5
     assert captured["sort"] is None
     assert captured["order"] is None
     assert captured["page"] == 1
@@ -417,9 +416,79 @@ def test_card_search_pagination_clamping(api_client, monkeypatch):
 
     assert response.status_code == 200, response.text
     payload = response.json()
-    assert captured["page"] == 5
+    assert captured["page"] == 1
     assert captured["per_page"] == 20
-    assert captured["limit"] == 20
+    assert captured["limit"] == 100
     assert payload["page"] == 5
     assert payload["per_page"] == 20
     assert payload["total_count"] == 100
+
+
+def test_card_search_uses_local_pagination(api_client, monkeypatch):
+    headers = _auth_headers(api_client, username="sabrina", password="alakazam")
+
+    captured: dict[str, object] = {}
+
+    records = [
+        {
+            "name": f"Pikachu {index:03d}",
+            "number": f"{index:03d}",
+            "number_display": f"{index:03d}",
+            "total": None,
+            "set_name": "Base Set",
+            "set_code": f"base{index % 5}",
+            "rarity": "Common",
+            "image_small": None,
+            "image_large": None,
+            "set_icon": None,
+            "artist": None,
+            "series": None,
+            "release_date": None,
+            "price": None,
+        }
+        for index in range(1, 101)
+    ]
+
+    def fake_search_cards(
+        *,
+        name,
+        number=None,
+        set_name=None,
+        total=None,
+        limit=None,
+        sort=None,
+        order=None,
+        page=None,
+        per_page=None,
+        rapidapi_key=None,
+        rapidapi_host=None,
+    ):
+        captured.update(
+            {
+                "name": name,
+                "limit": limit,
+                "page": page,
+                "per_page": per_page,
+            }
+        )
+        return records, 100
+
+    monkeypatch.setattr(cards_routes.tcg_api, "search_cards", fake_search_cards)
+
+    response = api_client.get(
+        "/cards/search",
+        params={"query": "Pikachu", "page": 3, "per_page": 20},
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert captured["limit"] == 100
+    assert captured["page"] == 1
+    assert payload["page"] == 3
+    assert payload["per_page"] == 20
+    assert payload["total"] == 20
+    assert payload["total_count"] == 100
+    returned_numbers = [item["number"] for item in payload["items"]]
+    assert returned_numbers[0] == "041"
+    assert returned_numbers[-1] == "060"

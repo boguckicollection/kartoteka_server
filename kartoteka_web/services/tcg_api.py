@@ -474,35 +474,76 @@ def search_cards(
     if not query_value:
         return [], 0
 
-    params = {
-        "search": query_value,
-        "page": str(page_value),
-        "pageSize": str(per_page_value),
-    }
-    if sort:
-        params["sort"] = sort
-    if order:
-        params["order"] = order
+    max_results = 100
+    aggregated_cards: list[dict[str, Any]] = []
+    total_count_remote = 0
+    inferred_total = 0
+    current_page = page_value
 
-    try:
-        response = http.get(url, params=params, headers=headers, timeout=timeout)
+    while len(aggregated_cards) < max_results:
+        params = {
+            "search": query_value,
+            "page": str(current_page),
+            "pageSize": str(per_page_value),
+        }
+        if sort:
+            params["sort"] = sort
+        if order:
+            params["order"] = order
+
+        try:
+            response = http.get(url, params=params, headers=headers, timeout=timeout)
+        except requests.Timeout:
+            logger.warning("Request timed out")
+            break
+        except (requests.RequestException, ValueError) as exc:  # pragma: no cover
+            logger.warning("Fetching cards from RapidAPI failed: %s", exc)
+            break
+
         if response.status_code != 200:
             logger.warning("API error: %s", response.status_code)
-            return [], 0
-        cards = response.json()
-    except requests.Timeout:
-        logger.warning("Request timed out")
-        return [], 0
-    except (requests.RequestException, ValueError) as exc:  # pragma: no cover
-        logger.warning("Fetching cards from RapidAPI failed: %s", exc)
-        return [], 0
+            break
 
-    payload = cards
-    total_count = 0
-    if isinstance(cards, dict):
-        total_count = int(cards.get("totalCount") or 0)
-        payload = cards.get("data") or cards.get("cards") or []
-    cards = payload
+        try:
+            cards_payload = response.json()
+        except ValueError:
+            logger.warning("RapidAPI returned invalid JSON payload")
+            break
+
+        cards_page: list[dict[str, Any]] = []
+        page_total_count = 0
+        if isinstance(cards_payload, dict):
+            cards_page = (
+                cards_payload.get("data")
+                or cards_payload.get("cards")
+                or []
+            )
+            page_total_count = int(cards_payload.get("totalCount") or 0)
+        elif isinstance(cards_payload, list):
+            cards_page = cards_payload
+
+        if page_total_count:
+            total_count_remote = page_total_count
+
+        if not isinstance(cards_page, list) or not cards_page:
+            break
+
+        aggregated_cards.extend(cards_page)
+
+        fetched_total = (current_page - page_value) * per_page_value + len(cards_page)
+        inferred_total = max(inferred_total, fetched_total)
+
+        if len(aggregated_cards) >= max_results:
+            break
+        if total_count_remote and fetched_total >= total_count_remote:
+            break
+        if len(cards_page) < per_page_value:
+            break
+
+        current_page += 1
+
+    cards = aggregated_cards
+    total_count = total_count_remote or inferred_total
 
     name_norm = text.normalize(name)
     total_norm = total_clean
@@ -575,6 +616,7 @@ def search_cards(
     seen: set[tuple[str | None, str]] = set()
     results: list[dict] = []
     limit_value = limit if limit and limit > 0 else per_page_value
+    limit_value = min(limit_value, max_results)
     for item in suggestions:
         score_value = float(item.get("_score", 0) or 0)
         if score_value <= 0:
@@ -596,8 +638,10 @@ def search_cards(
         if len(results) >= limit_value:
             break
 
-    if not total_count and isinstance(cards, list):
-        total_count = len(cards)
+    if not total_count:
+        total_count = len(results)
+
+    total_count = min(max_results, total_count)
 
     return results, total_count
 

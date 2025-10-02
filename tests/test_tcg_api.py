@@ -44,6 +44,35 @@ class _DummySession:
 DEFAULT_HOST = tcg_api.RAPIDAPI_DEFAULT_HOST
 
 
+class _PagingSession:
+    def __init__(self, pages: list[dict[str, Any]]):
+        self.pages = pages
+        self.calls: list[dict[str, object]] = []
+        self.headers = {"User-Agent": "pytest-agent"}
+
+    def get(self, url, params=None, headers=None, timeout=None):
+        call_index = len(self.calls)
+        payload = self.pages[call_index] if call_index < len(self.pages) else {"data": []}
+        self.calls.append(
+            {
+                "url": url,
+                "params": params,
+                "headers": headers or {},
+                "timeout": timeout,
+            }
+        )
+
+        class _Response:
+            def __init__(self, data: Any) -> None:
+                self._data = data
+                self.status_code = 200
+
+            def json(self):
+                return self._data
+
+        return _Response(payload)
+
+
 def test_search_cards_uses_rapidapi_headers():
     session = _DummySession()
     results, total_count = tcg_api.search_cards(
@@ -185,6 +214,40 @@ def test_search_cards_matches_uppercase_collector_number():
     assert results, "Expected to receive at least one suggestion"
     assert results[0]["number"] == "rc5a"
     assert total_count == 1
+
+
+def test_search_cards_aggregates_multiple_pages():
+    pages: list[dict[str, Any]] = []
+    for index in range(3):
+        start = index * 50
+        cards = []
+        for offset in range(50):
+            number_value = f"{start + offset + 1:03d}"
+            cards.append(
+                {
+                    "name": "Pikachu",
+                    "number": number_value,
+                    "set": {
+                        "name": "Base Set",
+                        "id": f"base-{index}",
+                    },
+                }
+            )
+        pages.append({"data": cards, "totalCount": 150})
+
+    session = _PagingSession(pages)
+    results, total_count = tcg_api.search_cards(
+        name="Pikachu",
+        limit=100,
+        per_page=50,
+        session=session,
+    )
+
+    assert len(results) == 100
+    assert total_count == 100
+    assert len(session.calls) == 2
+    assert session.calls[0]["params"]["page"] == "1"
+    assert session.calls[1]["params"]["page"] == "2"
 
 
 def test_list_set_cards_without_key_uses_default_headers():
