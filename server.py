@@ -64,6 +64,7 @@ app.include_router(users.router)
 app.include_router(cards.router)
 
 app.mount("/static", StaticFiles(directory="kartoteka_web/static"), name="static")
+app.mount("/icon", StaticFiles(directory="icon"), name="icon-assets")
 
 image_utils.ensure_directory()
 card_image_mount = image_utils.CARD_IMAGE_URL_PREFIX

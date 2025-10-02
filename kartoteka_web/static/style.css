@@ -855,17 +855,22 @@ img {
 
 .card-search-list-set {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 40px;
+  gap: 6px;
+  width: 56px;
   flex-shrink: 0;
 }
 
 .card-search-set-icon {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
+  max-width: 36px;
+  max-height: 36px;
   object-fit: contain;
   display: block;
+  flex: 0 0 auto;
 }
 
 .card-search-set-fallback {
@@ -1009,12 +1014,12 @@ img {
 .card-search-set {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
   padding: 0;
   border: 0;
   background: none;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .card-search-set-code {
@@ -1025,6 +1030,14 @@ img {
   color: var(--color-muted-strong, var(--color-text));
   white-space: nowrap;
   line-height: 1;
+}
+
+.card-search-results--grid .card-search-set {
+  text-align: center;
+}
+
+.card-search-set-fallback {
+  text-align: center;
 }
 
 .card-search-rarity-icon {
