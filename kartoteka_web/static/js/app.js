@@ -843,7 +843,18 @@
       const quickAddLabel = `Dodaj kartę ${cardName} do kolekcji`;
       const priceValue = getCardPriceValue(item);
       const priceText = priceValue === null ? "" : formatCardPrice(priceValue);
-      const rarityText = (item.rarity || "").trim() || "Brak danych";
+      const rarityRaw = (item.rarity || "").trim();
+      const rarityText = rarityRaw || "Brak danych";
+      const raritySymbol = (item.rarity_symbol || "").trim();
+      const hasRaritySymbol = Boolean(raritySymbol);
+      const raritySymbolIsImage =
+        hasRaritySymbol && (
+          /^(data:|https?:|\/\/)/i.test(raritySymbol)
+          || raritySymbol.startsWith("/")
+          || /\.(svg|png|webp|jpe?g|gif)$/i.test(raritySymbol)
+        );
+      const rarityAlt = `Symbol rzadkości ${rarityText}`;
+      const rarityFallback = rarityRaw ? rarityRaw.charAt(0).toUpperCase() : "?";
       if (isListView) {
         article.innerHTML = `
           <div class="card-search-info">
@@ -928,23 +939,29 @@
                 <span aria-hidden="true">+</span>
               </button>
             </div>
-            <div class="card-search-set">
-              <div class="card-search-set-icon">
-                ${
-                  hasSetIcon
-                    ? `<img src="${escapeHtml(item.set_icon)}" alt="${escapeHtml(setAlt)}" loading="lazy" decoding="async" data-card-set-icon />`
+          <div class="card-search-set">
+            <div class="card-search-set-icon">
+              ${
+                hasSetIcon
+                  ? `<img src="${escapeHtml(item.set_icon)}" alt="${escapeHtml(setAlt)}" loading="lazy" decoding="async" data-card-set-icon />`
+                  : ""
+              }
+              <span class="card-search-set-icon-fallback"${hasSetIcon ? " hidden" : ""} data-card-set-icon-fallback aria-hidden="true">?</span>
+            </div>
+            <div class="card-search-rarity-icon">
+              ${
+                raritySymbolIsImage
+                  ? `<img src="${escapeHtml(raritySymbol)}" alt="${escapeHtml(rarityAlt)}" loading="lazy" decoding="async" data-card-rarity-icon />`
+                  : hasRaritySymbol
+                    ? `<span class="card-search-rarity-symbol" role="img" aria-label="${escapeHtml(rarityAlt)}" data-card-rarity-symbol data-symbol-class="${escapeHtml(raritySymbol)}"></span>`
                     : ""
-                }
-                <span class="card-search-set-icon-fallback"${hasSetIcon ? " hidden" : ""} data-card-set-icon-fallback aria-hidden="true">?</span>
-              </div>
-              <div class="card-search-set-text">
-                <span class="card-search-set-label">Dodatek</span>
-                <span class="card-search-set-value">${escapeHtml(setName)}</span>
-              </div>
+              }
+              <span class="card-search-rarity-icon-fallback"${hasRaritySymbol ? " hidden" : ""} data-card-rarity-icon-fallback aria-hidden="true">${escapeHtml(rarityFallback)}</span>
             </div>
           </div>
-          <div class="card-search-info">
-            <h3>${escapeHtml(cardName)}</h3>
+        </div>
+        <div class="card-search-info">
+          <h3>${escapeHtml(cardName)}</h3>
             <p>${escapeHtml(setName)}</p>
             <p class="card-search-meta">${escapeHtml(numberLabel)}</p>
             ${
@@ -999,6 +1016,28 @@
             setIconFallback.hidden = false;
           };
           setIcon.addEventListener("error", handleSetIconError, { once: true });
+        }
+        const rarityIcon = article.querySelector("[data-card-rarity-icon]");
+        const rarityIconFallback = article.querySelector("[data-card-rarity-icon-fallback]");
+        if (rarityIcon && rarityIconFallback) {
+          const handleRarityIconError = () => {
+            rarityIcon.remove();
+            rarityIconFallback.hidden = false;
+          };
+          rarityIcon.addEventListener("error", handleRarityIconError, { once: true });
+        }
+        const raritySymbolElement = article.querySelector("[data-card-rarity-symbol]");
+        if (raritySymbolElement) {
+          const symbolClass = (raritySymbolElement.dataset.symbolClass || "").trim();
+          if (symbolClass) {
+            symbolClass
+              .split(/\s+/)
+              .map((token) => token.trim())
+              .filter(Boolean)
+              .forEach((token) => {
+                raritySymbolElement.classList.add(token);
+              });
+          }
         }
       }
       container.appendChild(article);

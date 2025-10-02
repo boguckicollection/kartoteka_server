@@ -378,6 +378,27 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
         or card.get("set_logo")
     )
 
+    rarity_symbol = (
+        card.get("rarity_symbol")
+        or card.get("raritySymbol")
+        or card.get("rarity_icon")
+        or card.get("rarityIcon")
+        or episode.get("rarity_symbol")
+        or episode.get("raritySymbol")
+    )
+    if isinstance(rarity_symbol, dict):
+        symbol_value = None
+        for key in ("url", "image", "icon", "src", "default"):
+            value = rarity_symbol.get(key)
+            if isinstance(value, str) and value.strip():
+                symbol_value = value.strip()
+                break
+        rarity_symbol = symbol_value
+    if isinstance(rarity_symbol, str):
+        rarity_symbol = rarity_symbol.strip() or None
+    else:
+        rarity_symbol = None
+
     image_small, image_large = _extract_images(card)
     price_eur = _extract_card_price(card)
     price_pln = None
@@ -400,6 +421,7 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
         "series": series,
         "release_date": release_date,
         "set_icon": set_icon,
+        "rarity_symbol": rarity_symbol,
         "price": price_pln,
     }
 

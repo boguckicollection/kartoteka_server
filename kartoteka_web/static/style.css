@@ -742,17 +742,18 @@ img {
 .card-search-set {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 10px 12px;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
 }
 
-.card-search-set-icon {
-  width: 48px;
-  height: 48px;
+.card-search-set-icon,
+.card-search-rarity-icon {
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-sm);
   background: var(--color-surface-alt);
   border: 1px solid var(--color-border);
@@ -760,36 +761,40 @@ img {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
-.card-search-set-icon img {
+.card-search-set-icon img,
+.card-search-rarity-icon img {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
 
-.card-search-set-icon-fallback {
+.card-search-set-icon-fallback,
+.card-search-rarity-icon-fallback {
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 0.85rem;
   color: var(--color-muted);
   letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.card-search-rarity-icon {
+  position: relative;
+}
+
+.card-search-rarity-symbol {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
 }
 
 .card-search-results--grid .card-search-set {
-  padding: 8px 10px;
-}
-
-.card-search-set-text {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.card-search-set-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-muted);
+  padding: 6px 10px;
 }
 
 .card-search-info {
@@ -888,11 +893,6 @@ img {
   margin-left: auto;
 }
 
-
-.card-search-set-value {
-  font-weight: 600;
-  font-size: 0.95rem;
-}
 
 @media (max-width: 860px) {
   .card-search-toolbar {

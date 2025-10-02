@@ -345,6 +345,20 @@ def test_build_card_payload_skips_price_when_rate_unavailable(monkeypatch):
     assert payload["price"] is None
 
 
+def test_build_card_payload_includes_rarity_symbol():
+    card = {
+        "name": "Pikachu",
+        "number": "58/102",
+        "set": {"name": "Base Set"},
+        "raritySymbol": "https://example.com/rarity.svg",
+    }
+
+    payload = tcg_api.build_card_payload(card)
+
+    assert payload is not None
+    assert payload["rarity_symbol"] == "https://example.com/rarity.svg"
+
+
 def test_build_cards_endpoint_supports_nested_paths():
     url = tcg_api._build_cards_endpoint(
         "https://pokemon-tcg-api.p.rapidapi.com",
