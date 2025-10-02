@@ -344,36 +344,42 @@ def search_cards_endpoint(
     del session  # Database access unused when delegating to external API.
 
     per_page_value = max(1, min(per_page or 1, 20))
-    max_pages = max(1, (overall_cap + per_page_value - 1) // per_page_value)
     try:
-        page_value = int(page)
+        requested_page = int(page)
     except (TypeError, ValueError):
-        page_value = 1
-    page_value = max(1, min(page_value, max_pages))
-
-    limit_value = min(result_cap, per_page_value)
+        requested_page = 1
+    requested_page = max(1, requested_page)
 
     records, total_count = tcg_api.search_cards(
         name=name_value or search_query,
         number=number_value,
         set_name=set_name,
         total=total,
-        limit=limit_value,
+        limit=overall_cap,
         sort=sort,
         order=order,
-        page=page_value,
+        page=1,
         per_page=per_page_value,
         rapidapi_key=RAPIDAPI_KEY,
         rapidapi_host=RAPIDAPI_HOST,
     )
 
-    items = [_payload_to_search_schema(record) for record in records]
+    effective_total = min(overall_cap, max(len(records), total_count))
+    if result_cap < overall_cap:
+        records = records[:result_cap]
+    max_pages = max(1, (effective_total + per_page_value - 1) // per_page_value)
+    page_value = min(requested_page, max_pages)
+
+    start_index = (page_value - 1) * per_page_value
+    end_index = start_index + per_page_value
+    page_records = records[start_index:end_index]
+
+    items = [_payload_to_search_schema(record) for record in page_records]
     suggestion = records[0].get("name") if records else None
-    capped_total = min(overall_cap, max(len(records), total_count))
     return schemas.CardSearchResponse(
         items=items,
-        total=len(records),
-        total_count=capped_total,
+        total=len(page_records),
+        total_count=effective_total,
         page=page_value,
         per_page=per_page_value,
         suggested_query=suggestion,
