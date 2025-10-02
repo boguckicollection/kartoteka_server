@@ -16,7 +16,7 @@ from .. import models, schemas
 from ..auth import get_current_user, get_optional_user
 from ..database import get_session
 from ..services import tcg_api
-from ..utils import images as image_utils, text
+from ..utils import images as image_utils, text, sets as set_utils
 
 router = APIRouter(prefix="/cards", tags=["cards"])
 
@@ -297,7 +297,7 @@ def _find_card(
     name_value = name.strip()
     number_value = number.strip()
     set_name_value = (set_name or "").strip()
-    set_code_value = (set_code or "").strip()
+    set_code_value = set_utils.clean_code(set_code) or ""
 
     if number_value:
         stmt = select(models.Card).where(models.Card.number == number_value)
@@ -325,14 +325,29 @@ def _find_card(
                     return candidate
 
     if set_code_value:
-        stmt = select(models.Card).where(models.Card.set_code == set_code_value)
-        if number_value:
-            stmt = stmt.where(models.Card.number == number_value)
-        elif number_clean and number_clean != number_value:
-            stmt = stmt.where(models.Card.number == number_clean)
-        card = session.exec(stmt).first()
-        if card:
-            return card
+        stmt = select(models.Card).where(models.Card.set_code.is_not(None))
+        if set_name_value:
+            stmt = stmt.where(models.Card.set_name == set_name_value)
+        candidates = session.exec(stmt).all()
+        for candidate in candidates:
+            candidate_code = set_utils.clean_code(candidate.set_code)
+            if candidate_code != set_code_value:
+                continue
+            numbers_to_match = {
+                value for value in (number_value, number_clean) if value
+            }
+            if numbers_to_match:
+                candidate_numbers = {
+                    value
+                    for value in (
+                        candidate.number or "",
+                        text.sanitize_number(candidate.number or ""),
+                    )
+                    if value
+                }
+                if candidate_numbers.isdisjoint(numbers_to_match):
+                    continue
+            return candidate
 
     if name_value and number_value:
         stmt = select(models.Card).where(
