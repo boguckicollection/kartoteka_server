@@ -968,6 +968,16 @@
           <span class="card-search-set-code card-search-set-fallback"${setIconFallbackHiddenAttr} data-card-set-code data-card-set-icon-fallback>${escapeHtml(setCodeText)}</span>
         </div>
       `;
+      const cardLinkParams = new URLSearchParams();
+      if (item.name) cardLinkParams.set("name", item.name);
+      if (item.number) cardLinkParams.set("number", item.number);
+      if (item.set_name) cardLinkParams.set("set_name", item.set_name);
+      if (item.set_code) cardLinkParams.set("set_code", item.set_code);
+      const cardLinkQuery = cardLinkParams.toString();
+      const cardLinkSetSegment = encodeURIComponent(item.set_code || item.set_name || "");
+      const cardLinkNumberSegment = encodeURIComponent(item.number || "");
+      const cardLink = `/cards/${cardLinkSetSegment}/${cardLinkNumberSegment}${cardLinkQuery ? `?${cardLinkQuery}` : ""}`;
+      const cardLinkLabel = `Zobacz kartę ${cardName}`;
       const rarityIconMarkup = `
         <div class="card-search-badge card-search-badge--rarity">
           <div class="card-search-rarity-icon">
@@ -985,23 +995,17 @@
       if (isListView) {
         const previewImage = item.image_large || item.image_small || "";
         const hasPreviewImage = Boolean(previewImage);
-        const thumbAttributeParts = [];
-        if (hasPreviewImage) {
-          thumbAttributeParts.push("data-has-preview=\"true\"");
-          thumbAttributeParts.push("tabindex=\"0\"");
-          thumbAttributeParts.push(`aria-label=\"Podgląd karty ${escapeHtml(cardName)}\"`);
-        }
-        const thumbAttributes = thumbAttributeParts.length
-          ? ` ${thumbAttributeParts.join(" ")}`
-          : "";
+        const thumbAttributes = hasPreviewImage ? " data-has-preview=\"true\"" : "";
         article.innerHTML = `
           <div class="card-search-list-row">
             <div class="card-search-list-thumb"${thumbAttributes}>
-              <svg class="card-search-list-icon" viewBox="0 0 48 48" role="img" aria-hidden="true">
-                <rect class="card-search-list-icon-frame" x="5" y="6" width="38" height="36" rx="6" />
-                <rect class="card-search-list-icon-stripe" x="11" y="14" width="26" height="6" rx="3" />
-                <rect class="card-search-list-icon-stripe" x="11" y="24" width="20" height="6" rx="3" />
-              </svg>
+              <a class="card-search-thumbnail-link" href="${escapeHtml(cardLink)}" aria-label="${escapeHtml(cardLinkLabel)}">
+                <svg class="card-search-list-icon" viewBox="0 0 48 48" role="img" aria-hidden="true">
+                  <rect class="card-search-list-icon-frame" x="5" y="6" width="38" height="36" rx="6" />
+                  <rect class="card-search-list-icon-stripe" x="11" y="14" width="26" height="6" rx="3" />
+                  <rect class="card-search-list-icon-stripe" x="11" y="24" width="20" height="6" rx="3" />
+                </svg>
+              </a>
               ${
                 hasPreviewImage
                   ? `<div class="card-search-list-preview" role="presentation">
@@ -1013,7 +1017,9 @@
             <div class="card-search-list-set" title="${escapeHtml(setName)}">
               ${setIconMarkup}
             </div>
-            <h3 class="card-search-list-title card-search-list-name" title="${escapeHtml(cardName)}">${escapeHtml(cardName)}</h3>
+            <h3 class="card-search-list-title card-search-list-name" title="${escapeHtml(cardName)}">
+              <a class="card-search-title-link" href="${escapeHtml(cardLink)}">${escapeHtml(cardName)}</a>
+            </h3>
             <div class="card-search-list-number">${escapeHtml(numberDisplay)}</div>
             <div class="card-search-list-rarity" title="${escapeHtml(rarityText)}">
               ${rarityIconMarkup}
@@ -1051,23 +1057,16 @@
         article.innerHTML = `
           <div class="card-search-media">
             <div class="card-search-thumbnail">
-              ${
-                hasThumbnail
-                  ? `<img src="${escapeHtml(item.image_small)}" alt="${escapeHtml(cardAlt)}" loading="lazy" decoding="async" data-card-thumbnail />`
-                  : ""
-              }
-              <div class="card-search-thumbnail-fallback"${hasThumbnail ? " hidden" : ""} data-card-thumbnail-fallback>
-                Brak miniatury
-              </div>
-              <button
-                type="button"
-                class="card-quick-add"
-                data-card-quick-add
-                aria-label="${escapeHtml(quickAddLabel)}"
-                title="Dodaj do kolekcji"
-              >
-                <span aria-hidden="true">+</span>
-              </button>
+              <a class="card-search-thumbnail-link" href="${escapeHtml(cardLink)}" aria-label="${escapeHtml(cardLinkLabel)}">
+                ${
+                  hasThumbnail
+                    ? `<img src="${escapeHtml(item.image_small)}" alt="${escapeHtml(cardAlt)}" loading="lazy" decoding="async" data-card-thumbnail />`
+                    : ""
+                }
+                <div class="card-search-thumbnail-fallback"${hasThumbnail ? " hidden" : ""} data-card-thumbnail-fallback>
+                  Brak miniatury
+                </div>
+              </a>
             </div>
           <div class="card-search-set">
             ${setIconMarkup}
@@ -1075,7 +1074,9 @@
           </div>
         </div>
         <div class="card-search-info">
-          <h3>${escapeHtml(cardName)}</h3>
+          <h3>
+            <a class="card-search-title-link" href="${escapeHtml(cardLink)}">${escapeHtml(cardName)}</a>
+          </h3>
             <p class="card-search-info-meta">
               <span class="card-search-set-name">${escapeHtml(setName)}</span>
               ${
@@ -1091,6 +1092,15 @@
                 : ""
             }
           </div>
+          <button
+            type="button"
+            class="card-quick-add"
+            data-card-quick-add
+            aria-label="${escapeHtml(quickAddLabel)}"
+            title="Dodaj do kolekcji"
+          >
+            <span aria-hidden="true">+</span>
+          </button>
           <form class="card-search-form" data-card-form>
             <input type="hidden" name="card_name" value="${escapeHtml(item.name)}" />
             <input type="hidden" name="card_number" value="${escapeHtml(item.number)}" />
@@ -1490,6 +1500,7 @@
           || button.closest(".card-search-item")?.querySelector("form[data-card-form]");
         if (!(formTarget instanceof HTMLFormElement)) return;
         event.preventDefault();
+        event.stopPropagation();
         await handleCardFormSubmission(formTarget, button);
       });
     }
