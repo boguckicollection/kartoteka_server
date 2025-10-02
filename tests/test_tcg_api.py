@@ -310,6 +310,24 @@ def test_build_card_payload_extracts_cardmarket_price(monkeypatch):
     assert payload["price_7d_average"] is None
 
 
+def test_build_card_payload_prefers_episode_code_for_icon():
+    card = {
+        "name": "Pikachu",
+        "number": "025",
+        "set": {
+            "name": "Base Set",
+            "code": "base1",
+            "id": "base-set-001",
+        },
+    }
+
+    payload = tcg_api.build_card_payload(card)
+
+    assert payload is not None
+    assert payload["set_icon_slug"] == "base1"
+    assert payload["set_icon_path"] == "/icon/set/base1.png"
+
+
 def test_build_card_payload_prefers_tcgplayer_price_when_available(monkeypatch):
     monkeypatch.setattr(tcg_api, "get_eur_pln_rate", lambda: 4.0)
     card = {

@@ -40,10 +40,11 @@ def _build_retrying_session() -> requests.Session:
 
 def _extract_clean_code(set_payload: dict[str, object]) -> Optional[str]:
     raw_candidates: Iterable[Optional[str]] = (
-        set_payload.get("id"),
         set_payload.get("code"),
         set_payload.get("setCode"),
         set_payload.get("ptcgoCode"),
+        set_payload.get("slug"),
+        set_payload.get("id"),
         set_payload.get("name"),
     )
     for candidate in raw_candidates:
