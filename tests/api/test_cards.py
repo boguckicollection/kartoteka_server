@@ -115,6 +115,7 @@ def test_card_search_and_detail(api_client, monkeypatch):
             "series": "Base",
             "release_date": "1999/06/16",
             "price": 12.34,
+            "price_7d_average": 11.11,
         },
         {
             "name": "Eevee",
@@ -131,6 +132,7 @@ def test_card_search_and_detail(api_client, monkeypatch):
             "series": "Base",
             "release_date": "1999/10/10",
             "price": 8.5,
+            "price_7d_average": 7.25,
         },
     ]
 
@@ -195,6 +197,7 @@ def test_card_search_and_detail(api_client, monkeypatch):
     assert payload["suggested_query"] == "Eevee"
     assert {item["set_code"] for item in payload["items"]} == {"jng", "fsl"}
     assert sorted(item["price"] for item in payload["items"]) == [8.5, 12.34]
+    assert sorted(item["price_7d_average"] for item in payload["items"]) == [7.25, 11.11]
 
     with database.session_scope() as session:
         session.add_all(

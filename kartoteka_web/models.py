@@ -37,6 +37,8 @@ class Card(SQLModel, table=True):
     rarity: Optional[str] = None
     image_small: Optional[str] = Field(default=None)
     image_large: Optional[str] = Field(default=None)
+    price: Optional[float] = Field(default=None)
+    price_7d_average: Optional[float] = Field(default=None)
 
     entries: List["CollectionEntry"] = Relationship(back_populates="card")
 
@@ -65,6 +67,8 @@ class CardRecord(SQLModel, table=True):
     image_small: Optional[str] = Field(default=None)
     image_large: Optional[str] = Field(default=None)
     set_icon: Optional[str] = Field(default=None)
+    price: Optional[float] = Field(default=None)
+    price_7d_average: Optional[float] = Field(default=None)
     created_at: dt.datetime = Field(
         default_factory=lambda: dt.datetime.now(dt.timezone.utc)
     )
