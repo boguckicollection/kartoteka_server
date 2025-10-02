@@ -796,16 +796,17 @@
   });
 
   const RARITY_ICON_BASE_PATH = "/static/icons/rarity";
+  const RARITY_ICON_IMAGE_BASE_PATH = "/icon/rarity";
   const RARITY_ICON_MAP = Object.freeze({
     "common": `${RARITY_ICON_BASE_PATH}/common.svg`,
     "uncommon": `${RARITY_ICON_BASE_PATH}/uncommon.svg`,
     "rare": `${RARITY_ICON_BASE_PATH}/rare.svg`,
     "rare-holo": `${RARITY_ICON_BASE_PATH}/rare-holo.svg`,
     "holo-rare": `${RARITY_ICON_BASE_PATH}/rare-holo.svg`,
-    "rare-ultra": `${RARITY_ICON_BASE_PATH}/rare-ultra.svg`,
-    "ultra-rare": `${RARITY_ICON_BASE_PATH}/rare-ultra.svg`,
-    "rare-double": `${RARITY_ICON_BASE_PATH}/rare-ultra.svg`,
-    "double-rare": `${RARITY_ICON_BASE_PATH}/rare-ultra.svg`,
+    "rare-ultra": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Ultra_Rare.png`,
+    "ultra-rare": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Ultra_Rare.png`,
+    "rare-double": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Double_Rare.png`,
+    "double-rare": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Double_Rare.png`,
     "rare-secret": `${RARITY_ICON_BASE_PATH}/rare-secret.svg`,
     "secret-rare": `${RARITY_ICON_BASE_PATH}/rare-secret.svg`,
     "hyper-rare": `${RARITY_ICON_BASE_PATH}/rare-secret.svg`,
@@ -826,8 +827,9 @@
   const RARITY_ICON_RULES = [
     { pattern: /(rainbow|hyper)/i, key: "rare-rainbow" },
     { pattern: /(secret|gold)/i, key: "rare-secret" },
+    { pattern: /double/i, key: "double-rare" },
     {
-      pattern: /(ultra|double|vmax|v-star|vstar|v-union|gx|ex|mega|prime|legend)/i,
+      pattern: /(ultra|vmax|v-star|vstar|v-union|gx|ex|mega|prime|legend)/i,
       key: "rare-ultra",
     },
     { pattern: /(shiny|shining|radiant)/i, key: "rare-shiny" },
