@@ -795,26 +795,40 @@
     image_large: form.elements.card_image_large?.value?.trim() || null,
   });
 
-  const RARITY_ICON_BASE_PATH = "/static/icons/rarity";
+  const RARITY_ICON_BASE_PATH = "/icon/rarity";
+  const getRarityIconPath = (fileName) => `${RARITY_ICON_BASE_PATH}/${fileName}`;
   const RARITY_ICON_MAP = Object.freeze({
-    "common": `${RARITY_ICON_BASE_PATH}/common.svg`,
-    "uncommon": `${RARITY_ICON_BASE_PATH}/uncommon.svg`,
-    "rare": `${RARITY_ICON_BASE_PATH}/rare.svg`,
-    "rare-holo": `${RARITY_ICON_BASE_PATH}/rare-holo.svg`,
-    "rare-ultra": `${RARITY_ICON_BASE_PATH}/rare-ultra.svg`,
-    "rare-secret": `${RARITY_ICON_BASE_PATH}/rare-secret.svg`,
-    "rare-shiny": `${RARITY_ICON_BASE_PATH}/rare-shiny.svg`,
-    "rare-ace": `${RARITY_ICON_BASE_PATH}/rare-ace.svg`,
-    "rare-illustration": `${RARITY_ICON_BASE_PATH}/rare-illustration.svg`,
-    "promo": `${RARITY_ICON_BASE_PATH}/promo.svg`,
-    "rare-rainbow": `${RARITY_ICON_BASE_PATH}/rare-rainbow.svg`,
+    "common": getRarityIconPath("Rarity_Common.png"),
+    "uncommon": getRarityIconPath("Rarity_Uncommon.png"),
+    "rare": getRarityIconPath("Rarity_Rare.png"),
+    "rare-holo": getRarityIconPath("Rarity_Rare.png"),
+    "holo-rare": getRarityIconPath("Rarity_Rare.png"),
+    "rare-ultra": getRarityIconPath("Rarity_Double_Rare.png"),
+    "ultra-rare": getRarityIconPath("Rarity_Double_Rare.png"),
+    "rare-double": getRarityIconPath("Rarity_Double_Rare.png"),
+    "double-rare": getRarityIconPath("Rarity_Double_Rare.png"),
+    "rare-secret": getRarityIconPath("Rarity_Hyper_Rare.png"),
+    "secret-rare": getRarityIconPath("Rarity_Hyper_Rare.png"),
+    "hyper-rare": getRarityIconPath("Rarity_Hyper_Rare.png"),
+    "rare-rainbow": getRarityIconPath("Rarity_Hyper_Rare.png"),
+    "rainbow-rare": getRarityIconPath("Rarity_Hyper_Rare.png"),
+    "rare-shiny": getRarityIconPath("Rarity_Shiny_Rare.png"),
+    "shiny-rare": getRarityIconPath("Rarity_Shiny_Rare.png"),
+    "shinyrare": getRarityIconPath("Rarity_ShinyRare.png"),
+    "rare-ace": getRarityIconPath("Rarity_ACE_SPEC_Rare.png"),
+    "ace-spec-rare": getRarityIconPath("Rarity_ACE_SPEC_Rare.png"),
+    "rare-illustration": getRarityIconPath("Rarity_Special_Illustration_Rare.png"),
+    "illustration-rare": getRarityIconPath("Rarity_Special_Illustration_Rare.png"),
+    "special-illustration-rare": getRarityIconPath("Rarity_Special_Illustration_Rare.png"),
+    "rare-special-illustration": getRarityIconPath("Rarity_Special_Illustration_Rare.png"),
+    "promo": getRarityIconPath("Rarity_Common.png"),
   });
 
   const RARITY_ICON_RULES = [
     { pattern: /(rainbow|hyper)/i, key: "rare-rainbow" },
     { pattern: /(secret|gold)/i, key: "rare-secret" },
     {
-      pattern: /(ultra|vmax|v-star|vstar|v-union|gx|ex|mega|prime|legend)/i,
+      pattern: /(ultra|double|vmax|v-star|vstar|v-union|gx|ex|mega|prime|legend)/i,
       key: "rare-ultra",
     },
     { pattern: /(shiny|shining|radiant)/i, key: "rare-shiny" },
