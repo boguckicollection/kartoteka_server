@@ -798,6 +798,7 @@
     totalCount = 0,
     page = 1,
     perPage = 20,
+    viewMode = "grid",
   ) => {
     const container = document.getElementById("card-search-results");
     if (!container) return;
@@ -828,6 +829,7 @@
       const safeEnd = Math.max(safeStart, endIndex);
       summaryElement.textContent = `Znaleziono ${effectiveTotal} wyników. Wyświetlam ${safeStart}–${safeEnd}. Strona ${normalizedPage} z ${totalPages}.`;
     }
+    const isListView = viewMode === "list";
     for (const item of items) {
       const article = document.createElement("article");
       article.className = "card-search-item";
@@ -841,96 +843,163 @@
       const quickAddLabel = `Dodaj kartę ${cardName} do kolekcji`;
       const priceValue = getCardPriceValue(item);
       const priceText = priceValue === null ? "" : formatCardPrice(priceValue);
-      article.innerHTML = `
-        <div class="card-search-media">
-          <div class="card-search-thumbnail">
-            ${
-              hasThumbnail
-                ? `<img src="${escapeHtml(item.image_small)}" alt="${escapeHtml(cardAlt)}" loading="lazy" decoding="async" data-card-thumbnail />`
-                : ""
-            }
-            <div class="card-search-thumbnail-fallback"${hasThumbnail ? " hidden" : ""} data-card-thumbnail-fallback>
-              Brak miniatury
-            </div>
-            <button
-              type="button"
-              class="card-quick-add"
-              data-card-quick-add
-              aria-label="${escapeHtml(quickAddLabel)}"
-              title="Dodaj do kolekcji"
-            >
-              <span aria-hidden="true">+</span>
-            </button>
-          </div>
-          <div class="card-search-set">
-            <div class="card-search-set-icon">
+      const rarityText = (item.rarity || "").trim() || "Brak danych";
+      if (isListView) {
+        article.innerHTML = `
+          <div class="card-search-info">
+            <h3>${escapeHtml(cardName)}</h3>
+            <div class="card-search-inline-fields">
+              <span class="card-search-inline-field">
+                <span class="card-search-inline-label">Numer</span>
+                <span class="card-search-inline-value">${escapeHtml(numberLabel)}</span>
+              </span>
+              <span class="card-search-inline-field">
+                <span class="card-search-inline-label">Dodatek</span>
+                <span class="card-search-inline-value">${escapeHtml(setName)}</span>
+              </span>
+              <span class="card-search-inline-field">
+                <span class="card-search-inline-label">Rzadkość</span>
+                <span class="card-search-inline-value">${escapeHtml(rarityText)}</span>
+              </span>
               ${
-                hasSetIcon
-                  ? `<img src="${escapeHtml(item.set_icon)}" alt="${escapeHtml(setAlt)}" loading="lazy" decoding="async" data-card-set-icon />`
+                priceText
+                  ? `<span class="card-search-inline-field">
+                      <span class="card-search-inline-label">Cena</span>
+                      <span class="card-search-inline-value" data-card-price>${escapeHtml(priceText)}</span>
+                    </span>`
                   : ""
               }
-              <span class="card-search-set-icon-fallback"${hasSetIcon ? " hidden" : ""} data-card-set-icon-fallback aria-hidden="true">?</span>
-            </div>
-            <div class="card-search-set-text">
-              <span class="card-search-set-label">Dodatek</span>
-              <span class="card-search-set-value">${escapeHtml(setName)}</span>
             </div>
           </div>
-        </div>
-        <div class="card-search-info">
-          <h3>${escapeHtml(cardName)}</h3>
-          <p>${escapeHtml(setName)}</p>
-          <p class="card-search-meta">${escapeHtml(numberLabel)}</p>
-          ${
-            priceText
-              ? `<p class="card-search-price" data-card-price>Cena: ${escapeHtml(priceText)}</p>`
-              : ""
-          }
-        </div>
-        <form class="card-search-form" data-card-form>
-          <input type="hidden" name="card_name" value="${escapeHtml(item.name)}" />
-          <input type="hidden" name="card_number" value="${escapeHtml(item.number)}" />
-          <input type="hidden" name="card_set_name" value="${escapeHtml(item.set_name)}" />
-          <input type="hidden" name="card_set_code" value="${escapeHtml(item.set_code || "")}" />
-          <input type="hidden" name="card_rarity" value="${escapeHtml(item.rarity || "")}" />
-          <input type="hidden" name="card_image_small" value="${escapeHtml(item.image_small || "")}" />
-          <input type="hidden" name="card_image_large" value="${escapeHtml(item.image_large || "")}" />
-          <label>
-            Ilość
-            <input type="number" name="quantity" min="0" step="1" value="1" />
-          </label>
-          <label>
-            Cena zakupu
-            <input type="number" name="purchase_price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" />
-          </label>
-          <label class="checkbox">
-            <input type="checkbox" name="is_reverse" /> Reverse
-          </label>
-          <label class="checkbox">
-            <input type="checkbox" name="is_holo" /> Holo
-          </label>
-          <div class="form-footer">
-            <button type="submit" class="button primary">Dodaj do kolekcji</button>
+          <form class="card-search-form" data-card-form>
+            <input type="hidden" name="card_name" value="${escapeHtml(item.name)}" />
+            <input type="hidden" name="card_number" value="${escapeHtml(item.number)}" />
+            <input type="hidden" name="card_set_name" value="${escapeHtml(item.set_name)}" />
+            <input type="hidden" name="card_set_code" value="${escapeHtml(item.set_code || "")}" />
+            <input type="hidden" name="card_rarity" value="${escapeHtml(item.rarity || "")}" />
+            <input type="hidden" name="card_image_small" value="${escapeHtml(item.image_small || "")}" />
+            <input type="hidden" name="card_image_large" value="${escapeHtml(item.image_large || "")}" />
+            <label>
+              Ilość
+              <input type="number" name="quantity" min="0" step="1" value="1" />
+            </label>
+            <label>
+              Cena zakupu
+              <input type="number" name="purchase_price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" />
+            </label>
+            <label class="checkbox">
+              <input type="checkbox" name="is_reverse" /> Reverse
+            </label>
+            <label class="checkbox">
+              <input type="checkbox" name="is_holo" /> Holo
+            </label>
+            <div class="form-footer">
+              <button
+                type="submit"
+                class="card-quick-add"
+                data-card-quick-add
+                aria-label="${escapeHtml(quickAddLabel)}"
+                title="Dodaj do kolekcji"
+              >
+                <span aria-hidden="true">+</span>
+              </button>
+            </div>
+          </form>
+        `;
+      } else {
+        article.innerHTML = `
+          <div class="card-search-media">
+            <div class="card-search-thumbnail">
+              ${
+                hasThumbnail
+                  ? `<img src="${escapeHtml(item.image_small)}" alt="${escapeHtml(cardAlt)}" loading="lazy" decoding="async" data-card-thumbnail />`
+                  : ""
+              }
+              <div class="card-search-thumbnail-fallback"${hasThumbnail ? " hidden" : ""} data-card-thumbnail-fallback>
+                Brak miniatury
+              </div>
+              <button
+                type="button"
+                class="card-quick-add"
+                data-card-quick-add
+                aria-label="${escapeHtml(quickAddLabel)}"
+                title="Dodaj do kolekcji"
+              >
+                <span aria-hidden="true">+</span>
+              </button>
+            </div>
+            <div class="card-search-set">
+              <div class="card-search-set-icon">
+                ${
+                  hasSetIcon
+                    ? `<img src="${escapeHtml(item.set_icon)}" alt="${escapeHtml(setAlt)}" loading="lazy" decoding="async" data-card-set-icon />`
+                    : ""
+                }
+                <span class="card-search-set-icon-fallback"${hasSetIcon ? " hidden" : ""} data-card-set-icon-fallback aria-hidden="true">?</span>
+              </div>
+              <div class="card-search-set-text">
+                <span class="card-search-set-label">Dodatek</span>
+                <span class="card-search-set-value">${escapeHtml(setName)}</span>
+              </div>
+            </div>
           </div>
-        </form>
-      `;
-      const thumbnail = article.querySelector("[data-card-thumbnail]");
-      const thumbnailFallback = article.querySelector("[data-card-thumbnail-fallback]");
-      if (thumbnail && thumbnailFallback) {
-        const handleThumbnailError = () => {
-          thumbnail.remove();
-          thumbnailFallback.hidden = false;
-        };
-        thumbnail.addEventListener("error", handleThumbnailError, { once: true });
+          <div class="card-search-info">
+            <h3>${escapeHtml(cardName)}</h3>
+            <p>${escapeHtml(setName)}</p>
+            <p class="card-search-meta">${escapeHtml(numberLabel)}</p>
+            ${
+              priceText
+                ? `<p class="card-search-price" data-card-price>Cena: ${escapeHtml(priceText)}</p>`
+                : ""
+            }
+          </div>
+          <form class="card-search-form" data-card-form>
+            <input type="hidden" name="card_name" value="${escapeHtml(item.name)}" />
+            <input type="hidden" name="card_number" value="${escapeHtml(item.number)}" />
+            <input type="hidden" name="card_set_name" value="${escapeHtml(item.set_name)}" />
+            <input type="hidden" name="card_set_code" value="${escapeHtml(item.set_code || "")}" />
+            <input type="hidden" name="card_rarity" value="${escapeHtml(item.rarity || "")}" />
+            <input type="hidden" name="card_image_small" value="${escapeHtml(item.image_small || "")}" />
+            <input type="hidden" name="card_image_large" value="${escapeHtml(item.image_large || "")}" />
+            <label>
+              Ilość
+              <input type="number" name="quantity" min="0" step="1" value="1" />
+            </label>
+            <label>
+              Cena zakupu
+              <input type="number" name="purchase_price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" />
+            </label>
+            <label class="checkbox">
+              <input type="checkbox" name="is_reverse" /> Reverse
+            </label>
+            <label class="checkbox">
+              <input type="checkbox" name="is_holo" /> Holo
+            </label>
+            <div class="form-footer">
+              <button type="submit" class="button primary">Dodaj do kolekcji</button>
+            </div>
+          </form>
+        `;
       }
-      const setIcon = article.querySelector("[data-card-set-icon]");
-      const setIconFallback = article.querySelector("[data-card-set-icon-fallback]");
-      if (setIcon && setIconFallback) {
-        const handleSetIconError = () => {
-          setIcon.remove();
-          setIconFallback.hidden = false;
-        };
-        setIcon.addEventListener("error", handleSetIconError, { once: true });
+      if (!isListView) {
+        const thumbnail = article.querySelector("[data-card-thumbnail]");
+        const thumbnailFallback = article.querySelector("[data-card-thumbnail-fallback]");
+        if (thumbnail && thumbnailFallback) {
+          const handleThumbnailError = () => {
+            thumbnail.remove();
+            thumbnailFallback.hidden = false;
+          };
+          thumbnail.addEventListener("error", handleThumbnailError, { once: true });
+        }
+        const setIcon = article.querySelector("[data-card-set-icon]");
+        const setIconFallback = article.querySelector("[data-card-set-icon-fallback]");
+        if (setIcon && setIconFallback) {
+          const handleSetIconError = () => {
+            setIcon.remove();
+            setIconFallback.hidden = false;
+          };
+          setIcon.addEventListener("error", handleSetIconError, { once: true });
+        }
       }
       container.appendChild(article);
     }
@@ -1072,6 +1141,7 @@
         latestTotalCount,
         latestPage,
         latestPerPage,
+        currentCardViewMode,
       );
       applyViewMode(currentCardViewMode, { persist: false });
       updatePaginationControls();
@@ -1091,6 +1161,7 @@
     viewButtons.forEach((button) => {
       button.addEventListener("click", () => {
         applyViewMode(button.dataset.cardView || "list");
+        renderLatestResults();
       });
     });
 
