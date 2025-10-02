@@ -849,7 +849,7 @@
   };
 
   const SET_ICON_FALLBACK_URL = "/static/icons/sets/fallback.svg";
-  const SET_ICON_EXTERNAL_BASE = "https://images.pokemontcg.io";
+  const SET_ICON_LOCAL_BASE = "/icon/set";
 
   const resolveSetIconUrl = (item) => {
     if (!item) return SET_ICON_FALLBACK_URL;
@@ -865,7 +865,7 @@
     if (!normalizedCode) {
       return SET_ICON_FALLBACK_URL;
     }
-    return `${SET_ICON_EXTERNAL_BASE}/${encodeURIComponent(normalizedCode)}/symbol.png`;
+    return `${SET_ICON_LOCAL_BASE}/${encodeURIComponent(normalizedCode)}.png`;
   };
 
   const renderSearchResults = (
@@ -941,7 +941,7 @@
       const setIconAltBase = setName && setName !== "Nieznany dodatek" ? setName : setCodeText;
       const setIconAlt = setIconAltBase ? `Symbol dodatku ${setIconAltBase}` : "Symbol dodatku";
       const setIconMarkup = setIconUrl
-        ? `<img src="${escapeHtml(setIconUrl)}" alt="${escapeHtml(setIconAlt)}" loading="lazy" decoding="async" data-card-set-icon />`
+        ? `<img class="card-search-set-icon" src="${escapeHtml(setIconUrl)}" alt="${escapeHtml(setIconAlt)}" loading="lazy" decoding="async" data-card-set-icon />`
         : "";
       const setIconFallbackHiddenAttr = setIconMarkup ? " hidden" : "";
       const rarityIconMarkup = `
