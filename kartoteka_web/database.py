@@ -10,6 +10,8 @@ from contextlib import asynccontextmanager, contextmanager, nullcontext
 from typing import AsyncIterator, Iterator
 from weakref import WeakKeyDictionary
 
+from sqlalchemy import inspect
+from sqlalchemy.exc import NoSuchTableError
 from sqlmodel import Session, SQLModel, create_engine
 
 DATABASE_URL = os.getenv("KARTOTEKA_DATABASE_URL", "sqlite:///./kartoteka.db")
@@ -68,8 +70,41 @@ def init_db() -> None:
     from . import models  # noqa: F401  # pylint: disable=unused-import
 
     logger.info("Ensuring database tables are created")
+    _ensure_card_price_columns()
     SQLModel.metadata.create_all(engine)
     logger.info("Database tables confirmed")
+
+
+def _ensure_card_price_columns() -> None:
+    """Add missing price columns on the card table for older schemas."""
+
+    inspector = inspect(engine)
+
+    try:
+        existing_columns = {column["name"] for column in inspector.get_columns("card")}
+    except NoSuchTableError:
+        # Table does not exist yet, nothing to migrate.
+        return
+
+    missing_columns = [
+        column_name
+        for column_name in ("price", "price_7d_average")
+        if column_name not in existing_columns
+    ]
+
+    if not missing_columns:
+        return
+
+    logger.info(
+        "Migrating card table to include missing price columns: %s", missing_columns
+    )
+
+    with engine.begin() as connection:
+        for column_name in missing_columns:
+            connection.exec_driver_sql(
+                f"ALTER TABLE card ADD COLUMN {column_name} REAL"  # noqa: S608
+            )
+
 
 
 async def get_session() -> AsyncIterator[Session]:
