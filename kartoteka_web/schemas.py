@@ -81,6 +81,18 @@ class CardSearchResponse(SQLModel):
     suggested_query: Optional[str] = None
 
 
+class CardPriceHistoryPoint(SQLModel):
+    date: str
+    price: Optional[float] = None
+    currency: Optional[str] = None
+
+
+class CardPriceHistory(SQLModel):
+    last_7: List[CardPriceHistoryPoint] = Field(default_factory=list)
+    last_30: List[CardPriceHistoryPoint] = Field(default_factory=list)
+    all: List[CardPriceHistoryPoint] = Field(default_factory=list)
+
+
 class CardDetail(SQLModel):
     name: str
     number: str
@@ -89,6 +101,7 @@ class CardDetail(SQLModel):
     set_name: str
     set_code: Optional[str] = None
     set_icon: Optional[str] = None
+    set_icon_path: Optional[str] = None
     image_small: Optional[str] = None
     image_large: Optional[str] = None
     rarity: Optional[str] = None
@@ -97,11 +110,14 @@ class CardDetail(SQLModel):
     release_date: Optional[str] = None
     price: Optional[float] = None
     price_7d_average: Optional[float] = None
+    description: Optional[str] = None
+    shop_url: Optional[str] = None
+    price_history: CardPriceHistory = Field(default_factory=CardPriceHistory)
 
 
 class CardDetailResponse(SQLModel):
     card: CardDetail
-    related: List[CardSearchResult] = []
+    related: List[CardSearchResult] = Field(default_factory=list)
 
 
 class CollectionEntryBase(SQLModel):

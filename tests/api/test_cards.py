@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import importlib
 
+import pytest
+
 from sqlmodel import select
 
 from kartoteka_web import database, models
@@ -116,6 +118,9 @@ def test_card_search_and_detail(api_client, monkeypatch):
             "release_date": "1999/06/16",
             "price": 12.34,
             "price_7d_average": 11.11,
+            "id": "jng-133",
+            "description": "Opis testowy karty",
+            "shop_url": "https://example.com/shop/jungle",
         },
         {
             "name": "Eevee",
@@ -133,6 +138,7 @@ def test_card_search_and_detail(api_client, monkeypatch):
             "release_date": "1999/10/10",
             "price": 8.5,
             "price_7d_average": 7.25,
+            "id": "fsl-133",
         },
     ]
 
@@ -173,6 +179,19 @@ def test_card_search_and_detail(api_client, monkeypatch):
         "kartoteka_web.routes.cards.tcg_api.search_cards",
         fake_search_cards,
     )
+
+    price_history_payload = [
+        {"date": "2024-01-01", "marketPrice": 10.0, "currency": "EUR"},
+        {"date": "2024-01-05", "marketPrice": 12.5, "currency": "EUR"},
+        {"date": "2024-01-10", "marketPrice": 9.75, "currency": "EUR"},
+    ]
+
+    monkeypatch.setattr(
+        cards_routes.tcg_api,
+        "fetch_card_price_history",
+        lambda *args, **kwargs: price_history_payload,
+    )
+    monkeypatch.setattr(cards_routes.tcg_api, "get_eur_pln_rate", lambda: 4.0)
 
     with database.session_scope() as session:
         assert session.exec(select(models.Card)).all() == []
@@ -239,6 +258,15 @@ def test_card_search_and_detail(api_client, monkeypatch):
     assert info.status_code == 200, info.text
     detail = info.json()
     assert detail["card"]["set_name"] == "Jungle"
+    assert detail["card"]["shop_url"] == "https://example.com/shop/jungle"
+    assert detail["card"]["description"] == "Opis testowy karty"
+    history = detail["card"]["price_history"]
+    assert history["all"]
+    assert len(history["all"]) == 3
+    assert len(history["last_7"]) == 3
+    assert len(history["last_30"]) == 3
+    assert history["all"][0]["currency"] == "PLN"
+    assert history["all"][0]["price"] == pytest.approx(10.0 * 4.0 * 1.24, rel=1e-3)
     assert len(detail["related"]) == 2
 
     missing = api_client.get(

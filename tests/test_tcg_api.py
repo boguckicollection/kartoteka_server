@@ -392,6 +392,27 @@ def test_build_card_payload_includes_rarity_symbol():
     assert payload["rarity_symbol"] == "https://example.com/rarity.svg"
 
 
+def test_build_card_payload_includes_description_and_shop_url(monkeypatch):
+    monkeypatch.setattr(tcg_api, "get_eur_pln_rate", lambda: None)
+    card = {
+        "id": "base1-4",
+        "name": "Charizard",
+        "number": "4/102",
+        "set": {"name": "Base Set"},
+        "abilities": [{"name": "Energy Burn", "text": "All Energy attached becomes Fire."}],
+        "attacks": [{"name": "Fire Spin", "text": "Discard 2 Energy from Charizard."}],
+        "cardmarket": {"url": "https://example.com/cardmarket"},
+    }
+
+    payload = tcg_api.build_card_payload(card)
+
+    assert payload is not None
+    assert "Energy Burn" in (payload.get("description") or "")
+    assert "Fire Spin" in (payload.get("description") or "")
+    assert payload.get("shop_url") == "https://example.com/cardmarket"
+    assert payload.get("id") == "base1-4"
+
+
 def test_build_cards_endpoint_supports_nested_paths():
     url = tcg_api._build_cards_endpoint(
         "https://pokemon-tcg-api.p.rapidapi.com",
@@ -444,3 +465,36 @@ def test_fetch_card_price_history_handles_non_200_response():
     call = session.calls[0]
     assert call["url"] == "https://pokemon-tcg-api.p.rapidapi.com/cards/base1-4/history-prices"
     assert history == []
+
+
+def test_normalize_price_history_converts_to_pln(monkeypatch):
+    monkeypatch.setattr(tcg_api, "get_eur_pln_rate", lambda: 4.0)
+    history = [
+        {"date": "2024-01-01", "marketPrice": 10.0, "currency": "EUR"},
+        {"date": "2024-01-02T00:00:00Z", "prices": {"market": 11.0}, "currencyCode": "EUR"},
+        {"date": "2024-01-03", "marketPrice": 15.0, "currency": "PLN"},
+    ]
+
+    normalized = tcg_api.normalize_price_history(history)
+
+    assert [entry["date"] for entry in normalized] == [
+        "2024-01-01",
+        "2024-01-02",
+        "2024-01-03",
+    ]
+    assert normalized[0]["price"] == pytest.approx(10.0 * 4.0 * 1.24, rel=1e-3)
+    assert normalized[0]["currency"] == "PLN"
+    assert normalized[-1]["price"] == pytest.approx(15.0, rel=1e-3)
+    assert normalized[-1]["currency"] == "PLN"
+
+
+def test_slice_price_history_returns_limited_range():
+    history = [
+        {"date": f"2024-01-{day:02d}", "price": float(day), "currency": "PLN"}
+        for day in range(1, 11)
+    ]
+
+    sliced = tcg_api.slice_price_history(history, 3)
+
+    assert len(sliced) == 3
+    assert [entry["date"] for entry in sliced] == ["2024-01-08", "2024-01-09", "2024-01-10"]

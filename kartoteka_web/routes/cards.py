@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
+from pathlib import Path
 from typing import Any, Iterable
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -34,6 +36,12 @@ RAPIDAPI_HOST = (
 CARD_NUMBER_PATTERN = re.compile(
     r"(?i)([a-z]{0,5}\d+[a-z0-9]*)(?:\s*/\s*([a-z]{0,5}\d+[a-z0-9]*))?"
 )
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_SHOP_URL = "https://kartoteka.shop/pl/c/Karty-Pokemon/38"
+SET_ICON_URL_BASE = "/icon/set"
+SET_ICON_DIRECTORY = Path(__file__).resolve().parents[2] / "icon" / "set"
 
 
 def _compose_query(*parts: str | None) -> str:
@@ -99,6 +107,23 @@ def _normalize_lower(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
+def _sanitize_set_code(value: str | None) -> str:
+    return re.sub(r"[^a-z0-9-]", "", (value or "").strip().lower())
+
+
+def _local_set_icon_path(set_code: str | None) -> str | None:
+    normalized = _sanitize_set_code(set_code)
+    if not normalized:
+        return None
+    candidate = SET_ICON_DIRECTORY / f"{normalized}.png"
+    try:
+        if candidate.exists():
+            return f"{SET_ICON_URL_BASE}/{normalized}.png"
+    except OSError:
+        return None
+    return None
+
+
 def _card_to_search_schema(card: models.Card) -> schemas.CardSearchResult:
     return schemas.CardSearchResult(
         name=card.name,
@@ -128,6 +153,7 @@ def _card_to_detail(card: models.Card) -> schemas.CardDetail:
         set_name=card.set_name,
         set_code=card.set_code,
         set_icon=None,
+        set_icon_path=_local_set_icon_path(card.set_code),
         image_small=card.image_small,
         image_large=card.image_large,
         rarity=card.rarity,
@@ -136,7 +162,81 @@ def _card_to_detail(card: models.Card) -> schemas.CardDetail:
         release_date=None,
         price=card.price,
         price_7d_average=card.price_7d_average,
+        description=None,
+        shop_url=DEFAULT_SHOP_URL,
+        price_history=schemas.CardPriceHistory(),
     )
+
+
+def _history_points_to_schema(
+    points: list[dict[str, Any]]
+) -> list[schemas.CardPriceHistoryPoint]:
+    history: list[schemas.CardPriceHistoryPoint] = []
+    for point in points:
+        date_value = point.get("date")
+        if not isinstance(date_value, str) or not date_value.strip():
+            continue
+        price_value = point.get("price")
+        price_number: float | None
+        if isinstance(price_value, (int, float)):
+            price_number = float(price_value)
+        elif isinstance(price_value, str):
+            try:
+                price_number = float(price_value.replace(",", "."))
+            except ValueError:
+                price_number = None
+        else:
+            price_number = None
+        currency_value = point.get("currency")
+        if isinstance(currency_value, str):
+            currency_text = currency_value.strip() or None
+        else:
+            currency_text = None
+        history.append(
+            schemas.CardPriceHistoryPoint(
+                date=date_value,
+                price=price_number,
+                currency=currency_text,
+            )
+        )
+    return history
+
+
+def _select_remote_card(
+    records: list[dict[str, Any]], detail: schemas.CardDetail
+) -> dict[str, Any] | None:
+    if not records:
+        return None
+
+    def _norm(value: Any) -> str:
+        return (str(value or "").strip().lower())
+
+    target_number = _norm(detail.number)
+    target_set_code = _norm(detail.set_code)
+    target_set_name = _norm(detail.set_name)
+
+    best_score = -1
+    best_record: dict[str, Any] | None = None
+
+    for record in records:
+        score = 0
+        record_number = _norm(record.get("number"))
+        record_set_code = _norm(record.get("set_code"))
+        record_set_name = _norm(record.get("set_name"))
+
+        if target_number and record_number == target_number:
+            score += 3
+        if target_set_code and record_set_code == target_set_code:
+            score += 3
+        if target_set_name and record_set_name == target_set_name:
+            score += 1
+        if score > best_score:
+            best_score = score
+            best_record = record
+
+    if best_record and best_score > 0:
+        return best_record
+    return records[0]
 
 
 def _matches_filters(
@@ -418,6 +518,98 @@ def card_info(
     detail = _card_to_detail(card)
     if total and not detail.total:
         detail.total = text.sanitize_number(total)
+
+    detail.shop_url = (detail.shop_url or DEFAULT_SHOP_URL).strip() or DEFAULT_SHOP_URL
+
+    remote_results: list[dict[str, Any]] = []
+    try:
+        remote_results, _ = tcg_api.search_cards(
+            name=detail.name or name,
+            number=detail.number,
+            set_name=detail.set_name,
+            total=detail.total,
+            limit=6,
+            per_page=6,
+            rapidapi_key=RAPIDAPI_KEY,
+            rapidapi_host=RAPIDAPI_HOST,
+        )
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.warning("Failed to fetch remote card details for %s #%s: %s", name, number, exc)
+        remote_results = []
+
+    remote_card = _select_remote_card(remote_results, detail) if remote_results else None
+    remote_card_id: str | None = None
+
+    if remote_card:
+        remote_card_id_value = str(remote_card.get("id") or "").strip()
+        remote_card_id = remote_card_id_value or None
+
+        for attr in (
+            "name",
+            "number_display",
+            "total",
+            "set_name",
+            "set_code",
+            "image_small",
+            "image_large",
+            "rarity",
+            "artist",
+            "series",
+            "release_date",
+        ):
+            value = remote_card.get(attr)
+            if value:
+                setattr(detail, attr, value)
+
+        price_value = remote_card.get("price")
+        if price_value is not None:
+            detail.price = price_value
+        price_average = remote_card.get("price_7d_average")
+        if price_average is not None:
+            detail.price_7d_average = price_average
+
+        set_icon_value = remote_card.get("set_icon")
+        if set_icon_value:
+            detail.set_icon = set_icon_value
+
+        description_value = remote_card.get("description")
+        if description_value:
+            detail.description = description_value.strip()
+
+        shop_url_value = remote_card.get("shop_url")
+        if isinstance(shop_url_value, str) and shop_url_value.strip():
+            detail.shop_url = shop_url_value.strip()
+
+    detail.shop_url = detail.shop_url.strip() if detail.shop_url else DEFAULT_SHOP_URL
+    if not detail.shop_url:
+        detail.shop_url = DEFAULT_SHOP_URL
+
+    detail.set_icon_path = _local_set_icon_path(detail.set_code) or detail.set_icon_path
+
+    detail.price_history = schemas.CardPriceHistory()
+    if remote_card_id:
+        try:
+            raw_history = tcg_api.fetch_card_price_history(
+                remote_card_id,
+                rapidapi_key=RAPIDAPI_KEY,
+                rapidapi_host=RAPIDAPI_HOST,
+            )
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.warning("Failed to fetch price history for card %s: %s", remote_card_id, exc)
+            raw_history = []
+        normalized_history = tcg_api.normalize_price_history(raw_history)
+        if normalized_history:
+            detail.price_history = schemas.CardPriceHistory(
+                last_7=_history_points_to_schema(
+                    tcg_api.slice_price_history(normalized_history, 7)
+                ),
+                last_30=_history_points_to_schema(
+                    tcg_api.slice_price_history(normalized_history, 30)
+                ),
+                all=_history_points_to_schema(
+                    tcg_api.slice_price_history(normalized_history)
+                ),
+            )
 
     related_cards = _load_related_cards(session, card, limit_value)
     related_items = [_card_to_search_schema(item) for item in related_cards[:limit_value]]
