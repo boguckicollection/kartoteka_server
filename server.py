@@ -6,6 +6,7 @@ import contextlib
 from pathlib import Path
 from typing import Any
 
+import anyio
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -27,7 +28,7 @@ from kartoteka_web.utils import images as image_utils, sets as set_utils, text
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    set_icons.ensure_set_icons()
+    await anyio.to_thread.run_sync(set_icons.ensure_set_icons)
     yield
 
 
