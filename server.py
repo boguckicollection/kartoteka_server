@@ -21,11 +21,13 @@ from kartoteka_web import models
 from kartoteka_web.auth import get_current_user, oauth2_scheme
 from kartoteka_web.database import init_db, session_scope
 from kartoteka_web.routes import cards, users
+from kartoteka_web.services import set_icons
 from kartoteka_web.utils import images as image_utils, sets as set_utils, text
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    set_icons.ensure_set_icons()
     yield
 
 
