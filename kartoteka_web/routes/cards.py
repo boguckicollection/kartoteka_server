@@ -114,7 +114,8 @@ def _card_to_search_schema(card: models.Card) -> schemas.CardSearchResult:
         artist=None,
         series=None,
         release_date=None,
-        price=None,
+        price=card.price,
+        price_7d_average=card.price_7d_average,
     )
 
 
@@ -133,6 +134,8 @@ def _card_to_detail(card: models.Card) -> schemas.CardDetail:
         artist=None,
         series=None,
         release_date=None,
+        price=card.price,
+        price_7d_average=card.price_7d_average,
     )
 
 
@@ -303,6 +306,7 @@ def _payload_to_search_schema(payload: dict[str, Any]) -> schemas.CardSearchResu
         series=payload.get("series"),
         release_date=payload.get("release_date"),
         price=payload.get("price"),
+        price_7d_average=payload.get("price_7d_average"),
     )
 
 

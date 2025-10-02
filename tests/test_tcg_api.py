@@ -307,6 +307,7 @@ def test_build_card_payload_extracts_cardmarket_price(monkeypatch):
 
     assert payload is not None
     assert payload["price"] == round(9.5 * 4.5 * 1.24, 2)
+    assert payload["price_7d_average"] is None
 
 
 def test_build_card_payload_prefers_tcgplayer_price_when_available(monkeypatch):
@@ -328,6 +329,7 @@ def test_build_card_payload_prefers_tcgplayer_price_when_available(monkeypatch):
 
     assert payload is not None
     assert payload["price"] == round(3.75 * 4.0 * 1.24, 2)
+    assert payload["price_7d_average"] is None
 
 
 def test_build_card_payload_skips_price_when_rate_unavailable(monkeypatch):
@@ -337,12 +339,43 @@ def test_build_card_payload_skips_price_when_rate_unavailable(monkeypatch):
         "number": "7/102",
         "set": {"name": "Base Set"},
         "cardmarket": {"prices": {"averageSellPrice": 2.5}},
+        "prices": {"normal": {"7d_average": 1.5}},
     }
 
     payload = tcg_api.build_card_payload(card)
 
     assert payload is not None
     assert payload["price"] is None
+    assert payload["price_7d_average"] is None
+
+
+def test_build_card_payload_extracts_7d_average_price(monkeypatch):
+    captured: dict[str, Any] = {}
+
+    def fake_rate():
+        captured["called"] = captured.get("called", 0) + 1
+        return 4.2
+
+    monkeypatch.setattr(tcg_api, "get_eur_pln_rate", fake_rate)
+
+    card = {
+        "name": "Pikachu",
+        "number": "58/102",
+        "set": {"name": "Base Set"},
+        "prices": {
+            "normal": {
+                "7d_average": "2,75",
+                "market": 2.4,
+            }
+        },
+    }
+
+    payload = tcg_api.build_card_payload(card)
+
+    assert payload is not None
+    assert payload["price_7d_average"] == round(2.75 * 4.2 * 1.24, 2)
+    assert payload["price"] == round(2.4 * 4.2 * 1.24, 2)
+    assert captured["called"] == 1
 
 
 def test_build_card_payload_includes_rarity_symbol():

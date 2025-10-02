@@ -18,6 +18,15 @@ RAPIDAPI_DEFAULT_HOST = "pokemon-tcg-api.p.rapidapi.com"
 _EUR_PLN_RATE_CACHE: dict[str, float | None] = {"value": None, "expires": 0.0}
 _EUR_PLN_RATE_TTL = 60 * 60  # 1 hour
 
+_SEVEN_DAY_AVERAGE_KEYS: tuple[str, ...] = (
+    "7d_average",
+    "avg7",
+    "avg_7",
+    "sevenDayAverage",
+    "seven_day_average",
+    "sevenDayAvg",
+)
+
 
 def get_eur_pln_rate(
     session: Optional[requests.sessions.Session] = None,
@@ -231,14 +240,54 @@ def _extract_generic_price(card: dict[str, Any]) -> Optional[float]:
     if isinstance(prices, dict):
         for value in prices.values():
             if isinstance(value, dict):
-                for nested in value.values():
-                    price = _normalize_price_value(nested)
+                for nested_key, nested_value in value.items():
+                    if nested_key in _SEVEN_DAY_AVERAGE_KEYS:
+                        continue
+                    price = _normalize_price_value(nested_value)
                     if price is not None:
                         return price
             else:
                 price = _normalize_price_value(value)
                 if price is not None:
                     return price
+    return None
+
+
+def _extract_nested_price(
+    data: Any, keys: tuple[str, ...],
+) -> Optional[float]:
+    if not isinstance(data, dict):
+        return None
+    for key in keys:
+        price = _normalize_price_value(data.get(key))
+        if price is not None:
+            return price
+    for value in data.values():
+        if isinstance(value, dict):
+            price = _extract_nested_price(value, keys)
+            if price is not None:
+                return price
+    return None
+
+
+def _extract_7d_average_price(card: dict[str, Any]) -> Optional[float]:
+    prices = card.get("prices")
+    price = _extract_nested_price(prices, _SEVEN_DAY_AVERAGE_KEYS)
+    if price is not None:
+        return price
+
+    cardmarket = card.get("cardmarket") or card.get("cardMarket") or {}
+    if isinstance(cardmarket, dict):
+        price = _extract_nested_price(cardmarket.get("prices"), _SEVEN_DAY_AVERAGE_KEYS)
+        if price is not None:
+            return price
+
+    tcgplayer = card.get("tcgplayer") or card.get("tcgPlayer") or {}
+    if isinstance(tcgplayer, dict):
+        price = _extract_nested_price(tcgplayer.get("prices"), _SEVEN_DAY_AVERAGE_KEYS)
+        if price is not None:
+            return price
+
     return None
 
 
@@ -401,11 +450,19 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
 
     image_small, image_large = _extract_images(card)
     price_eur = _extract_card_price(card)
+    price_7d_average_eur = _extract_7d_average_price(card)
+
     price_pln = None
-    if price_eur is not None:
+    price_7d_average_pln = None
+    if price_eur is not None or price_7d_average_eur is not None:
         rate = get_eur_pln_rate()
-        if rate is not None:
+    else:
+        rate = None
+    if rate is not None:
+        if price_eur is not None:
             price_pln = round(price_eur * rate * 1.24, 2)
+        if price_7d_average_eur is not None:
+            price_7d_average_pln = round(price_7d_average_eur * rate * 1.24, 2)
 
     return {
         "name": card.get("name") or "",
@@ -423,6 +480,7 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
         "set_icon": set_icon,
         "rarity_symbol": rarity_symbol,
         "price": price_pln,
+        "price_7d_average": price_7d_average_pln,
     }
 
 

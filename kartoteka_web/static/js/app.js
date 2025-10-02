@@ -237,6 +237,10 @@
 
   const getCardPriceValue = (item) => {
     if (!item) return null;
+    const average = normalizePriceInput(item.price_7d_average);
+    if (average !== null) {
+      return average;
+    }
     return normalizePriceInput(item.price);
   };
 
