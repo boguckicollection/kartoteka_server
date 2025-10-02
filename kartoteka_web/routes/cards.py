@@ -107,21 +107,14 @@ def _normalize_lower(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
-def _sanitize_set_code(value: str | None) -> str:
-    return re.sub(r"[^a-z0-9-]", "", (value or "").strip().lower())
-
-
-def _local_set_icon_path(set_code: str | None) -> str | None:
-    normalized = _sanitize_set_code(set_code)
-    if not normalized:
-        return None
-    candidate = SET_ICON_DIRECTORY / f"{normalized}.png"
-    try:
-        if candidate.exists():
-            return f"{SET_ICON_URL_BASE}/{normalized}.png"
-    except OSError:
-        return None
-    return None
+def _local_set_icon_path(set_code: str | None, set_name: str | None = None) -> str | None:
+    _, icon_path = set_utils.resolve_cached_set_icon(
+        set_code=set_code,
+        set_name=set_name,
+        icons_directory=SET_ICON_DIRECTORY,
+        url_base=SET_ICON_URL_BASE,
+    )
+    return icon_path
 
 
 def _card_to_search_schema(card: models.Card) -> schemas.CardSearchResult:
@@ -136,6 +129,7 @@ def _card_to_search_schema(card: models.Card) -> schemas.CardSearchResult:
         image_small=card.image_small,
         image_large=card.image_large,
         set_icon=None,
+        set_icon_path=_local_set_icon_path(card.set_code, card.set_name),
         artist=None,
         series=None,
         release_date=None,
@@ -153,7 +147,7 @@ def _card_to_detail(card: models.Card) -> schemas.CardDetail:
         set_name=card.set_name,
         set_code=card.set_code,
         set_icon=None,
-        set_icon_path=_local_set_icon_path(card.set_code),
+        set_icon_path=_local_set_icon_path(card.set_code, card.set_name),
         image_small=card.image_small,
         image_large=card.image_large,
         rarity=card.rarity,
@@ -406,6 +400,9 @@ def _serialize_entries(
 
 
 def _payload_to_search_schema(payload: dict[str, Any]) -> schemas.CardSearchResult:
+    local_icon = payload.get("set_icon_path") or _local_set_icon_path(
+        payload.get("set_code"), payload.get("set_name")
+    )
     return schemas.CardSearchResult(
         name=payload.get("name") or "",
         number=payload.get("number") or "",
@@ -417,6 +414,7 @@ def _payload_to_search_schema(payload: dict[str, Any]) -> schemas.CardSearchResu
         image_small=payload.get("image_small"),
         image_large=payload.get("image_large"),
         set_icon=payload.get("set_icon"),
+        set_icon_path=local_icon,
         artist=payload.get("artist"),
         series=payload.get("series"),
         release_date=payload.get("release_date"),
@@ -565,6 +563,7 @@ def card_info(
             "total",
             "set_name",
             "set_code",
+            "set_icon_path",
             "image_small",
             "image_large",
             "rarity",
@@ -599,7 +598,9 @@ def card_info(
     if not detail.shop_url:
         detail.shop_url = DEFAULT_SHOP_URL
 
-    detail.set_icon_path = _local_set_icon_path(detail.set_code) or detail.set_icon_path
+    local_icon = _local_set_icon_path(detail.set_code, detail.set_name)
+    if local_icon:
+        detail.set_icon_path = local_icon
 
     detail.price_history = schemas.CardPriceHistory()
     if remote_card_id:

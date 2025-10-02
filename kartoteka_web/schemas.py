@@ -65,6 +65,7 @@ class CardSearchResult(SQLModel):
     image_small: Optional[str] = None
     image_large: Optional[str] = None
     set_icon: Optional[str] = None
+    set_icon_path: Optional[str] = None
     artist: Optional[str] = None
     series: Optional[str] = None
     release_date: Optional[str] = None

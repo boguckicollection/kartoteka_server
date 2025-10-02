@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from ..utils import text
+from ..utils import text, sets as set_utils
 
 logger = logging.getLogger(__name__)
 
@@ -549,6 +549,12 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
         or card.get("set_logo")
     )
 
+    icon_slug, set_icon_path = set_utils.resolve_cached_set_icon(
+        episode,
+        set_code=set_code_value,
+        set_name=set_name_value,
+    )
+
     rarity_symbol = (
         card.get("rarity_symbol")
         or card.get("raritySymbol")
@@ -613,6 +619,8 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
         "series": series,
         "release_date": release_date,
         "set_icon": set_icon,
+        "set_icon_path": set_icon_path,
+        "set_icon_slug": icon_slug,
         "rarity_symbol": rarity_symbol,
         "price": price_pln,
         "price_7d_average": price_7d_average_pln,

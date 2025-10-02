@@ -107,8 +107,8 @@ def test_card_search_and_detail(api_client, monkeypatch):
             "number": "133",
             "number_display": "133/151",
             "total": "151",
-            "set_name": "Jungle",
-            "set_code": "jng",
+            "set_name": "Base Set",
+            "set_code": "base1",
             "rarity": "Common",
             "image_small": "https://example.com/eevee-jungle-small.jpg",
             "image_large": "https://example.com/eevee-jungle-large.jpg",
@@ -127,8 +127,8 @@ def test_card_search_and_detail(api_client, monkeypatch):
             "number": "133",
             "number_display": "133/151",
             "total": "151",
-            "set_name": "Fossil",
-            "set_code": "fsl",
+            "set_name": "Base Set 2",
+            "set_code": "base2",
             "rarity": "Common",
             "image_small": "https://example.com/eevee-fossil-small.jpg",
             "image_large": "https://example.com/eevee-fossil-large.jpg",
@@ -214,9 +214,12 @@ def test_card_search_and_detail(api_client, monkeypatch):
     assert payload["page"] == 1
     assert payload["per_page"] == 20
     assert payload["suggested_query"] == "Eevee"
-    assert {item["set_code"] for item in payload["items"]} == {"jng", "fsl"}
+    assert {item["set_code"] for item in payload["items"]} == {"base1", "base2"}
     assert sorted(item["price"] for item in payload["items"]) == [8.5, 12.34]
     assert sorted(item["price_7d_average"] for item in payload["items"]) == [7.25, 11.11]
+    icon_map = {item["set_code"]: item["set_icon_path"] for item in payload["items"]}
+    assert icon_map["base1"] == "/icon/set/base1.png"
+    assert icon_map["base2"] == "/icon/set/base2.png"
 
     with database.session_scope() as session:
         session.add_all(
@@ -224,22 +227,22 @@ def test_card_search_and_detail(api_client, monkeypatch):
                 models.Card(
                     name="Eevee",
                     number="133",
-                    set_name="Jungle",
-                    set_code="jng",
+                    set_name="Base Set",
+                    set_code="base1",
                     rarity="Common",
                 ),
                 models.Card(
                     name="Eevee",
                     number="133",
-                    set_name="Fossil",
-                    set_code="fsl",
+                    set_name="Base Set 2",
+                    set_code="base2",
                     rarity="Common",
                 ),
                 models.Card(
                     name="Eevee",
                     number="060",
-                    set_name="Base Set",
-                    set_code="base",
+                    set_name="Base Set 3",
+                    set_code="base3",
                     rarity="Common",
                 ),
             ]
@@ -250,14 +253,15 @@ def test_card_search_and_detail(api_client, monkeypatch):
         params={
             "name": "Eevee",
             "number": "133",
-            "set_name": "Jungle",
-            "set_code": "jng",
+            "set_name": "Base Set",
+            "set_code": "base1",
             "related_limit": 2,
         },
     )
     assert info.status_code == 200, info.text
     detail = info.json()
-    assert detail["card"]["set_name"] == "Jungle"
+    assert detail["card"]["set_name"] == "Base Set"
+    assert detail["card"]["set_icon_path"] == "/icon/set/base1.png"
     assert detail["card"]["shop_url"] == "https://example.com/shop/jungle"
     assert detail["card"]["description"] == "Opis testowy karty"
     history = detail["card"]["price_history"]
@@ -268,6 +272,9 @@ def test_card_search_and_detail(api_client, monkeypatch):
     assert history["all"][0]["currency"] == "PLN"
     assert history["all"][0]["price"] == pytest.approx(10.0 * 4.0 * 1.24, rel=1e-3)
     assert len(detail["related"]) == 2
+    related_icons = {item["set_code"]: item["set_icon_path"] for item in detail["related"]}
+    assert related_icons["base2"] == "/icon/set/base2.png"
+    assert related_icons["base3"] == "/icon/set/base3.png"
 
     missing = api_client.get(
         "/cards/info",
