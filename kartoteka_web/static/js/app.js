@@ -949,6 +949,7 @@
     const paginationStatus = pagination?.querySelector("[data-page-status]");
     const paginationPrev = pagination?.querySelector("[data-page-action='prev']");
     const paginationNext = pagination?.querySelector("[data-page-action='next']");
+    const paginationIndexList = document.querySelector("[data-page-index-list]");
     let latestItems = [];
     let latestTotalCount = 0;
     let latestQuery = "";
@@ -997,28 +998,69 @@
       }
     };
 
+    const renderPageIndexButtons = (totalPages) => {
+      if (!paginationIndexList) return;
+      if (!Number.isFinite(totalPages) || totalPages <= 1) {
+        paginationIndexList.hidden = true;
+        paginationIndexList.innerHTML = "";
+        return;
+      }
+      const maxPagesToRender = Math.min(totalPages, 5);
+      const fragment = document.createDocumentFragment();
+      for (let page = 1; page <= maxPagesToRender; page += 1) {
+        const item = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = String(page);
+        button.dataset.pageIndex = String(page);
+        const isCurrent = page === latestPage;
+        button.disabled = isCurrent;
+        button.classList.toggle("is-active", isCurrent);
+        button.setAttribute("aria-label", `Przejdź do strony ${page}`);
+        if (isCurrent) {
+          button.setAttribute("aria-current", "page");
+        } else {
+          button.removeAttribute("aria-current");
+        }
+        item.appendChild(button);
+        fragment.appendChild(item);
+      }
+      paginationIndexList.innerHTML = "";
+      paginationIndexList.appendChild(fragment);
+      paginationIndexList.hidden = false;
+    };
+
     const updatePaginationControls = () => {
-      if (!pagination) return;
+      if (!pagination && !paginationIndexList) return;
       const totalAvailable = latestTotalCount > 0 ? latestTotalCount : latestItems.length;
       if (!latestItems.length || !totalAvailable) {
-        pagination.hidden = true;
-        if (paginationStatus) paginationStatus.textContent = "";
-        if (paginationPrev) paginationPrev.disabled = true;
-        if (paginationNext) paginationNext.disabled = true;
+        if (pagination) {
+          pagination.hidden = true;
+          if (paginationStatus) paginationStatus.textContent = "";
+          if (paginationPrev) paginationPrev.disabled = true;
+          if (paginationNext) paginationNext.disabled = true;
+        }
+        if (paginationIndexList) {
+          paginationIndexList.hidden = true;
+          paginationIndexList.innerHTML = "";
+        }
         return;
       }
       const perPage = latestPerPage > 0 ? latestPerPage : latestItems.length;
       const totalPages = Math.max(1, Math.ceil(totalAvailable / perPage));
-      pagination.hidden = totalPages <= 1 && latestPage <= 1;
-      if (paginationStatus) {
-        paginationStatus.textContent = `Strona ${latestPage} z ${totalPages}`;
+      if (pagination) {
+        pagination.hidden = totalPages <= 1 && latestPage <= 1;
+        if (paginationStatus) {
+          paginationStatus.textContent = `Strona ${latestPage} z ${totalPages}`;
+        }
+        if (paginationPrev) {
+          paginationPrev.disabled = latestPage <= 1;
+        }
+        if (paginationNext) {
+          paginationNext.disabled = latestPage >= totalPages;
+        }
       }
-      if (paginationPrev) {
-        paginationPrev.disabled = latestPage <= 1;
-      }
-      if (paginationNext) {
-        paginationNext.disabled = latestPage >= totalPages;
-      }
+      renderPageIndexButtons(totalPages);
     };
 
     const renderLatestResults = () => {
@@ -1107,6 +1149,20 @@
         isFetching = false;
       }
     };
+
+    if (paginationIndexList) {
+      paginationIndexList.addEventListener("click", async (event) => {
+        if (isFetching) return;
+        const target = event.target instanceof Element
+          ? event.target.closest("[data-page-index]")
+          : null;
+        if (!target || !(target instanceof HTMLElement)) return;
+        if (target.hasAttribute("disabled")) return;
+        const page = toPositiveInteger(target.dataset.pageIndex, 0);
+        if (!page || page === latestPage) return;
+        await fetchResults({ page, message: `Ładuję stronę ${page}…` });
+      });
+    }
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
