@@ -116,45 +116,50 @@ def ensure_set_icons(
         logger.warning("Unable to create icon directory %s: %s", target_directory, exc)
         return []
 
+    created_session = session is None
     http = session or _build_retrying_session()
-    saved_paths: list[Path] = []
-    for set_payload in _fetch_set_payloads(session=http, timeout=timeout):
-        clean_code = _extract_clean_code(set_payload)
-        if not clean_code:
-            continue
-        symbol_url = _extract_symbol_url(set_payload)
-        if not symbol_url:
-            continue
-        destination = target_directory / f"{clean_code}.png"
-        if destination.exists() and not force:
-            continue
+    try:
+        saved_paths: list[Path] = []
+        for set_payload in _fetch_set_payloads(session=http, timeout=timeout):
+            clean_code = _extract_clean_code(set_payload)
+            if not clean_code:
+                continue
+            symbol_url = _extract_symbol_url(set_payload)
+            if not symbol_url:
+                continue
+            destination = target_directory / f"{clean_code}.png"
+            if destination.exists() and not force:
+                continue
 
-        try:
-            response = http.get(symbol_url, timeout=timeout)
-        except requests.Timeout:
-            logger.warning("Timeout while downloading symbol for set %s", clean_code)
-            continue
-        except requests.RequestException as exc:  # pragma: no cover - network errors
-            logger.warning("Failed to download symbol for set %s: %s", clean_code, exc)
-            continue
+            try:
+                response = http.get(symbol_url, timeout=timeout)
+            except requests.Timeout:
+                logger.warning("Timeout while downloading symbol for set %s", clean_code)
+                continue
+            except requests.RequestException as exc:  # pragma: no cover - network errors
+                logger.warning("Failed to download symbol for set %s: %s", clean_code, exc)
+                continue
 
-        if response.status_code != 200:
-            logger.warning(
-                "Pokémon TCG API returned status %s for symbol %s",
-                response.status_code,
-                clean_code,
-            )
-            continue
+            if response.status_code != 200:
+                logger.warning(
+                    "Pokémon TCG API returned status %s for symbol %s",
+                    response.status_code,
+                    clean_code,
+                )
+                continue
 
-        try:
-            destination.write_bytes(response.content)
-        except OSError as exc:  # pragma: no cover - filesystem errors
-            logger.warning("Failed to save symbol for set %s: %s", clean_code, exc)
-            continue
+            try:
+                destination.write_bytes(response.content)
+            except OSError as exc:  # pragma: no cover - filesystem errors
+                logger.warning("Failed to save symbol for set %s: %s", clean_code, exc)
+                continue
 
-        saved_paths.append(destination)
+            saved_paths.append(destination)
 
-    return saved_paths
+        return saved_paths
+    finally:
+        if created_session:
+            http.close()
 
 
 __all__ = ["ensure_set_icons"]

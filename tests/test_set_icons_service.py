@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
+
+import anyio
 
 from kartoteka_web.services import set_icons
 
@@ -122,4 +125,63 @@ def test_set_icons_force_overwrites_existing(tmp_path: Path):
 
     assert existing_path.read_bytes() == b"updated"
     assert saved == [existing_path]
+
+
+def test_set_icons_thread_invocation_matches_results(tmp_path: Path):
+    symbol_url = "https://img.example/swsh1.png"
+
+    def build_session() -> DummySession:
+        return _session_with_set_payload(
+            [
+                {"id": "swsh1", "images": {"symbol": symbol_url}},
+            ],
+            symbol_responses={
+                symbol_url: [DummyResponse(content=b"threaded")],
+            },
+        )
+
+    direct_dir = tmp_path / "direct"
+    thread_dir = tmp_path / "thread"
+    direct_dir.mkdir()
+    thread_dir.mkdir()
+
+    direct_saved = set_icons.ensure_set_icons(
+        icons_directory=direct_dir,
+        session=build_session(),
+    )
+
+    async def run_in_thread() -> list[Path]:
+        return await anyio.to_thread.run_sync(
+            lambda: set_icons.ensure_set_icons(
+                icons_directory=thread_dir,
+                session=build_session(),
+            )
+        )
+
+    threaded_saved = asyncio.run(run_in_thread())
+
+    assert [path.name for path in threaded_saved] == [path.name for path in direct_saved]
+    for path in threaded_saved:
+        assert path.read_bytes() == b"threaded"
+
+
+def test_set_icons_closes_created_session(monkeypatch, tmp_path: Path):
+    class CloseTrackingSession(DummySession):
+        def __init__(self):
+            super().__init__(
+                {
+                    set_icons.SET_LIST_URL: [DummyResponse(json_data={"data": []})],
+                }
+            )
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+    session = CloseTrackingSession()
+    monkeypatch.setattr(set_icons, "_build_retrying_session", lambda: session)
+
+    set_icons.ensure_set_icons(icons_directory=tmp_path)
+
+    assert session.closed is True
 
