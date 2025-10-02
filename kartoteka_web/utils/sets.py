@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import re
+from collections.abc import Mapping as MappingABC, Sequence as SequenceABC
+from functools import lru_cache
 from pathlib import Path
 from typing import Mapping, Optional, Sequence
 
@@ -10,7 +13,64 @@ from . import text
 
 
 SET_ICON_URL_BASE = "/icon/set"
-DEFAULT_ICON_DIRECTORY = Path(__file__).resolve().parents[2] / "icon" / "set"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_ICON_DIRECTORY = REPO_ROOT / "icon" / "set"
+SET_DATA_PATH = REPO_ROOT / "tcg_sets.json"
+
+
+def _register_mapping_entry(mapping: dict[str, str], key: Optional[str], slug: str) -> None:
+    """Register ``key`` -> ``slug`` in ``mapping`` if the key is valid."""
+
+    normalized = clean_code(key)
+    if not normalized:
+        return
+    mapping.setdefault(normalized, slug)
+
+
+@lru_cache(maxsize=1)
+def load_canonical_set_code_map() -> Mapping[str, str]:
+    """Return a mapping of normalized identifiers to canonical set slugs."""
+
+    mapping: dict[str, str] = {}
+
+    try:
+        raw_data = json.loads(SET_DATA_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return mapping
+
+    for sets in raw_data.values():
+        if not isinstance(sets, SequenceABC):
+            continue
+        for entry in sets:
+            if not isinstance(entry, MappingABC):
+                continue
+            slug = clean_code(entry.get("code"))
+            if not slug:
+                continue
+
+            _register_mapping_entry(mapping, slug, slug)
+            _register_mapping_entry(mapping, entry.get("name"), slug)
+            _register_mapping_entry(mapping, entry.get("abbr"), slug)
+
+            base = re.sub(r"\d+$", "", slug)
+            if base and base != slug:
+                _register_mapping_entry(mapping, base, slug)
+
+            no_leading_zero = re.sub(r"^([a-z]+)0+(\d+)$", r"\1\2", slug)
+            if no_leading_zero and no_leading_zero != slug:
+                _register_mapping_entry(mapping, no_leading_zero, slug)
+
+    return mapping
+
+
+def resolve_canonical_set_slug(identifier: Optional[str]) -> Optional[str]:
+    """Return the canonical slug for ``identifier`` if available."""
+
+    slug = clean_code(identifier)
+    if not slug:
+        return None
+    mapping = load_canonical_set_code_map()
+    return mapping.get(slug, slug)
 
 
 def clean_code(code: Optional[str]) -> Optional[str]:
@@ -68,11 +128,19 @@ def resolve_cached_set_icon(
         slug = clean_code(candidate)
         if not slug:
             continue
+        canonical_slug = resolve_canonical_set_slug(slug)
+        slug_candidates = []
+        if canonical_slug:
+            slug_candidates.append(canonical_slug)
+        if canonical_slug != slug:
+            slug_candidates.append(slug)
+
         try:
-            icon_path = directory / f"{slug}.png"
-            if icon_path.is_file():
-                normalized_base = url_base.rstrip("/") or "/"
-                return slug, f"{normalized_base}/{slug}.png"
+            for slug_candidate in slug_candidates:
+                icon_path = directory / f"{slug_candidate}.png"
+                if icon_path.is_file():
+                    normalized_base = url_base.rstrip("/") or "/"
+                    return slug_candidate, f"{normalized_base}/{slug_candidate}.png"
         except OSError:
-            return slug, None
+            return slug_candidates[0] if slug_candidates else slug, None
     return None, None
