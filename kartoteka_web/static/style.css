@@ -652,18 +652,8 @@ img {
   display: grid;
   gap: 20px;
   padding: 20px;
-  grid-template-columns: minmax(0, 180px) minmax(0, 1fr);
-  grid-template-areas:
-    "media info"
-    "form form";
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
   align-items: start;
-}
-
-.card-search-results--list .card-search-media {
-  grid-area: media;
-  display: grid;
-  gap: 12px;
-  align-content: start;
 }
 
 .card-search-results--grid .card-search-media {
@@ -809,6 +799,10 @@ img {
   gap: 8px;
 }
 
+.card-search-results--list .card-search-info {
+  gap: 12px;
+}
+
 .card-search-results--grid .card-search-info {
   gap: 6px;
 }
@@ -823,6 +817,34 @@ img {
   font-size: 0.9rem;
 }
 
+.card-search-inline-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px 24px;
+  align-items: start;
+}
+
+.card-search-inline-field {
+  display: grid;
+  gap: 4px;
+  font-size: 0.9rem;
+  color: var(--color-muted);
+  min-width: 0;
+}
+
+.card-search-inline-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+}
+
+.card-search-inline-value {
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
 .card-search-meta {
   margin-top: 4px;
   font-size: 0.85rem;
@@ -834,10 +856,9 @@ img {
 }
 
 .card-search-results--list .card-search-form {
-  grid-area: form;
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   align-items: end;
 }
 
@@ -853,6 +874,18 @@ img {
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
+}
+
+.card-search-results--list .card-search-form .form-footer {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.card-search-results--list .card-quick-add {
+  display: inline-flex;
+  margin-left: auto;
 }
 
 
@@ -884,17 +917,17 @@ img {
 @media (max-width: 720px) {
   .card-search-results--list .card-search-item {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "media"
-      "info"
-      "form";
   }
 
-  .card-search-results--list .card-search-media {
+  .card-search-inline-fields {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .card-search-results--list .card-search-set {
+  .card-search-results--list .card-search-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .card-search-results--list .card-search-form .form-footer {
     justify-content: flex-start;
   }
 }
