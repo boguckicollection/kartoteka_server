@@ -858,20 +858,28 @@
       if (isListView) {
         const previewImage = item.image_large || item.image_small || "";
         const hasPreviewImage = Boolean(previewImage);
-        const fallbackInitial = escapeHtml(cardName.charAt(0) || "?");
+        const thumbAttributeParts = [];
+        if (hasPreviewImage) {
+          thumbAttributeParts.push("data-has-preview=\"true\"");
+          thumbAttributeParts.push("tabindex=\"0\"");
+          thumbAttributeParts.push(`aria-label=\"Podgląd karty ${escapeHtml(cardName)}\"`);
+        }
+        const thumbAttributes = thumbAttributeParts.length
+          ? ` ${thumbAttributeParts.join(" ")}`
+          : "";
         article.innerHTML = `
           <div class="card-search-list-row">
-            <div class="card-search-list-thumb" ${hasPreviewImage ? "data-has-preview=\"true\"" : ""}>
-              ${
-                hasThumbnail
-                  ? `<img src="${escapeHtml(item.image_small)}" alt="${escapeHtml(cardAlt)}" loading="lazy" />`
-                  : hasSetIcon
-                    ? `<img src="${escapeHtml(item.set_icon)}" alt="${escapeHtml(setAlt)}" loading="lazy" />`
-                    : `<span class="card-search-list-thumb-fallback" aria-hidden="true">${fallbackInitial}</span>`
-              }
+            <div class="card-search-list-thumb"${thumbAttributes}>
+              <svg class="card-search-list-icon" viewBox="0 0 48 48" role="img" aria-hidden="true">
+                <rect class="card-search-list-icon-frame" x="5" y="6" width="38" height="36" rx="6" />
+                <rect class="card-search-list-icon-stripe" x="11" y="14" width="26" height="6" rx="3" />
+                <rect class="card-search-list-icon-stripe" x="11" y="24" width="20" height="6" rx="3" />
+              </svg>
               ${
                 hasPreviewImage
-                  ? `<img class="card-search-list-preview" src="${escapeHtml(previewImage)}" alt="${escapeHtml(cardAlt)}" loading="lazy" />`
+                  ? `<div class="card-search-list-preview" role="presentation">
+                      <img src="${escapeHtml(previewImage)}" alt="${escapeHtml(cardAlt)}" loading="lazy" />
+                    </div>`
                   : ""
               }
             </div>
