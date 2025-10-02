@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import re
 import time
 from difflib import SequenceMatcher
 from typing import Any, Optional
@@ -18,6 +19,55 @@ logger = logging.getLogger(__name__)
 RAPIDAPI_DEFAULT_HOST = "pokemon-tcg-api.p.rapidapi.com"
 _EUR_PLN_RATE_CACHE: dict[str, float | None] = {"value": None, "expires": 0.0}
 _EUR_PLN_RATE_TTL = 60 * 60  # 1 hour
+
+_RARITY_ICON_BASE_PATH = "/static/icons/rarity"
+_RARITY_ICON_IMAGE_BASE_PATH = "/icon/rarity"
+_RARITY_ICON_MAP = {
+    "common": f"{_RARITY_ICON_BASE_PATH}/common.svg",
+    "uncommon": f"{_RARITY_ICON_BASE_PATH}/uncommon.svg",
+    "rare": f"{_RARITY_ICON_BASE_PATH}/rare.svg",
+    "rare-holo": f"{_RARITY_ICON_BASE_PATH}/rare-holo.svg",
+    "holo-rare": f"{_RARITY_ICON_BASE_PATH}/rare-holo.svg",
+    "rare-ultra": f"{_RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Ultra_Rare.png",
+    "ultra-rare": f"{_RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Ultra_Rare.png",
+    "rare-double": f"{_RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Double_Rare.png",
+    "double-rare": f"{_RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Double_Rare.png",
+    "rare-secret": f"{_RARITY_ICON_BASE_PATH}/rare-secret.svg",
+    "secret-rare": f"{_RARITY_ICON_BASE_PATH}/rare-secret.svg",
+    "hyper-rare": f"{_RARITY_ICON_BASE_PATH}/rare-secret.svg",
+    "rare-rainbow": f"{_RARITY_ICON_BASE_PATH}/rare-rainbow.svg",
+    "rainbow-rare": f"{_RARITY_ICON_BASE_PATH}/rare-rainbow.svg",
+    "rare-shiny": f"{_RARITY_ICON_BASE_PATH}/rare-shiny.svg",
+    "shiny-rare": f"{_RARITY_ICON_BASE_PATH}/rare-shiny.svg",
+    "shinyrare": f"{_RARITY_ICON_BASE_PATH}/rare-shiny.svg",
+    "rare-ace": f"{_RARITY_ICON_BASE_PATH}/rare-ace.svg",
+    "ace-spec-rare": f"{_RARITY_ICON_BASE_PATH}/rare-ace.svg",
+    "rare-illustration": f"{_RARITY_ICON_BASE_PATH}/rare-illustration.svg",
+    "illustration-rare": f"{_RARITY_ICON_BASE_PATH}/rare-illustration.svg",
+    "special-illustration-rare": f"{_RARITY_ICON_BASE_PATH}/rare-illustration.svg",
+    "rare-special-illustration": f"{_RARITY_ICON_BASE_PATH}/rare-illustration.svg",
+    "promo": f"{_RARITY_ICON_BASE_PATH}/promo.svg",
+}
+_RARITY_ICON_RULES = (
+    (re.compile(r"(rainbow|hyper)", re.IGNORECASE), "rare-rainbow"),
+    (re.compile(r"(secret|gold)", re.IGNORECASE), "rare-secret"),
+    (re.compile(r"double", re.IGNORECASE), "double-rare"),
+    (
+        re.compile(
+            r"(ultra|vmax|v-star|vstar|v-union|gx|ex|mega|prime|legend)",
+            re.IGNORECASE,
+        ),
+        "rare-ultra",
+    ),
+    (re.compile(r"(shiny|shining|radiant)", re.IGNORECASE), "rare-shiny"),
+    (re.compile(r"promo", re.IGNORECASE), "promo"),
+    (re.compile(r"ace", re.IGNORECASE), "rare-ace"),
+    (re.compile(r"illustration rare", re.IGNORECASE), "rare-illustration"),
+    (re.compile(r"holo", re.IGNORECASE), "rare-holo"),
+    (re.compile(r"rare", re.IGNORECASE), "rare"),
+    (re.compile(r"uncommon", re.IGNORECASE), "uncommon"),
+    (re.compile(r"common", re.IGNORECASE), "common"),
+)
 
 _SEVEN_DAY_AVERAGE_KEYS: tuple[str, ...] = (
     "7d_average",
@@ -49,6 +99,30 @@ _PRICE_HISTORY_KEYS: tuple[str, ...] = (
     "directLow",
     "directHigh",
 )
+
+
+def _normalize_rarity_key(value: str) -> str:
+    text_value = value.lower().strip()
+    text_value = re.sub(r"[^a-z0-9]+", "-", text_value)
+    text_value = text_value.strip("-")
+    return text_value
+
+
+def resolve_rarity_icon_path(rarity: Optional[str]) -> Optional[str]:
+    """Return a local rarity icon path that mirrors the frontend resolver."""
+
+    if not rarity:
+        return None
+    normalized = _normalize_rarity_key(str(rarity))
+    if normalized:
+        mapped = _RARITY_ICON_MAP.get(normalized)
+        if mapped:
+            return mapped
+    lower_value = str(rarity).lower()
+    for pattern, key in _RARITY_ICON_RULES:
+        if pattern.search(lower_value):
+            return _RARITY_ICON_MAP.get(key)
+    return None
 
 
 def get_eur_pln_rate(
@@ -576,6 +650,13 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
     else:
         rarity_symbol = None
 
+    rarity_symbol_remote = rarity_symbol
+    rarity_symbol_local = resolve_rarity_icon_path(rarity)
+    if rarity_symbol_local:
+        rarity_symbol = rarity_symbol_local
+    else:
+        rarity_symbol = rarity_symbol_remote
+
     image_small, image_large = _extract_images(card)
     card_id_value = _normalize_text_field(
         card.get("id")
@@ -622,6 +703,7 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
         "set_icon_path": set_icon_path,
         "set_icon_slug": icon_slug,
         "rarity_symbol": rarity_symbol,
+        "rarity_symbol_remote": rarity_symbol_remote,
         "price": price_pln,
         "price_7d_average": price_7d_average_pln,
         "description": description,

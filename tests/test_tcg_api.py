@@ -383,6 +383,23 @@ def test_build_card_payload_includes_rarity_symbol():
         "name": "Pikachu",
         "number": "58/102",
         "set": {"name": "Base Set"},
+        "rarity": "Rare Holo",
+        "raritySymbol": "https://example.com/rarity.svg",
+    }
+
+    payload = tcg_api.build_card_payload(card)
+
+    assert payload is not None
+    assert payload["rarity_symbol"] == "/static/icons/rarity/rare-holo.svg"
+    assert payload["rarity_symbol_remote"] == "https://example.com/rarity.svg"
+
+
+def test_build_card_payload_falls_back_to_remote_rarity_symbol_when_unknown():
+    card = {
+        "name": "Pikachu",
+        "number": "58/102",
+        "set": {"name": "Base Set"},
+        "rarity": "Mystery",  # not present in the local map
         "raritySymbol": "https://example.com/rarity.svg",
     }
 
@@ -390,6 +407,7 @@ def test_build_card_payload_includes_rarity_symbol():
 
     assert payload is not None
     assert payload["rarity_symbol"] == "https://example.com/rarity.svg"
+    assert payload["rarity_symbol_remote"] == "https://example.com/rarity.svg"
 
 
 def test_build_card_payload_includes_description_and_shop_url(monkeypatch):
