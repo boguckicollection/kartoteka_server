@@ -863,24 +863,23 @@
     return null;
   };
 
-  const SET_ICON_FALLBACK_URL = "/static/icons/sets/fallback.svg";
   const SET_ICON_LOCAL_BASE = "/icon/set";
 
   const resolveSetIconUrl = (item) => {
-    if (!item) return SET_ICON_FALLBACK_URL;
-    const customIcon = (item.set_icon || "").trim();
-    if (customIcon) {
-      return customIcon;
+    if (!item) {
+      return { primary: null, fallback: null };
     }
+    const customIcon = (item.set_icon || "").trim() || null;
     const setCodeRaw = (item.set_code || "").trim();
     if (!setCodeRaw) {
-      return SET_ICON_FALLBACK_URL;
+      return { primary: customIcon, fallback: null };
     }
     const normalizedCode = setCodeRaw.toLowerCase().replace(/[^a-z0-9-]/g, "");
     if (!normalizedCode) {
-      return SET_ICON_FALLBACK_URL;
+      return { primary: customIcon, fallback: null };
     }
-    return `${SET_ICON_LOCAL_BASE}/${encodeURIComponent(normalizedCode)}.png`;
+    const localUrl = `${SET_ICON_LOCAL_BASE}/${encodeURIComponent(normalizedCode)}.png`;
+    return { primary: localUrl, fallback: customIcon };
   };
 
   const renderSearchResults = (
@@ -952,13 +951,16 @@
       const hasRarityVisual = Boolean(rarityIconUrl);
       const rarityAlt = `Symbol rzadkości ${rarityText}`;
       const rarityFallback = rarityRaw ? rarityRaw.charAt(0).toUpperCase() : "?";
-      const setIconUrl = resolveSetIconUrl(item);
+      const { primary: setIconUrl, fallback: setIconFallbackUrl } = resolveSetIconUrl(item);
       const setIconAltBase = setName && setName !== "Nieznany dodatek" ? setName : setCodeText;
       const setIconAlt = setIconAltBase ? `Symbol dodatku ${setIconAltBase}` : "Symbol dodatku";
       const hasSetIconVisual = Boolean(setIconUrl);
       const setIconFallbackHiddenAttr = hasSetIconVisual ? " hidden" : "";
+      const setIconFallbackUrlAttr = setIconFallbackUrl && setIconFallbackUrl !== setIconUrl
+        ? ` data-card-set-icon-fallback-url="${escapeHtml(setIconFallbackUrl)}"`
+        : "";
       const setIconImageMarkup = hasSetIconVisual
-        ? `<img class="card-search-set-icon" src="${escapeHtml(setIconUrl)}" alt="${escapeHtml(setIconAlt)}" loading="lazy" decoding="async" data-card-set-icon />`
+        ? `<img class="card-search-set-icon" src="${escapeHtml(setIconUrl)}" alt="${escapeHtml(setIconAlt)}" loading="lazy" decoding="async" data-card-set-icon${setIconFallbackUrlAttr} />`
         : "";
       const setIconMarkup = `
         <div class="card-search-badge card-search-badge--set">
@@ -1117,6 +1119,23 @@
           </form>
         `;
       }
+      const setIconElement = article.querySelector("[data-card-set-icon]");
+      const setIconFallbackElement = article.querySelector("[data-card-set-icon-fallback]");
+      if (setIconElement && setIconFallbackElement) {
+        const handleSetIconError = () => {
+          const fallbackUrl = setIconElement.dataset.cardSetIconFallbackUrl;
+          if (fallbackUrl && setIconElement.dataset.cardSetIconFallbackTried !== "true") {
+            setIconElement.dataset.cardSetIconFallbackTried = "true";
+            setIconElement.src = fallbackUrl;
+            return;
+          }
+          setIconElement.remove();
+          setIconFallbackElement.hidden = false;
+        };
+        setIconElement.addEventListener("error", handleSetIconError);
+      } else if (setIconFallbackElement) {
+        setIconFallbackElement.hidden = false;
+      }
       if (!isListView) {
         const thumbnail = article.querySelector("[data-card-thumbnail]");
         const thumbnailFallback = article.querySelector("[data-card-thumbnail-fallback]");
@@ -1135,15 +1154,6 @@
             rarityIconFallback.hidden = false;
           };
           rarityIcon.addEventListener("error", handleRarityIconError, { once: true });
-        }
-        const setIconElement = article.querySelector("[data-card-set-icon]");
-        const setIconFallback = article.querySelector("[data-card-set-icon-fallback]");
-        if (setIconElement && setIconFallback) {
-          const handleSetIconError = () => {
-            setIconElement.remove();
-            setIconFallback.hidden = false;
-          };
-          setIconElement.addEventListener("error", handleSetIconError, { once: true });
         }
       }
       container.appendChild(article);
