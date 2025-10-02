@@ -56,6 +56,16 @@
     </div>
   </div>
   <p id="card-search-summary" class="search-summary" hidden aria-live="polite"></p>
+  <nav
+    id="card-search-pagination"
+    class="pagination"
+    hidden
+    aria-label="Stronicowanie wyników wyszukiwania"
+  >
+    <button type="button" data-page-action="prev">Poprzednia</button>
+    <span data-page-status class="pagination-status" aria-live="polite"></span>
+    <button type="button" data-page-action="next">Następna</button>
+  </nav>
   <div
     id="card-search-results"
     class="card-search-results card-search-results--grid"
