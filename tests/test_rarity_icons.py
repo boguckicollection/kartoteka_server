@@ -4,60 +4,44 @@ from pathlib import Path
 
 EXPECTED_RARITY_ICONS = {
     "common": {
-        "asset_path": Path("kartoteka_web/static/icons/rarity/common.svg"),
-        "snippet": '"common": `${RARITY_ICON_BASE_PATH}/common.svg`',
+        "asset_path": Path("icon/rarity/Rarity_Common.png"),
+        "snippet": '"common": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Common.png`',
     },
     "uncommon": {
-        "asset_path": Path("kartoteka_web/static/icons/rarity/uncommon.svg"),
-        "snippet": '"uncommon": `${RARITY_ICON_BASE_PATH}/uncommon.svg`',
+        "asset_path": Path("icon/rarity/Rarity_Uncommon.png"),
+        "snippet": '"uncommon": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Uncommon.png`',
     },
     "rare": {
-        "asset_path": Path("kartoteka_web/static/icons/rarity/rare.svg"),
-        "snippet": '"rare": `${RARITY_ICON_BASE_PATH}/rare.svg`',
-    },
-    "rare-holo": {
-        "asset_path": Path("kartoteka_web/static/icons/rarity/rare-holo.svg"),
-        "snippet": '"rare-holo": `${RARITY_ICON_BASE_PATH}/rare-holo.svg`',
-    },
-    "rare-ultra": {
-        "asset_path": Path("icon/rarity/Rarity_Ultra_Rare.png"),
-        "snippet": '"rare-ultra": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Ultra_Rare.png`',
-    },
-    "ultra-rare": {
-        "asset_path": Path("icon/rarity/Rarity_Ultra_Rare.png"),
-        "snippet": '"ultra-rare": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Ultra_Rare.png`',
-    },
-    "rare-double": {
-        "asset_path": Path("icon/rarity/Rarity_Double_Rare.png"),
-        "snippet": '"rare-double": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Double_Rare.png`',
+        "asset_path": Path("icon/rarity/Rarity_Rare.png"),
+        "snippet": '"rare": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Rare.png`',
     },
     "double-rare": {
         "asset_path": Path("icon/rarity/Rarity_Double_Rare.png"),
         "snippet": '"double-rare": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Double_Rare.png`',
     },
-    "rare-secret": {
-        "asset_path": Path("kartoteka_web/static/icons/rarity/rare-secret.svg"),
-        "snippet": '"rare-secret": `${RARITY_ICON_BASE_PATH}/rare-secret.svg`',
+    "ultra-rare": {
+        "asset_path": Path("icon/rarity/Rarity_Ultra_Rare.png"),
+        "snippet": '"ultra-rare": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Ultra_Rare.png`',
     },
-    "rare-shiny": {
-        "asset_path": Path("kartoteka_web/static/icons/rarity/rare-shiny.svg"),
-        "snippet": '"rare-shiny": `${RARITY_ICON_BASE_PATH}/rare-shiny.svg`',
+    "hyper-rare": {
+        "asset_path": Path("icon/rarity/Rarity_Hyper_Rare.png"),
+        "snippet": '"hyper-rare": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Hyper_Rare.png`',
     },
-    "rare-ace": {
-        "asset_path": Path("kartoteka_web/static/icons/rarity/rare-ace.svg"),
-        "snippet": '"rare-ace": `${RARITY_ICON_BASE_PATH}/rare-ace.svg`',
+    "illustration-rare": {
+        "asset_path": Path("icon/rarity/Rarity_Illustration Rare.png"),
+        "snippet": '"illustration-rare": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Illustration%20Rare.png`',
     },
-    "rare-illustration": {
-        "asset_path": Path("kartoteka_web/static/icons/rarity/rare-illustration.svg"),
-        "snippet": '"rare-illustration": `${RARITY_ICON_BASE_PATH}/rare-illustration.svg`',
+    "special-illustration-rare": {
+        "asset_path": Path("icon/rarity/Rarity_Special_Illustration_Rare.png"),
+        "snippet": '"special-illustration-rare": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Special_Illustration_Rare.png`',
     },
-    "promo": {
-        "asset_path": Path("kartoteka_web/static/icons/rarity/promo.svg"),
-        "snippet": '"promo": `${RARITY_ICON_BASE_PATH}/promo.svg`',
+    "shiny-rare": {
+        "asset_path": Path("icon/rarity/Rarity_Shiny_Rare.png"),
+        "snippet": '"shiny-rare": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Shiny_Rare.png`',
     },
-    "rare-rainbow": {
-        "asset_path": Path("kartoteka_web/static/icons/rarity/rare-rainbow.svg"),
-        "snippet": '"rare-rainbow": `${RARITY_ICON_BASE_PATH}/rare-rainbow.svg`',
+    "ace-spec": {
+        "asset_path": Path("icon/rarity/Rarity_ACE_SPEC_Rare.png"),
+        "snippet": '"ace-spec": `${RARITY_ICON_IMAGE_BASE_PATH}/Rarity_ACE_SPEC_Rare.png`',
     },
 }
 
