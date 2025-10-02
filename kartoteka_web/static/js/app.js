@@ -154,6 +154,7 @@
     "price-desc",
   ];
   const CARD_SORT_ALLOWED = new Set(CARD_SORT_OPTIONS);
+  const DEFAULT_SHOP_URL = "https://kartoteka.shop/pl/c/Karty-Pokemon/38";
   let currentCardViewMode = "grid";
   let currentCardSortOrder = "relevance";
 
@@ -870,6 +871,10 @@
       return { primary: null, fallback: null };
     }
     const customIcon = (item.set_icon || "").trim() || null;
+    const localOverride = (item.set_icon_path || "").trim() || null;
+    if (localOverride) {
+      return { primary: localOverride, fallback: customIcon };
+    }
     const setCodeRaw = (item.set_code || "").trim();
     if (!setCodeRaw) {
       return { primary: customIcon, fallback: null };
@@ -1506,22 +1511,365 @@
     }
   };
 
-  const renderCardDetail = (card) => {
+  const PRICE_HISTORY_RANGE_LABELS = Object.freeze({
+    last_7: "ostatnie 7 dni",
+    last_30: "ostatnie 30 dni",
+    all: "pełny zakres",
+  });
+
+  const createPriceHistoryModule = () => {
+    const section = document.getElementById("card-price-history-section");
+    const chart = document.getElementById("card-price-chart");
+    const chartLayer = chart?.querySelector("#card-price-chart-data");
+    const emptyState = document.getElementById("card-price-chart-empty");
+    const controls = Array.from(document.querySelectorAll("[data-price-range]"));
+
+    if (!section || !chart || !chartLayer || !emptyState || !controls.length) {
+      return { setData: () => {} };
+    }
+
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const ranges = {
+      last_7: [],
+      last_30: [],
+      all: [],
+    };
+    let activeRange = "last_30";
+
+    const parseHistoryPoints = (items) => {
+      if (!Array.isArray(items)) return [];
+      const parsed = [];
+      for (const item of items) {
+        const price = normalizePriceInput(item?.price);
+        if (price === null) continue;
+        const dateValue = typeof item?.date === "string" ? item.date.trim() : "";
+        if (!dateValue) continue;
+        const parsedDate = new Date(dateValue);
+        const isValidDate = !Number.isNaN(parsedDate.getTime());
+        parsed.push({
+          price,
+          iso: dateValue,
+          date: isValidDate ? parsedDate : null,
+          label: isValidDate ? parsedDate.toLocaleDateString("pl-PL") : dateValue,
+        });
+      }
+      parsed.sort((a, b) => {
+        if (a.date && b.date) {
+          return a.date - b.date;
+        }
+        return a.iso.localeCompare(b.iso);
+      });
+      return parsed;
+    };
+
+    const updateControls = (rangeKey) => {
+      controls.forEach((button) => {
+        const key = button.dataset.priceRange;
+        const hasData = Boolean(key && ranges[key] && ranges[key].length);
+        button.disabled = !hasData;
+        const isActive = hasData && key === rangeKey;
+        button.classList.toggle("is-active", isActive);
+        button.setAttribute("aria-pressed", isActive ? "true" : "false");
+      });
+    };
+
+    const setChartAriaLabel = (rangeKey, points) => {
+      if (!points.length) {
+        chart.setAttribute("aria-label", "Brak danych historii cen");
+        return;
+      }
+      const label = PRICE_HISTORY_RANGE_LABELS[rangeKey] || rangeKey || "";
+      const firstPoint = points[0];
+      const lastPoint = points[points.length - 1];
+      const priceText = Number.isFinite(lastPoint.price)
+        ? formatCardPrice(lastPoint.price)
+        : "";
+      const suffix = priceText ? `. Aktualna cena ${priceText}.` : ".";
+      chart.setAttribute(
+        "aria-label",
+        `Historia cen (${label}): od ${firstPoint.label} do ${lastPoint.label}${suffix}`,
+      );
+    };
+
+    const renderChart = (rangeKey) => {
+      const points = ranges[rangeKey] || [];
+      chartLayer.innerHTML = "";
+
+      if (!points.length) {
+        emptyState.hidden = false;
+        chart.setAttribute("aria-hidden", "true");
+        setChartAriaLabel(rangeKey, points);
+        return;
+      }
+
+      emptyState.hidden = true;
+      chart.setAttribute("aria-hidden", "false");
+
+      const width = 100;
+      const height = 48;
+      const marginX = 6;
+      const marginY = 8;
+      const prices = points.map((point) => point.price);
+      const minPrice = Math.min(...prices);
+      const maxPrice = Math.max(...prices);
+      const priceRange = maxPrice - minPrice || 1;
+      const step = points.length > 1 ? (width - marginX * 2) / (points.length - 1) : 0;
+
+      const areaParts = [];
+      const lineParts = [];
+      let lastX = width / 2;
+      let lastY = height / 2;
+
+      points.forEach((point, index) => {
+        const x = points.length === 1 ? width / 2 : marginX + index * step;
+        const normalized = (point.price - minPrice) / priceRange;
+        const y = height - marginY - normalized * (height - marginY * 2);
+        const command = index === 0 ? "M" : "L";
+        lineParts.push(`${command}${x.toFixed(2)} ${y.toFixed(2)}`);
+        areaParts.push(`${command}${x.toFixed(2)} ${y.toFixed(2)}`);
+        lastX = x;
+        lastY = y;
+      });
+
+      if (points.length > 1) {
+        areaParts.push(`L${lastX.toFixed(2)} ${height - marginY}`);
+        areaParts.push(`L${marginX.toFixed(2)} ${height - marginY}`);
+      } else {
+        areaParts.push(`L${lastX.toFixed(2)} ${height - marginY}`);
+        areaParts.push(`L${lastX.toFixed(2)} ${height - marginY}`);
+      }
+      areaParts.push("Z");
+
+      const areaPath = document.createElementNS(SVG_NS, "path");
+      areaPath.setAttribute("class", "card-price-chart-area");
+      areaPath.setAttribute("d", areaParts.join(" "));
+      areaPath.setAttribute("fill", "url(#card-price-chart-gradient)");
+
+      const linePath = document.createElementNS(SVG_NS, "path");
+      linePath.setAttribute("class", "card-price-chart-line");
+      linePath.setAttribute("d", lineParts.join(" "));
+
+      const marker = document.createElementNS(SVG_NS, "circle");
+      marker.setAttribute("class", "card-price-chart-marker");
+      marker.setAttribute("cx", lastX.toFixed(2));
+      marker.setAttribute("cy", lastY.toFixed(2));
+      marker.setAttribute("r", "1.6");
+
+      chartLayer.appendChild(areaPath);
+      chartLayer.appendChild(linePath);
+      chartLayer.appendChild(marker);
+      chart.dataset.range = rangeKey;
+      setChartAriaLabel(rangeKey, points);
+    };
+
+    controls.forEach((button) => {
+      button.addEventListener("click", () => {
+        const rangeKey = button.dataset.priceRange;
+        if (!rangeKey || !ranges[rangeKey] || !ranges[rangeKey].length) {
+          return;
+        }
+        activeRange = rangeKey;
+        updateControls(activeRange);
+        renderChart(activeRange);
+      });
+    });
+
+    return {
+      setData(history) {
+        ranges.last_7 = parseHistoryPoints(history?.last_7);
+        ranges.last_30 = parseHistoryPoints(history?.last_30);
+        ranges.all = parseHistoryPoints(history?.all);
+
+        const availableRange = ["last_7", "last_30", "all"].find(
+          (key) => ranges[key] && ranges[key].length,
+        );
+
+        if (!availableRange) {
+          chartLayer.innerHTML = "";
+          chart.setAttribute("aria-hidden", "true");
+          emptyState.hidden = false;
+          controls.forEach((button) => {
+            button.disabled = true;
+            button.classList.remove("is-active");
+            button.setAttribute("aria-pressed", "false");
+          });
+          section.hidden = true;
+          return;
+        }
+
+        section.hidden = false;
+        activeRange = availableRange;
+        updateControls(activeRange);
+        renderChart(activeRange);
+      },
+    };
+  };
+
+  const renderCardDetail = (card, options = {}) => {
     if (!card) return;
+    const { priceHistoryModule } = options;
+
+    const sanitizeText = (value) => (typeof value === "string" ? value.trim() : value);
+    const setTextOrFallback = (element, value, fallback = "—") => {
+      if (!element) return;
+      const textValue = sanitizeText(value);
+      if (textValue || textValue === 0) {
+        element.textContent = String(textValue);
+      } else {
+        element.textContent = fallback;
+      }
+    };
+
     const title = document.getElementById("card-detail-title");
     if (title) {
-      title.textContent = card.name || "Szczegóły karty";
+      title.textContent = sanitizeText(card.name) || "Szczegóły karty";
     }
+
+    const era = document.getElementById("card-detail-era");
+    if (era) {
+      const eraValue = sanitizeText(card.series);
+      if (eraValue) {
+        era.textContent = eraValue;
+        era.hidden = false;
+      } else {
+        era.textContent = "";
+        era.hidden = true;
+      }
+    }
+
     const setName = document.getElementById("card-detail-set-name");
-    if (setName) setName.textContent = card.set_name || "";
-    const number = document.getElementById("card-detail-number");
-    if (number) number.textContent = card.number_display || card.number || "";
-    const rarity = document.getElementById("card-detail-rarity");
-    if (rarity) rarity.textContent = card.rarity || "";
-    const total = document.getElementById("card-detail-total");
-    if (total) total.textContent = card.total || "";
-    const release = document.getElementById("card-detail-release");
-    if (release) release.textContent = card.release_date || "";
+    if (setName) {
+      setName.textContent = sanitizeText(card.set_name) || "Nieznany dodatek";
+    }
+
+    const setCodeElement = document.getElementById("card-detail-set-code");
+    if (setCodeElement) {
+      const codeValue = sanitizeText(card.set_code);
+      setCodeElement.textContent = (codeValue || "SET").toUpperCase();
+    }
+
+    const { primary: setIconUrl, fallback: setIconFallbackUrl } = resolveSetIconUrl(card);
+    const setIconImage = document.getElementById("card-detail-set-icon");
+    if (setIconImage) {
+      const fallbackElement = setCodeElement;
+      if (setIconUrl) {
+        setIconImage.hidden = false;
+        setIconImage.alt = sanitizeText(card.set_name)
+          ? `Symbol dodatku ${sanitizeText(card.set_name)}`
+          : "Symbol dodatku";
+        setIconImage.src = setIconUrl;
+        if (fallbackElement) {
+          fallbackElement.hidden = true;
+        }
+        if (setIconFallbackUrl && setIconFallbackUrl !== setIconUrl) {
+          setIconImage.dataset.cardSetIconFallbackUrl = setIconFallbackUrl;
+          setIconImage.dataset.cardSetIconFallbackTried = "false";
+        } else {
+          delete setIconImage.dataset.cardSetIconFallbackUrl;
+          delete setIconImage.dataset.cardSetIconFallbackTried;
+        }
+        if (!setIconImage.dataset.cardSetIconHandlerAttached) {
+          setIconImage.addEventListener("error", () => {
+            const fallbackUrl = setIconImage.dataset.cardSetIconFallbackUrl;
+            if (fallbackUrl && setIconImage.dataset.cardSetIconFallbackTried !== "true") {
+              setIconImage.dataset.cardSetIconFallbackTried = "true";
+              setIconImage.src = fallbackUrl;
+              return;
+            }
+            setIconImage.hidden = true;
+            setIconImage.removeAttribute("src");
+            if (fallbackElement) {
+              fallbackElement.hidden = false;
+            }
+          });
+          setIconImage.dataset.cardSetIconHandlerAttached = "true";
+        }
+      } else {
+        setIconImage.hidden = true;
+        setIconImage.removeAttribute("src");
+        if (fallbackElement) {
+          fallbackElement.hidden = false;
+        }
+      }
+    } else if (setCodeElement) {
+      setCodeElement.hidden = !sanitizeText(card.set_code);
+    }
+
+    const numberElement = document.getElementById("card-detail-number");
+    setTextOrFallback(numberElement, card.number_display || card.number);
+    const rarityElement = document.getElementById("card-detail-rarity");
+    setTextOrFallback(rarityElement, card.rarity);
+    const totalElement = document.getElementById("card-detail-total");
+    setTextOrFallback(totalElement, card.total);
+    const releaseElement = document.getElementById("card-detail-release");
+    setTextOrFallback(releaseElement, card.release_date);
+
+    const artistElement = document.getElementById("card-detail-artist");
+    const artistValue = sanitizeText(card.artist);
+    if (artistElement) {
+      if (artistValue) {
+        artistElement.textContent = `Ilustrator: ${artistValue}`;
+        artistElement.hidden = false;
+      } else {
+        artistElement.textContent = "";
+        artistElement.hidden = true;
+      }
+    }
+
+    const descriptionSection = document.getElementById("card-detail-description-section");
+    const descriptionContent = document.getElementById("card-detail-description");
+    const descriptionMeta = document.getElementById("card-detail-description-meta");
+    const descriptionValue = sanitizeText(card.description);
+    if (descriptionSection && descriptionContent) {
+      if (descriptionValue) {
+        descriptionContent.textContent = descriptionValue;
+        descriptionSection.hidden = false;
+      } else {
+        descriptionContent.textContent = "";
+        descriptionSection.hidden = true;
+      }
+    }
+    if (descriptionMeta) {
+      if (artistValue) {
+        descriptionMeta.textContent = `Ilustrator: ${artistValue}`;
+        descriptionMeta.hidden = false;
+      } else {
+        descriptionMeta.textContent = "";
+        descriptionMeta.hidden = true;
+      }
+    }
+
+    const priceBadge = document.getElementById("card-detail-price-badge");
+    const priceElement = document.getElementById("card-detail-price");
+    const priceValue = normalizePriceInput(card.price);
+    if (priceBadge && priceElement) {
+      if (priceValue !== null) {
+        priceElement.textContent = formatCardPrice(priceValue);
+        priceBadge.hidden = false;
+      } else {
+        priceElement.textContent = "";
+        priceBadge.hidden = true;
+      }
+    }
+
+    const averageBadge = document.getElementById("card-detail-price-average-badge");
+    const averageElement = document.getElementById("card-detail-price-average");
+    const averageValue = normalizePriceInput(card.price_7d_average);
+    if (averageBadge && averageElement) {
+      if (averageValue !== null) {
+        averageElement.textContent = formatCardPrice(averageValue);
+        averageBadge.hidden = false;
+      } else {
+        averageElement.textContent = "";
+        averageBadge.hidden = true;
+      }
+    }
+
+    const buyButton = document.getElementById("detail-buy-button");
+    if (buyButton) {
+      const shopUrl = sanitizeText(card.shop_url) || DEFAULT_SHOP_URL;
+      buyButton.href = shopUrl;
+    }
 
     const image = document.getElementById("card-detail-image");
     const placeholder = document.getElementById("card-detail-placeholder");
@@ -1534,6 +1882,10 @@
         image.hidden = true;
         if (placeholder) placeholder.hidden = false;
       }
+    }
+
+    if (priceHistoryModule && typeof priceHistoryModule.setData === "function") {
+      priceHistoryModule.setData(card.price_history || {});
     }
   };
 
@@ -1569,6 +1921,7 @@
     const container = document.getElementById("card-detail-page");
     if (!container) return;
     const alertBox = document.getElementById("card-detail-alert");
+    const priceHistoryModule = createPriceHistoryModule();
     const params = new URLSearchParams();
     const name = container.dataset.name || "";
     const number = container.dataset.number || "";
@@ -1587,7 +1940,7 @@
 
     apiFetch(`/cards/info?${params.toString()}`)
       .then((data) => {
-        renderCardDetail(data?.card);
+        renderCardDetail(data?.card, { priceHistoryModule });
         renderRelatedCards(data?.related || []);
         showAlert(alertBox, "");
       })

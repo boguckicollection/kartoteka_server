@@ -26,9 +26,38 @@
       <p class="card-detail-era" id="card-detail-era" hidden></p>
       <h1 id="card-detail-title">{{ card_name or 'Szczegóły karty' }}</h1>
       <div class="card-detail-set">
-        <span id="card-detail-set-name">{{ card_set_name or '' }}</span>
+        <div class="card-detail-set-badge">
+          <img
+            id="card-detail-set-icon"
+            class="card-detail-set-icon"
+            alt="Symbol dodatku"
+            loading="lazy"
+            decoding="async"
+            hidden
+            data-card-set-icon
+          />
+          <span
+            class="card-detail-set-code"
+            id="card-detail-set-code"
+            hidden
+            data-card-set-icon-fallback
+          ></span>
+        </div>
+        <div class="card-detail-set-text">
+          <span id="card-detail-set-name">{{ card_set_name or '' }}</span>
+        </div>
       </div>
-      <p class="card-detail-artist" id="card-detail-artist"></p>
+      <div class="card-detail-price-badges">
+        <div class="card-price-badge" id="card-detail-price-badge" hidden>
+          <span class="card-price-badge-label">Aktualna cena</span>
+          <span class="card-price-badge-value" id="card-detail-price"></span>
+        </div>
+        <div class="card-price-badge" id="card-detail-price-average-badge" hidden>
+          <span class="card-price-badge-label">Średnia 7 dni</span>
+          <span class="card-price-badge-value" id="card-detail-price-average"></span>
+        </div>
+      </div>
+      <p class="card-detail-artist" id="card-detail-artist" hidden></p>
       <dl class="card-detail-meta">
         <div>
           <dt>Numer</dt>
@@ -53,6 +82,50 @@
       </div>
       <div class="alert" id="card-detail-alert" hidden></div>
     </div>
+  </div>
+</section>
+
+<section class="panel card-detail-description" id="card-detail-description-section" hidden>
+  <div class="panel-header">
+    <div>
+      <h2>Opis karty</h2>
+      <p class="card-detail-description-meta" id="card-detail-description-meta" hidden></p>
+    </div>
+  </div>
+  <div class="card-detail-description-content" id="card-detail-description"></div>
+</section>
+
+<section class="panel card-detail-history" id="card-price-history-section" hidden>
+  <div class="panel-header card-detail-history-header">
+    <div>
+      <h2>Historia cen</h2>
+      <p>Zobacz, jak zmieniała się wartość tej karty.</p>
+    </div>
+    <div class="card-price-history-controls" role="group" aria-label="Zakres historii cen">
+      <button type="button" class="card-price-history-button is-active" data-price-range="last_7">7d</button>
+      <button type="button" class="card-price-history-button" data-price-range="last_30">30d</button>
+      <button type="button" class="card-price-history-button" data-price-range="all">All</button>
+    </div>
+  </div>
+  <div class="card-price-chart-container">
+    <svg
+      class="card-price-chart-figure"
+      id="card-price-chart"
+      viewBox="0 0 100 48"
+      role="img"
+      aria-labelledby="card-price-chart-title"
+      preserveAspectRatio="none"
+    >
+      <title id="card-price-chart-title">Historia ceny karty</title>
+      <defs>
+        <linearGradient id="card-price-chart-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="var(--color-accent)" stop-opacity="0.3" />
+          <stop offset="100%" stop-color="var(--color-accent)" stop-opacity="0" />
+        </linearGradient>
+      </defs>
+      <g id="card-price-chart-data" class="card-price-chart-data"></g>
+    </svg>
+    <p class="card-price-chart-empty" id="card-price-chart-empty" hidden>Brak danych do wyświetlenia.</p>
   </div>
 </section>
 

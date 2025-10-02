@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 import time
 from difflib import SequenceMatcher
@@ -25,6 +26,28 @@ _SEVEN_DAY_AVERAGE_KEYS: tuple[str, ...] = (
     "sevenDayAverage",
     "seven_day_average",
     "sevenDayAvg",
+)
+
+_PRICE_HISTORY_KEYS: tuple[str, ...] = (
+    "marketPrice",
+    "market_price",
+    "market",
+    "price",
+    "averageSellPrice",
+    "avgSellPrice",
+    "avg",
+    "avg7",
+    "avg30",
+    "trend",
+    "trendPrice",
+    "lowPrice",
+    "low",
+    "highPrice",
+    "high",
+    "median",
+    "value",
+    "directLow",
+    "directHigh",
 )
 
 
@@ -354,6 +377,105 @@ def _normalize_text_field(value: Any) -> Optional[str]:
     return str(value)
 
 
+def _extract_shop_url(card: dict[str, Any]) -> Optional[str]:
+    candidates: list[str] = []
+
+    def _add_candidate(value: Any) -> None:
+        if isinstance(value, str):
+            trimmed = value.strip()
+            if trimmed:
+                candidates.append(trimmed)
+
+    for key in ("cardmarket", "cardMarket", "tcgplayer", "tcgPlayer"):
+        container = card.get(key)
+        if isinstance(container, dict):
+            for field in (
+                "url",
+                "website",
+                "websiteUrl",
+                "productUrl",
+                "productURL",
+                "directLowUrl",
+                "directLowURL",
+                "directHighUrl",
+                "directHighURL",
+                "link",
+            ):
+                _add_candidate(container.get(field))
+
+    for key in ("purchaseUrls", "purchase_urls", "urls", "links"):
+        container = card.get(key)
+        if isinstance(container, dict):
+            for value in container.values():
+                _add_candidate(value)
+        elif isinstance(container, (list, tuple, set)):
+            for value in container:
+                _add_candidate(value)
+
+    return candidates[0] if candidates else None
+
+
+def _extract_description_text(card: dict[str, Any]) -> Optional[str]:
+    snippets: list[str] = []
+
+    def _append(value: Any, *, prefix: str | None = None) -> None:
+        text_value = _normalize_text_field(value)
+        if not text_value:
+            return
+        candidate = text_value.strip()
+        if not candidate:
+            return
+        if prefix:
+            prefix_value = prefix.strip()
+            if prefix_value:
+                candidate = f"{prefix_value}: {candidate}"
+        if candidate not in snippets:
+            snippets.append(candidate)
+
+    for key in ("flavorText", "flavor_text", "flavor", "description", "text"):
+        _append(card.get(key))
+
+    rules = card.get("rules")
+    if isinstance(rules, (list, tuple, set)):
+        for rule in rules:
+            _append(rule)
+
+    for key in ("abilities", "attacks", "skills"):
+        container = card.get(key)
+        if not isinstance(container, list):
+            continue
+        for item in container:
+            if isinstance(item, dict):
+                label = _normalize_text_field(item.get("name") or item.get("label"))
+                _append(
+                    item.get("text")
+                    or item.get("effect")
+                    or item.get("description"),
+                    prefix=label,
+                )
+            else:
+                _append(item)
+
+    for key in ("ability", "skill"):
+        ability = card.get(key)
+        if isinstance(ability, dict):
+            label = _normalize_text_field(ability.get("name") or ability.get("label"))
+            _append(
+                ability.get("text")
+                or ability.get("effect")
+                or ability.get("description"),
+                prefix=label,
+            )
+        else:
+            _append(ability)
+
+    info_fields = card.get("info") or card.get("card_text")
+    if info_fields:
+        _append(info_fields)
+
+    return "\n\n".join(snippets) if snippets else None
+
+
 def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
     episode = card.get("episode") or card.get("set") or {}
     set_name_value = (
@@ -449,6 +571,16 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
         rarity_symbol = None
 
     image_small, image_large = _extract_images(card)
+    card_id_value = _normalize_text_field(
+        card.get("id")
+        or card.get("card_id")
+        or card.get("cardId")
+        or card.get("uuid")
+        or card.get("cardUuid")
+        or card.get("tcgplayerProductId")
+    )
+    card_id = card_id_value.strip() if isinstance(card_id_value, str) else None
+
     price_eur = _extract_card_price(card)
     price_7d_average_eur = _extract_7d_average_price(card)
 
@@ -463,6 +595,9 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
             price_pln = round(price_eur * rate * 1.24, 2)
         if price_7d_average_eur is not None:
             price_7d_average_pln = round(price_7d_average_eur * rate * 1.24, 2)
+
+    description = _extract_description_text(card)
+    shop_url = _extract_shop_url(card)
 
     return {
         "name": card.get("name") or "",
@@ -481,6 +616,9 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
         "rarity_symbol": rarity_symbol,
         "price": price_pln,
         "price_7d_average": price_7d_average_pln,
+        "description": description,
+        "shop_url": shop_url,
+        "id": card_id,
     }
 
 
@@ -913,3 +1051,180 @@ def fetch_card_price_history(
         history = [item for item in payload if isinstance(item, dict)]
 
     return history
+
+
+def _parse_history_date(value: Any) -> Optional[dt.date]:
+    if value is None:
+        return None
+    if isinstance(value, dt.date):
+        return value
+    if isinstance(value, dt.datetime):
+        return value.date()
+    if isinstance(value, (int, float)):
+        try:
+            timestamp = float(value)
+        except (TypeError, ValueError):
+            return None
+        if timestamp > 10_000_000_000:
+            timestamp /= 1000.0
+        if timestamp > 10_000_000_000:
+            timestamp /= 1000.0
+        try:
+            return dt.datetime.utcfromtimestamp(timestamp).date()
+        except (OverflowError, ValueError):
+            return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.isdigit():
+            return _parse_history_date(int(text))
+        try:
+            return dt.datetime.fromisoformat(text.replace("Z", "+00:00")).date()
+        except ValueError:
+            pass
+        for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%d/%m/%Y", "%Y.%m.%d", "%Y%m%d"):
+            try:
+                return dt.datetime.strptime(text, fmt).date()
+            except ValueError:
+                continue
+        try:
+            return dt.datetime.strptime(text, "%Y-%m-%dT%H:%M:%S").date()
+        except ValueError:
+            pass
+        try:
+            numeric = float(text)
+        except ValueError:
+            numeric = None
+        if numeric is not None:
+            return _parse_history_date(numeric)
+    return None
+
+
+def _extract_history_date(entry: dict[str, Any]) -> Optional[dt.date]:
+    for key in (
+        "date",
+        "day",
+        "timestamp",
+        "time",
+        "updated",
+        "updatedAt",
+        "updated_at",
+        "lastUpdated",
+        "lastUpdate",
+        "created",
+        "createdAt",
+    ):
+        if key in entry:
+            parsed = _parse_history_date(entry.get(key))
+            if parsed:
+                return parsed
+
+    for nested_key in ("market", "prices", "price", "value"):
+        nested = entry.get(nested_key)
+        if isinstance(nested, dict) and nested is not entry:
+            parsed = _extract_history_date(nested)
+            if parsed:
+                return parsed
+
+    return None
+
+
+def _normalize_currency_code(value: Any) -> Optional[str]:
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        code = text.upper()
+        if code in {"PL", "PLN", "ZŁ", "ZL", "PLN.", "PL ZŁ"}:
+            return "PLN"
+        if code in {"EUR", "EURO", "€"}:
+            return "EUR"
+        return code
+    if isinstance(value, dict):
+        for key in ("code", "value", "currency"):
+            if key in value:
+                candidate = _normalize_currency_code(value.get(key))
+                if candidate:
+                    return candidate
+    return None
+
+
+def _extract_history_currency(entry: dict[str, Any]) -> Optional[str]:
+    for key in ("currency", "currencyCode", "currency_code"):
+        if key in entry:
+            currency = _normalize_currency_code(entry.get(key))
+            if currency:
+                return currency
+    for nested_key in ("market", "prices", "value"):
+        nested = entry.get(nested_key)
+        if isinstance(nested, dict) and nested is not entry:
+            currency = _extract_history_currency(nested)
+            if currency:
+                return currency
+    return None
+
+
+def normalize_price_history(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not history:
+        return []
+
+    normalized: list[dict[str, Any]] = []
+    eur_rate: Optional[float] = None
+
+    for item in history:
+        if not isinstance(item, dict):
+            continue
+        date_value = _extract_history_date(item)
+        if not date_value:
+            continue
+        price_value = _extract_nested_price(item, _PRICE_HISTORY_KEYS)
+        if price_value is None:
+            continue
+        currency_code = _extract_history_currency(item) or "EUR"
+        currency_code = currency_code.upper()
+
+        if currency_code == "PLN":
+            final_price = round(price_value, 2)
+            final_currency = "PLN"
+        else:
+            if currency_code in {"EUR", "EURO", "€"}:
+                if eur_rate is None:
+                    eur_rate = get_eur_pln_rate()
+                if eur_rate:
+                    final_price = round(price_value * eur_rate * 1.24, 2)
+                    final_currency = "PLN"
+                else:
+                    final_price = round(price_value, 2)
+                    final_currency = "EUR"
+            else:
+                final_price = round(price_value, 2)
+                final_currency = currency_code
+
+        normalized.append(
+            {
+                "date": date_value.isoformat(),
+                "price": final_price,
+                "currency": final_currency,
+            }
+        )
+
+    if not normalized:
+        return []
+
+    deduped: dict[str, dict[str, Any]] = {}
+    for entry in normalized:
+        deduped[entry["date"]] = entry
+
+    return [deduped[key] for key in sorted(deduped.keys())]
+
+
+def slice_price_history(
+    history: list[dict[str, Any]], window: Optional[int] = None
+) -> list[dict[str, Any]]:
+    if not history:
+        return []
+    ordered = sorted(history, key=lambda item: item.get("date") or "")
+    if window is None or window <= 0:
+        return [dict(point) for point in ordered]
+    return [dict(point) for point in ordered[-window:]]
