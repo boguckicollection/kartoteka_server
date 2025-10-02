@@ -145,6 +145,8 @@ def test_card_search_and_detail(api_client, monkeypatch):
         limit,
         sort=None,
         order=None,
+        page=None,
+        per_page=None,
         rapidapi_key=None,
         rapidapi_host=None,
     ):
@@ -157,11 +159,13 @@ def test_card_search_and_detail(api_client, monkeypatch):
                 "limit": limit,
                 "sort": sort,
                 "order": order,
+                "page": page,
+                "per_page": per_page,
                 "rapidapi_key": rapidapi_key,
                 "rapidapi_host": rapidapi_host,
             }
         )
-        return search_results
+        return search_results, 84
 
     monkeypatch.setattr(
         "kartoteka_web.routes.cards.tcg_api.search_cards",
@@ -183,7 +187,12 @@ def test_card_search_and_detail(api_client, monkeypatch):
     assert captured["limit"] == 5
     assert captured["sort"] is None
     assert captured["order"] is None
+    assert captured["page"] == 1
+    assert captured["per_page"] == 20
     assert payload["total"] == len(search_results)
+    assert payload["total_count"] == 84
+    assert payload["page"] == 1
+    assert payload["per_page"] == 20
     assert payload["suggested_query"] == "Eevee"
     assert {item["set_code"] for item in payload["items"]} == {"jng", "fsl"}
     assert sorted(item["price"] for item in payload["items"]) == [8.5, 12.34]
@@ -254,6 +263,8 @@ def test_card_search_passes_rapidapi_credentials(api_client, monkeypatch):
         limit,
         sort=None,
         order=None,
+        page=None,
+        per_page=None,
         rapidapi_key=None,
         rapidapi_host=None,
     ):
@@ -266,11 +277,13 @@ def test_card_search_passes_rapidapi_credentials(api_client, monkeypatch):
                 "limit": limit,
                 "sort": sort,
                 "order": order,
+                "page": page,
+                "per_page": per_page,
                 "rapidapi_key": rapidapi_key,
                 "rapidapi_host": rapidapi_host,
             }
         )
-        return []
+        return [], 0
 
     monkeypatch.setattr(cards_routes.tcg_api, "search_cards", fake_search_cards)
     monkeypatch.setattr(cards_routes, "RAPIDAPI_KEY", "rapid-key")
@@ -288,6 +301,8 @@ def test_card_search_passes_rapidapi_credentials(api_client, monkeypatch):
     assert captured["name"].startswith("Starmie")
     assert captured["sort"] == "price"
     assert captured["order"] == "desc"
+    assert captured["page"] == 1
+    assert captured["per_page"] == 20
 
 
 def test_cards_module_uses_generic_rapidapi_env(monkeypatch):
@@ -315,6 +330,8 @@ def test_cards_module_uses_generic_rapidapi_env(monkeypatch):
         limit,
         sort=None,
         order=None,
+        page=None,
+        per_page=None,
         rapidapi_key=None,
         rapidapi_host=None,
     ):
@@ -327,11 +344,13 @@ def test_cards_module_uses_generic_rapidapi_env(monkeypatch):
                 "limit": limit,
                 "sort": sort,
                 "order": order,
+                "page": page,
+                "per_page": per_page,
                 "rapidapi_key": rapidapi_key,
                 "rapidapi_host": rapidapi_host,
             }
         )
-        return []
+        return [], 0
 
     monkeypatch.setattr(reloaded_cards.tcg_api, "search_cards", fake_search_cards)
 
@@ -345,5 +364,62 @@ def test_cards_module_uses_generic_rapidapi_env(monkeypatch):
     )
 
     assert response.total == 0
+    assert response.total_count == 0
     assert captured["rapidapi_key"] == "generic-rapid-key"
     assert captured["rapidapi_host"] == "generic-rapid.example.com"
+    assert captured["page"] == 1
+    assert captured["per_page"] == 20
+
+
+def test_card_search_pagination_clamping(api_client, monkeypatch):
+    headers = _auth_headers(api_client, username="brock", password="onix")
+
+    captured: dict[str, object] = {}
+
+    def fake_search_cards(
+        *,
+        name,
+        number=None,
+        set_name=None,
+        total=None,
+        limit=None,
+        sort=None,
+        order=None,
+        page=None,
+        per_page=None,
+        rapidapi_key=None,
+        rapidapi_host=None,
+    ):
+        captured.update(
+            {
+                "name": name,
+                "number": number,
+                "set_name": set_name,
+                "total": total,
+                "limit": limit,
+                "sort": sort,
+                "order": order,
+                "page": page,
+                "per_page": per_page,
+                "rapidapi_key": rapidapi_key,
+                "rapidapi_host": rapidapi_host,
+            }
+        )
+        return [], 150
+
+    monkeypatch.setattr(cards_routes.tcg_api, "search_cards", fake_search_cards)
+
+    response = api_client.get(
+        "/cards/search",
+        params={"query": "Onix", "page": 9, "per_page": 50},
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert captured["page"] == 5
+    assert captured["per_page"] == 20
+    assert captured["limit"] == 20
+    assert payload["page"] == 5
+    assert payload["per_page"] == 20
+    assert payload["total_count"] == 100

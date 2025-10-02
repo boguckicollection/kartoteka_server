@@ -796,6 +796,8 @@
     summaryElement,
     emptyMessage,
     totalCount = 0,
+    page = 1,
+    perPage = 20,
   ) => {
     const container = document.getElementById("card-search-results");
     if (!container) return;
@@ -814,8 +816,17 @@
     if (emptyMessage) emptyMessage.hidden = true;
     if (summaryElement) {
       summaryElement.hidden = false;
-      const totalLabel = totalCount && totalCount > items.length ? ` z ${totalCount}` : "";
-      summaryElement.textContent = `Znaleziono ${items.length}${totalLabel} wyników.`;
+      const effectiveTotal = Number.isFinite(totalCount) && totalCount > 0
+        ? totalCount
+        : items.length;
+      const normalizedPerPage = perPage && perPage > 0 ? perPage : items.length;
+      const normalizedPage = page && page > 0 ? page : 1;
+      const totalPages = Math.max(1, Math.ceil(effectiveTotal / normalizedPerPage));
+      const startIndex = (normalizedPage - 1) * normalizedPerPage + 1;
+      const endIndex = startIndex + items.length - 1;
+      const safeStart = Math.max(1, startIndex);
+      const safeEnd = Math.max(safeStart, endIndex);
+      summaryElement.textContent = `Znaleziono ${effectiveTotal} wyników. Wyświetlam ${safeStart}–${safeEnd}. Strona ${normalizedPage} z ${totalPages}.`;
     }
     for (const item of items) {
       const article = document.createElement("article");
@@ -934,8 +945,29 @@
     const viewButtons = Array.from(document.querySelectorAll("[data-card-view]") || []);
     const sortSelect = document.querySelector("[data-card-sort]");
     const results = document.getElementById("card-search-results");
+    const pagination = document.getElementById("card-search-pagination");
+    const paginationStatus = pagination?.querySelector("[data-page-status]");
+    const paginationPrev = pagination?.querySelector("[data-page-action='prev']");
+    const paginationNext = pagination?.querySelector("[data-page-action='next']");
     let latestItems = [];
-    let latestTotal = 0;
+    let latestTotalCount = 0;
+    let latestQuery = "";
+    let latestPage = 1;
+    let latestPerPage = 20;
+    let isFetching = false;
+
+    const toPositiveInteger = (value, fallback) => {
+      if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+        return Math.floor(value);
+      }
+      if (typeof value === "string" && value.trim() !== "") {
+        const parsed = Number.parseInt(value, 10);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          return parsed;
+        }
+      }
+      return fallback;
+    };
 
     const updateViewButtons = (mode) => {
       viewButtons.forEach((button) => {
@@ -965,10 +997,42 @@
       }
     };
 
+    const updatePaginationControls = () => {
+      if (!pagination) return;
+      const totalAvailable = latestTotalCount > 0 ? latestTotalCount : latestItems.length;
+      if (!latestItems.length || !totalAvailable) {
+        pagination.hidden = true;
+        if (paginationStatus) paginationStatus.textContent = "";
+        if (paginationPrev) paginationPrev.disabled = true;
+        if (paginationNext) paginationNext.disabled = true;
+        return;
+      }
+      const perPage = latestPerPage > 0 ? latestPerPage : latestItems.length;
+      const totalPages = Math.max(1, Math.ceil(totalAvailable / perPage));
+      pagination.hidden = totalPages <= 1 && latestPage <= 1;
+      if (paginationStatus) {
+        paginationStatus.textContent = `Strona ${latestPage} z ${totalPages}`;
+      }
+      if (paginationPrev) {
+        paginationPrev.disabled = latestPage <= 1;
+      }
+      if (paginationNext) {
+        paginationNext.disabled = latestPage >= totalPages;
+      }
+    };
+
     const renderLatestResults = () => {
       const sortedItems = sortCardSearchItems(latestItems, currentCardSortOrder);
-      renderSearchResults(sortedItems, summary, emptyMessage, latestTotal);
+      renderSearchResults(
+        sortedItems,
+        summary,
+        emptyMessage,
+        latestTotalCount,
+        latestPage,
+        latestPerPage,
+      );
       applyViewMode(currentCardViewMode, { persist: false });
+      updatePaginationControls();
     };
 
     const storedView = readStoredCardViewMode();
@@ -995,6 +1059,55 @@
       });
     }
 
+    const fetchResults = async ({ query, page = 1, message } = {}) => {
+      const queryValue = typeof query === "string" ? query.trim() : latestQuery;
+      if (!queryValue) {
+        return;
+      }
+      const targetPage = page && page > 0 ? page : 1;
+      const params = new URLSearchParams({
+        query: queryValue,
+        page: String(targetPage),
+        per_page: String(latestPerPage),
+      });
+      const requestSort = mapSortOrderToRequest(currentCardSortOrder);
+      if (requestSort.sort) {
+        params.set("sort", requestSort.sort);
+      }
+      if (requestSort.order) {
+        params.set("order", requestSort.order);
+      }
+
+      if (message) {
+        showAlert(alertBox, message);
+      }
+
+      if (isFetching) return;
+      isFetching = true;
+
+      try {
+        const data = await apiFetch(`/cards/search?${params.toString()}`);
+        latestQuery = queryValue;
+        latestItems = Array.isArray(data?.items) ? [...data.items] : [];
+        const totalCountValue = toPositiveInteger(
+          data?.total_count,
+          toPositiveInteger(data?.total, latestItems.length),
+        );
+        latestTotalCount = Math.max(latestItems.length, totalCountValue ?? 0);
+        latestTotalCount = Math.min(100, latestTotalCount);
+        let receivedPerPage = toPositiveInteger(data?.per_page, latestPerPage);
+        receivedPerPage = Math.max(1, Math.min(receivedPerPage, 20));
+        latestPerPage = receivedPerPage;
+        latestPage = toPositiveInteger(data?.page, targetPage);
+        renderLatestResults();
+        showAlert(alertBox, "");
+      } catch (error) {
+        showAlert(alertBox, error.message || "Nie udało się pobrać wyników.", "error");
+      } finally {
+        isFetching = false;
+      }
+    };
+
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const queryInput = form.querySelector("input[name='query']");
@@ -1004,25 +1117,27 @@
         queryInput?.focus();
         return;
       }
-      showAlert(alertBox, "Szukam kart…");
-      try {
-        const params = new URLSearchParams({ query });
-        const requestSort = mapSortOrderToRequest(currentCardSortOrder);
-        if (requestSort.sort) {
-          params.set("sort", requestSort.sort);
-        }
-        if (requestSort.order) {
-          params.set("order", requestSort.order);
-        }
-        const data = await apiFetch(`/cards/search?${params.toString()}`);
-        latestItems = Array.isArray(data?.items) ? [...data.items] : [];
-        latestTotal = data?.total || 0;
-        renderLatestResults();
-        showAlert(alertBox, "");
-      } catch (error) {
-        showAlert(alertBox, error.message || "Nie udało się pobrać wyników.", "error");
-      }
+      latestPerPage = 20;
+      latestPage = 1;
+      await fetchResults({ query, page: 1, message: "Szukam kart…" });
     });
+
+    if (paginationPrev) {
+      paginationPrev.addEventListener("click", async () => {
+        if (paginationPrev.disabled || isFetching) return;
+        const targetPage = Math.max(1, latestPage - 1);
+        if (targetPage === latestPage) return;
+        await fetchResults({ page: targetPage, message: "Ładuję poprzednią stronę…" });
+      });
+    }
+
+    if (paginationNext) {
+      paginationNext.addEventListener("click", async () => {
+        if (paginationNext.disabled || isFetching) return;
+        const targetPage = latestPage + 1;
+        await fetchResults({ page: targetPage, message: "Ładuję kolejną stronę…" });
+      });
+    }
 
     const handleCardFormSubmission = async (target, trigger) => {
       const alertTarget = document.getElementById("add-card-alert");

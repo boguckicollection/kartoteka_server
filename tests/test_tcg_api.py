@@ -46,7 +46,7 @@ DEFAULT_HOST = tcg_api.RAPIDAPI_DEFAULT_HOST
 
 def test_search_cards_uses_rapidapi_headers():
     session = _DummySession()
-    tcg_api.search_cards(
+    results, total_count = tcg_api.search_cards(
         name="Pikachu",
         rapidapi_key="rapid-key",
         rapidapi_host=DEFAULT_HOST,
@@ -55,6 +55,8 @@ def test_search_cards_uses_rapidapi_headers():
         order="asc",
     )
 
+    assert results == []
+    assert total_count == 0
     assert session.calls, "Expected a single HTTP request"
     call = session.calls[0]
     assert call["url"] == "https://pokemon-tcg-api.p.rapidapi.com/cards/search"
@@ -64,19 +66,23 @@ def test_search_cards_uses_rapidapi_headers():
     params = call["params"] or {}
     assert "search" in params
     assert params["search"] == "pikachu"
+    assert params.get("page") == "1"
+    assert params.get("pageSize") == "20"
     assert params.get("sort") == "name"
     assert params.get("order") == "asc"
 
 
 def test_search_cards_uses_default_host_when_missing():
     session = _DummySession()
-    tcg_api.search_cards(
+    results, total_count = tcg_api.search_cards(
         name="Eevee",
         rapidapi_key="rapid-key",
         rapidapi_host=None,
         session=session,
     )
 
+    assert results == []
+    assert total_count == 0
     assert session.calls, "Expected a single HTTP request"
     call = session.calls[0]
     assert call["url"] == "https://pokemon-tcg-api.p.rapidapi.com/cards/search"
@@ -90,8 +96,12 @@ def test_search_cards_uses_default_host_when_missing():
 
 def test_search_cards_without_key_omits_auth_header():
     session = _DummySession()
-    tcg_api.search_cards(name="Ditto", rapidapi_host=DEFAULT_HOST, session=session)
+    results, total_count = tcg_api.search_cards(
+        name="Ditto", rapidapi_host=DEFAULT_HOST, session=session
+    )
 
+    assert results == []
+    assert total_count == 0
     assert session.calls, "Expected a single HTTP request"
     call = session.calls[0]
     headers = call["headers"]
@@ -143,6 +153,21 @@ def test_search_cards_builds_compound_query():
     assert params["search"] == "pikachu base 102"
 
 
+def test_search_cards_forwards_pagination_params():
+    session = _DummySession()
+    tcg_api.search_cards(
+        name="Pikachu",
+        page=3,
+        per_page=15,
+        session=session,
+    )
+
+    call = session.calls[0]
+    params = call["params"] or {}
+    assert params.get("page") == "3"
+    assert params.get("pageSize") == "15"
+
+
 def test_search_cards_matches_uppercase_collector_number():
     card_payload = {
         "name": "Pikachu",
@@ -151,7 +176,7 @@ def test_search_cards_matches_uppercase_collector_number():
     }
     session = _DummySession(response_data={"data": [card_payload]})
 
-    results = tcg_api.search_cards(
+    results, total_count = tcg_api.search_cards(
         name="Pikachu",
         number="RC5A",
         session=session,
@@ -159,6 +184,7 @@ def test_search_cards_matches_uppercase_collector_number():
 
     assert results, "Expected to receive at least one suggestion"
     assert results[0]["number"] == "rc5a"
+    assert total_count == 1
 
 
 def test_list_set_cards_without_key_uses_default_headers():

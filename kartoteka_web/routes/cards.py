@@ -316,6 +316,8 @@ def search_cards_endpoint(
     limit: int | None = None,
     sort: str | None = None,
     order: str | None = None,
+    page: int = 1,
+    per_page: int = 20,
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
@@ -331,31 +333,49 @@ def search_cards_endpoint(
     result_cap = MAX_SEARCH_RESULTS
     if limit is not None and limit > 0:
         result_cap = max(1, min(limit, MAX_SEARCH_RESULTS))
+    overall_cap = 100
+    result_cap = min(result_cap, overall_cap)
     search_query = query or _compose_query(name_value, number_value, set_name)
     if not (search_query or name_value):
-        return schemas.CardSearchResponse(items=[], total=0)
+        return schemas.CardSearchResponse(items=[], total=0, page=1, per_page=20, total_count=0)
     if not name_value:
         name_value = search_query
 
     del session  # Database access unused when delegating to external API.
 
-    records = tcg_api.search_cards(
+    per_page_value = max(1, min(per_page or 1, 20))
+    max_pages = max(1, (overall_cap + per_page_value - 1) // per_page_value)
+    try:
+        page_value = int(page)
+    except (TypeError, ValueError):
+        page_value = 1
+    page_value = max(1, min(page_value, max_pages))
+
+    limit_value = min(result_cap, per_page_value)
+
+    records, total_count = tcg_api.search_cards(
         name=name_value or search_query,
         number=number_value,
         set_name=set_name,
         total=total,
-        limit=result_cap,
+        limit=limit_value,
         sort=sort,
         order=order,
+        page=page_value,
+        per_page=per_page_value,
         rapidapi_key=RAPIDAPI_KEY,
         rapidapi_host=RAPIDAPI_HOST,
     )
 
     items = [_payload_to_search_schema(record) for record in records]
     suggestion = records[0].get("name") if records else None
+    capped_total = min(overall_cap, max(len(records), total_count))
     return schemas.CardSearchResponse(
         items=items,
         total=len(records),
+        total_count=capped_total,
+        page=page_value,
+        per_page=per_page_value,
         suggested_query=suggestion,
     )
 

@@ -413,15 +413,29 @@ def search_cards(
     limit: int = 10,
     sort: Optional[str] = None,
     order: Optional[str] = None,
+    page: int = 1,
+    per_page: int = 20,
     rapidapi_key: Optional[str] = None,
     rapidapi_host: Optional[str] = None,
     session: Optional[requests.sessions.Session] = None,
     timeout: float = 10.0,
-) -> list[dict]:
+) -> tuple[list[dict], int]:
     if not name:
-        return []
+        return [], 0
 
     http = session or requests
+
+    try:
+        page_value = int(page)
+    except (TypeError, ValueError):
+        page_value = 1
+    page_value = max(1, page_value)
+
+    try:
+        per_page_value = int(per_page)
+    except (TypeError, ValueError):
+        per_page_value = limit if limit and limit > 0 else 20
+    per_page_value = max(1, min(per_page_value, 250))
 
     number_part = ""
     number_total = ""
@@ -458,14 +472,12 @@ def search_cards(
         rapid_search_parts.append(total_clean)
     query_value = " ".join(part for part in rapid_search_parts if part)
     if not query_value:
-        return []
+        return [], 0
 
-    page_size = max(limit * 5, 50)
-    page_size = min(page_size, 250)
     params = {
         "search": query_value,
-        "page": "1",
-        "pageSize": str(page_size),
+        "page": str(page_value),
+        "pageSize": str(per_page_value),
     }
     if sort:
         params["sort"] = sort
@@ -476,17 +488,21 @@ def search_cards(
         response = http.get(url, params=params, headers=headers, timeout=timeout)
         if response.status_code != 200:
             logger.warning("API error: %s", response.status_code)
-            return []
+            return [], 0
         cards = response.json()
     except requests.Timeout:
         logger.warning("Request timed out")
-        return []
+        return [], 0
     except (requests.RequestException, ValueError) as exc:  # pragma: no cover
         logger.warning("Fetching cards from RapidAPI failed: %s", exc)
-        return []
+        return [], 0
 
+    payload = cards
+    total_count = 0
     if isinstance(cards, dict):
-        cards = cards.get("data") or cards.get("cards") or []
+        total_count = int(cards.get("totalCount") or 0)
+        payload = cards.get("data") or cards.get("cards") or []
+    cards = payload
 
     name_norm = text.normalize(name)
     total_norm = total_clean
@@ -558,6 +574,7 @@ def search_cards(
 
     seen: set[tuple[str | None, str]] = set()
     results: list[dict] = []
+    limit_value = limit if limit and limit > 0 else per_page_value
     for item in suggestions:
         score_value = float(item.get("_score", 0) or 0)
         if score_value <= 0:
@@ -576,10 +593,13 @@ def search_cards(
         if not item.get("image_small") and item.get("image_large"):
             item["image_small"] = item["image_large"]
         results.append(item)
-        if len(results) >= limit:
+        if len(results) >= limit_value:
             break
 
-    return results
+    if not total_count and isinstance(cards, list):
+        total_count = len(cards)
+
+    return results, total_count
 
 
 def list_set_cards(
