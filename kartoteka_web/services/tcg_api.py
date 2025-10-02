@@ -507,7 +507,13 @@ def search_cards(
 
         name_similarity = 0.0
         if name_norm and card_name_norm:
+            strong_name_match = False
             if card_name_norm == name_norm:
+                strong_name_match = True
+            elif name_norm in card_name_norm or card_name_norm in name_norm:
+                strong_name_match = True
+
+            if strong_name_match:
                 name_similarity = 1.0
             else:
                 name_similarity = SequenceMatcher(None, name_norm, card_name_norm).ratio()
