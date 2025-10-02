@@ -1370,7 +1370,8 @@
           ? event.target.closest("[data-card-quick-add]")
           : null;
         if (!button) return;
-        const formTarget = button.closest("form[data-card-form]");
+        const formTarget = button.closest("form[data-card-form]")
+          || button.closest(".card-search-item")?.querySelector("form[data-card-form]");
         if (!(formTarget instanceof HTMLFormElement)) return;
         event.preventDefault();
         await handleCardFormSubmission(formTarget, button);
