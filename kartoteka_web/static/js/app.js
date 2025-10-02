@@ -823,6 +823,26 @@
     return null;
   };
 
+  const SET_ICON_FALLBACK_URL = "/static/icons/sets/fallback.svg";
+  const SET_ICON_EXTERNAL_BASE = "https://images.pokemontcg.io";
+
+  const resolveSetIconUrl = (item) => {
+    if (!item) return SET_ICON_FALLBACK_URL;
+    const customIcon = (item.set_icon || "").trim();
+    if (customIcon) {
+      return customIcon;
+    }
+    const setCodeRaw = (item.set_code || "").trim();
+    if (!setCodeRaw) {
+      return SET_ICON_FALLBACK_URL;
+    }
+    const normalizedCode = setCodeRaw.toLowerCase().replace(/[^a-z0-9-]/g, "");
+    if (!normalizedCode) {
+      return SET_ICON_FALLBACK_URL;
+    }
+    return `${SET_ICON_EXTERNAL_BASE}/${encodeURIComponent(normalizedCode)}/symbol.png`;
+  };
+
   const renderSearchResults = (
     items = [],
     summaryElement,
@@ -906,6 +926,27 @@
       const hasRarityVisual = raritySymbolIsImage || hasRarityClassSymbol;
       const rarityAlt = `Symbol rzadkości ${rarityText}`;
       const rarityFallback = rarityRaw ? rarityRaw.charAt(0).toUpperCase() : "?";
+      const setIconUrl = resolveSetIconUrl(item);
+      const setIconAltBase = setName && setName !== "Nieznany dodatek" ? setName : setCodeText;
+      const setIconAlt = setIconAltBase ? `Symbol dodatku ${setIconAltBase}` : "Symbol dodatku";
+      const setIconMarkup = setIconUrl
+        ? `<img src="${escapeHtml(setIconUrl)}" alt="${escapeHtml(setIconAlt)}" loading="lazy" decoding="async" data-card-set-icon />`
+        : "";
+      const setIconFallbackHiddenAttr = setIconMarkup ? " hidden" : "";
+      const rarityIconMarkup = `
+        <div class="card-search-rarity-icon">
+          ${
+            raritySymbolIsImage
+              ? `<img src="${escapeHtml(raritySymbol)}" alt="${escapeHtml(rarityAlt)}" loading="lazy" decoding="async" data-card-rarity-icon />`
+              : hasRarityClassSymbol
+                ? `<span class="card-search-rarity-symbol" role="img" aria-label="${escapeHtml(rarityAlt)}" data-card-rarity-symbol data-symbol-class="${escapeHtml(raritySymbolClassAttr)}"></span>`
+                : ""
+          }
+          <span class="card-search-rarity-icon-fallback"${hasRarityVisual ? " hidden" : ""} data-card-rarity-icon-fallback aria-hidden="true">${escapeHtml(rarityFallback)}</span>
+        </div>
+      `;
+      const numberDisplay = numberLabel || "—";
+      const priceDisplay = priceText || "—";
       if (isListView) {
         const previewImage = item.image_large || item.image_small || "";
         const hasPreviewImage = Boolean(previewImage);
@@ -934,20 +975,21 @@
                   : ""
               }
             </div>
-            <div class="card-search-list-main">
-              <h3 class="card-search-list-title">${escapeHtml(cardName)}</h3>
-              <div class="card-search-list-meta">
-                <span class="card-search-list-meta-item card-search-list-set">${escapeHtml(setName)}</span>
-                <span class="card-search-list-meta-divider" aria-hidden="true">•</span>
-                <span class="card-search-list-meta-item card-search-list-number">${escapeHtml(numberLabel)}</span>
-                ${
-                  priceText
-                    ? `<span class="card-search-list-meta-divider" aria-hidden="true">•</span>
-                       <span class="card-search-list-meta-item card-search-list-price" data-card-price>${escapeHtml(priceText)}</span>`
-                    : ""
-                }
-              </div>
+            <div class="card-search-list-set" title="${escapeHtml(setName)}">
+              ${setIconMarkup}
+              <span class="card-search-set-code card-search-set-fallback"${setIconFallbackHiddenAttr} data-card-set-code data-card-set-icon-fallback>${escapeHtml(setCodeText)}</span>
             </div>
+            <h3 class="card-search-list-title card-search-list-name" title="${escapeHtml(cardName)}">${escapeHtml(cardName)}</h3>
+            <div class="card-search-list-number">${escapeHtml(numberDisplay)}</div>
+            <div class="card-search-list-rarity" title="${escapeHtml(rarityText)}">
+              ${rarityIconMarkup}
+              <span class="card-search-list-rarity-label">${escapeHtml(rarityText)}</span>
+            </div>
+            ${
+              priceText
+                ? `<div class="card-search-list-price" data-card-price>${escapeHtml(priceDisplay)}</div>`
+                : `<div class="card-search-list-price card-search-list-price--empty">${escapeHtml(priceDisplay)}</div>`
+            }
             <form class="card-search-form" data-card-form>
               <input type="hidden" name="card_name" value="${escapeHtml(item.name)}" />
               <input type="hidden" name="card_number" value="${escapeHtml(item.number)}" />
@@ -994,17 +1036,9 @@
               </button>
             </div>
           <div class="card-search-set">
-            <span class="card-search-set-code" data-card-set-code>${escapeHtml(setCodeText)}</span>
-            <div class="card-search-rarity-icon">
-              ${
-                raritySymbolIsImage
-                  ? `<img src="${escapeHtml(raritySymbol)}" alt="${escapeHtml(rarityAlt)}" loading="lazy" decoding="async" data-card-rarity-icon />`
-                  : hasRarityClassSymbol
-                    ? `<span class="card-search-rarity-symbol" role="img" aria-label="${escapeHtml(rarityAlt)}" data-card-rarity-symbol data-symbol-class="${escapeHtml(raritySymbolClassAttr)}"></span>`
-                    : ""
-              }
-              <span class="card-search-rarity-icon-fallback"${hasRarityVisual ? " hidden" : ""} data-card-rarity-icon-fallback aria-hidden="true">${escapeHtml(rarityFallback)}</span>
-            </div>
+            ${setIconMarkup}
+            <span class="card-search-set-code card-search-set-fallback"${setIconFallbackHiddenAttr} data-card-set-code data-card-set-icon-fallback>${escapeHtml(setCodeText)}</span>
+            ${rarityIconMarkup}
           </div>
         </div>
         <div class="card-search-info">
@@ -1083,6 +1117,15 @@
                 raritySymbolElement.classList.add(token);
               });
           }
+        }
+        const setIconElement = article.querySelector("[data-card-set-icon]");
+        const setIconFallback = article.querySelector("[data-card-set-icon-fallback]");
+        if (setIconElement && setIconFallback) {
+          const handleSetIconError = () => {
+            setIconElement.remove();
+            setIconFallback.hidden = false;
+          };
+          setIconElement.addEventListener("error", handleSetIconError, { once: true });
         }
       }
       container.appendChild(article);
