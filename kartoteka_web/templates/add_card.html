@@ -17,19 +17,23 @@
     </div>
   </div>
   <form id="add-card-form" class="add-card-form" autocomplete="off" data-card-search-form>
-    <label>
-      Nazwa lub numer karty
-      <input
-        type="text"
-        name="query"
-        id="add-card-query"
-        autocomplete="off"
-        placeholder="np. Pikachu 25/102"
-        required
-      />
-    </label>
-    <div class="form-footer">
-      <button type="submit" class="button primary" id="card-search-trigger">Szukaj</button>
+    <div class="add-card-form-field">
+      <label for="add-card-query">Nazwa lub numer karty</label>
+      <div class="add-card-form-row">
+        <input
+          type="text"
+          name="query"
+          id="add-card-query"
+          autocomplete="off"
+          placeholder="np. Pikachu 25/102"
+          required
+          class="add-card-form-control"
+        />
+        <button type="submit" class="button primary icon-only" id="card-search-trigger">
+          <span class="sr-only">Szukaj</span>
+          <span aria-hidden="true" class="button-icon">🔍</span>
+        </button>
+      </div>
     </div>
   </form>
   <div class="alert" id="add-card-alert" hidden></div>
