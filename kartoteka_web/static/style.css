@@ -690,6 +690,13 @@ img {
   min-height: 100%;
 }
 
+.card-search-results--grid .card-search-item:hover,
+.card-search-results--grid .card-search-item:focus-within {
+  background: var(--color-surface-alt);
+  transform: translateY(-2px);
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.18);
+}
+
 .card-search-results--list .card-search-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -913,8 +920,6 @@ img {
 
 .card-search-set-icon,
 .card-search-rarity-icon {
-  width: 40px;
-  height: 40px;
   border-radius: var(--radius-sm);
   background: var(--color-surface-alt);
   border: 1px solid var(--color-border);
@@ -923,6 +928,17 @@ img {
   justify-content: center;
   overflow: hidden;
   flex-shrink: 0;
+}
+
+.card-search-set-icon {
+  width: 56px;
+  height: 56px;
+  padding: 6px;
+}
+
+.card-search-rarity-icon {
+  width: 44px;
+  height: 44px;
 }
 
 .card-search-set-icon img,
@@ -935,7 +951,7 @@ img {
 .card-search-set-icon-fallback,
 .card-search-rarity-icon-fallback {
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   color: var(--color-muted);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -981,6 +997,22 @@ img {
   margin: 0;
   color: var(--color-muted);
   font-size: 0.9rem;
+}
+
+.card-search-info-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.card-search-info-divider {
+  color: var(--color-muted);
+}
+
+.card-search-info-number {
+  color: var(--color-text);
+  font-weight: 600;
 }
 
 .card-search-inline-fields {

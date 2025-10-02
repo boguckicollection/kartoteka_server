@@ -957,8 +957,15 @@
         </div>
         <div class="card-search-info">
           <h3>${escapeHtml(cardName)}</h3>
-            <p>${escapeHtml(setName)}</p>
-            <p class="card-search-meta">${escapeHtml(numberLabel)}</p>
+            <p class="card-search-info-meta">
+              <span class="card-search-set-name">${escapeHtml(setName)}</span>
+              ${
+                numberLabel
+                  ? `<span class="card-search-info-divider" aria-hidden="true">—</span>
+                     <span class="card-search-info-number">${escapeHtml(numberLabel)}</span>`
+                  : ""
+              }
+            </p>
             ${
               priceText
                 ? `<p class="card-search-price" data-card-price>Cena: ${escapeHtml(priceText)}</p>`
