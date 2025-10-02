@@ -38,13 +38,6 @@
   </form>
   <div class="alert" id="add-card-alert" hidden></div>
   <div class="card-search-toolbar" data-card-search-toolbar>
-    <div class="card-search-toolbar-group" role="group" aria-label="Przełącz widok wyników wyszukiwania">
-      <span class="card-search-toolbar-label">Widok</span>
-      <div class="card-search-view-toggle">
-        <button type="button" data-card-view="grid" aria-pressed="true" class="is-active">Kratka</button>
-        <button type="button" data-card-view="list" aria-pressed="false">Lista</button>
-      </div>
-    </div>
     <div class="card-search-toolbar-group card-search-toolbar-group--sort">
       <label for="card-sort-select">Sortowanie</label>
       <select id="card-sort-select" data-card-sort>
@@ -57,6 +50,35 @@
         <option value="price-asc">Cena rosnąco</option>
         <option value="price-desc">Cena malejąco</option>
       </select>
+    </div>
+    <div
+      class="card-search-toolbar-group card-search-toolbar-group--view"
+      role="group"
+      aria-label="Przełącz widok wyników wyszukiwania"
+    >
+      <span class="card-search-toolbar-label">Widok</span>
+      <div class="card-search-view-toggle">
+        <button type="button" data-card-view="grid" aria-pressed="true" class="is-active">
+          <span class="sr-only">Widok siatki</span>
+          <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+            <rect x="2" y="2" width="6" height="6" rx="1.2" />
+            <rect x="12" y="2" width="6" height="6" rx="1.2" />
+            <rect x="2" y="12" width="6" height="6" rx="1.2" />
+            <rect x="12" y="12" width="6" height="6" rx="1.2" />
+          </svg>
+        </button>
+        <button type="button" data-card-view="list" aria-pressed="false">
+          <span class="sr-only">Widok listy</span>
+          <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+            <rect x="2" y="3" width="4" height="4" rx="1.2" />
+            <rect x="2" y="9" width="4" height="4" rx="1.2" />
+            <rect x="2" y="15" width="4" height="4" rx="1.2" />
+            <rect x="8" y="3" width="10" height="2.4" rx="1.2" />
+            <rect x="8" y="9" width="10" height="2.4" rx="1.2" />
+            <rect x="8" y="15" width="10" height="2.4" rx="1.2" />
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
   <p id="card-search-summary" class="search-summary" hidden aria-live="polite"></p>

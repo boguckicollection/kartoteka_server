@@ -573,7 +573,6 @@ img {
   margin-top: 16px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
 }
@@ -582,6 +581,11 @@ img {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.card-search-toolbar-group--view {
+  margin-left: auto;
+  justify-content: flex-end;
 }
 
 .card-search-toolbar-label {
@@ -604,13 +608,22 @@ img {
 .card-search-view-toggle button {
   border: 1px solid transparent;
   border-radius: calc(var(--radius-sm) - 2px);
-  padding: 6px 14px;
-  font-size: 0.9rem;
-  font-weight: 600;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   color: var(--color-muted);
   cursor: pointer;
   transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-search-view-toggle button svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
 }
 
 .card-search-view-toggle button:hover,
@@ -1163,6 +1176,10 @@ img {
   .card-search-toolbar-group {
     justify-content: space-between;
     width: 100%;
+  }
+
+  .card-search-toolbar-group--view {
+    margin-left: 0;
   }
 
   .card-search-toolbar-group--sort {
