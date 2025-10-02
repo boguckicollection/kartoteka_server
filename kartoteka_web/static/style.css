@@ -876,6 +876,26 @@ img {
   flex-shrink: 0;
 }
 
+.card-search-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  line-height: 1;
+  min-height: 32px;
+  min-width: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.card-search-badge--rarity {
+  gap: 8px;
+}
+
 .card-search-set-icon {
   width: 32px;
   height: 32px;
@@ -903,9 +923,9 @@ img {
 }
 
 .card-search-list-rarity {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-size: 0.85rem;
   color: var(--color-muted);
   white-space: nowrap;
@@ -1026,13 +1046,13 @@ img {
 
 .card-search-set {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 12px;
   padding: 0;
   border: 0;
   background: none;
-  flex-wrap: wrap;
 }
 
 .card-search-set-code {
