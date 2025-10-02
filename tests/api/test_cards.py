@@ -279,6 +279,32 @@ def test_card_search_and_detail(api_client, monkeypatch):
     assert unauthenticated_search.status_code == 401
 
 
+def test_card_info_accepts_normalized_set_code(api_client):
+    with database.session_scope() as session:
+        session.add(
+            models.Card(
+                name="Charizard",
+                number="4",
+                set_name="Base Set",
+                set_code="UPPER-SET",
+                rarity="Rare",
+            )
+        )
+
+    response = api_client.get(
+        "/cards/info",
+        params={
+            "name": "Charizard",
+            "number": "4",
+            "set_code": "upper-set",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["card"]["set_code"] == "UPPER-SET"
+
+
 def test_card_search_passes_rapidapi_credentials(api_client, monkeypatch):
     headers = _auth_headers(api_client, username="misty", password="starmie")
 
