@@ -795,29 +795,54 @@
     image_large: form.elements.card_image_large?.value?.trim() || null,
   });
 
-  const RARITY_SYMBOL_CLASS_RULES = [
-    { pattern: /(rainbow|hyper)/i, className: "rarity-symbol--rare-rainbow" },
-    { pattern: /(secret|gold)/i, className: "rarity-symbol--rare-secret" },
+  const RARITY_ICON_BASE_PATH = "/static/icons/rarity";
+  const RARITY_ICON_MAP = Object.freeze({
+    "common": `${RARITY_ICON_BASE_PATH}/common.svg`,
+    "uncommon": `${RARITY_ICON_BASE_PATH}/uncommon.svg`,
+    "rare": `${RARITY_ICON_BASE_PATH}/rare.svg`,
+    "rare-holo": `${RARITY_ICON_BASE_PATH}/rare-holo.svg`,
+    "rare-ultra": `${RARITY_ICON_BASE_PATH}/rare-ultra.svg`,
+    "rare-secret": `${RARITY_ICON_BASE_PATH}/rare-secret.svg`,
+    "rare-shiny": `${RARITY_ICON_BASE_PATH}/rare-shiny.svg`,
+    "rare-ace": `${RARITY_ICON_BASE_PATH}/rare-ace.svg`,
+    "rare-illustration": `${RARITY_ICON_BASE_PATH}/rare-illustration.svg`,
+    "promo": `${RARITY_ICON_BASE_PATH}/promo.svg`,
+    "rare-rainbow": `${RARITY_ICON_BASE_PATH}/rare-rainbow.svg`,
+  });
+
+  const RARITY_ICON_RULES = [
+    { pattern: /(rainbow|hyper)/i, key: "rare-rainbow" },
+    { pattern: /(secret|gold)/i, key: "rare-secret" },
     {
       pattern: /(ultra|vmax|v-star|vstar|v-union|gx|ex|mega|prime|legend)/i,
-      className: "rarity-symbol--rare-ultra",
+      key: "rare-ultra",
     },
-    { pattern: /(shiny|shining|radiant)/i, className: "rarity-symbol--rare-shiny" },
-    { pattern: /promo/i, className: "rarity-symbol--promo" },
-    { pattern: /ace/i, className: "rarity-symbol--rare-ace" },
-    { pattern: /illustration rare/i, className: "rarity-symbol--rare-illustration" },
-    { pattern: /holo/i, className: "rarity-symbol--rare-holo" },
-    { pattern: /rare/i, className: "rarity-symbol--rare" },
-    { pattern: /uncommon/i, className: "rarity-symbol--uncommon" },
-    { pattern: /common/i, className: "rarity-symbol--common" },
+    { pattern: /(shiny|shining|radiant)/i, key: "rare-shiny" },
+    { pattern: /promo/i, key: "promo" },
+    { pattern: /ace/i, key: "rare-ace" },
+    { pattern: /illustration rare/i, key: "rare-illustration" },
+    { pattern: /holo/i, key: "rare-holo" },
+    { pattern: /rare/i, key: "rare" },
+    { pattern: /uncommon/i, key: "uncommon" },
+    { pattern: /common/i, key: "common" },
   ];
 
-  const resolveRaritySymbolClass = (rarity) => {
+  const normalizeRarityKey = (rarity) => rarity
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "");
+
+  const resolveRarityIconUrl = (rarity) => {
     if (!rarity) return null;
-    const normalized = rarity.toLowerCase();
-    for (const rule of RARITY_SYMBOL_CLASS_RULES) {
-      if (rule.pattern.test(normalized)) {
-        return rule.className;
+    const normalized = normalizeRarityKey(rarity);
+    if (normalized && Object.prototype.hasOwnProperty.call(RARITY_ICON_MAP, normalized)) {
+      return RARITY_ICON_MAP[normalized];
+    }
+    const lowerValue = rarity.toLowerCase();
+    for (const rule of RARITY_ICON_RULES) {
+      if (rule.pattern.test(lowerValue)) {
+        return RARITY_ICON_MAP[rule.key] || null;
       }
     }
     return null;
@@ -905,25 +930,11 @@
         );
       const setCodeRaw = (item.set_code || "").trim();
       const setCodeText = setCodeRaw || "—";
-      const raritySymbolClassTokens = [];
-      if (hasRaritySymbol && !raritySymbolIsImage) {
-        raritySymbol
-          .split(/\s+/)
-          .map((token) => token.trim())
-          .filter(Boolean)
-          .forEach((token) => {
-            raritySymbolClassTokens.push(token);
-          });
-      }
-      if (!raritySymbolIsImage && raritySymbolClassTokens.length === 0) {
-        const fallbackClass = resolveRaritySymbolClass(rarityRaw);
-        if (fallbackClass) {
-          raritySymbolClassTokens.push(fallbackClass);
-        }
-      }
-      const raritySymbolClassAttr = raritySymbolClassTokens.join(" ");
-      const hasRarityClassSymbol = raritySymbolClassTokens.length > 0;
-      const hasRarityVisual = raritySymbolIsImage || hasRarityClassSymbol;
+      const rarityIconFromMap = raritySymbolIsImage ? null : resolveRarityIconUrl(rarityRaw);
+      const rarityIconUrl = raritySymbolIsImage
+        ? raritySymbol
+        : rarityIconFromMap;
+      const hasRarityVisual = Boolean(rarityIconUrl);
       const rarityAlt = `Symbol rzadkości ${rarityText}`;
       const rarityFallback = rarityRaw ? rarityRaw.charAt(0).toUpperCase() : "?";
       const setIconUrl = resolveSetIconUrl(item);
@@ -936,11 +947,9 @@
       const rarityIconMarkup = `
         <div class="card-search-rarity-icon">
           ${
-            raritySymbolIsImage
-              ? `<img src="${escapeHtml(raritySymbol)}" alt="${escapeHtml(rarityAlt)}" loading="lazy" decoding="async" data-card-rarity-icon />`
-              : hasRarityClassSymbol
-                ? `<span class="card-search-rarity-symbol" role="img" aria-label="${escapeHtml(rarityAlt)}" data-card-rarity-symbol data-symbol-class="${escapeHtml(raritySymbolClassAttr)}"></span>`
-                : ""
+            rarityIconUrl
+              ? `<img src="${escapeHtml(rarityIconUrl)}" alt="${escapeHtml(rarityAlt)}" loading="lazy" decoding="async" data-card-rarity-icon />`
+              : ""
           }
           <span class="card-search-rarity-icon-fallback"${hasRarityVisual ? " hidden" : ""} data-card-rarity-icon-fallback aria-hidden="true">${escapeHtml(rarityFallback)}</span>
         </div>
@@ -1104,19 +1113,6 @@
             rarityIconFallback.hidden = false;
           };
           rarityIcon.addEventListener("error", handleRarityIconError, { once: true });
-        }
-        const raritySymbolElement = article.querySelector("[data-card-rarity-symbol]");
-        if (raritySymbolElement) {
-          const symbolClass = (raritySymbolElement.dataset.symbolClass || "").trim();
-          if (symbolClass) {
-            symbolClass
-              .split(/\s+/)
-              .map((token) => token.trim())
-              .filter(Boolean)
-              .forEach((token) => {
-                raritySymbolElement.classList.add(token);
-              });
-          }
         }
         const setIconElement = article.querySelector("[data-card-set-icon]");
         const setIconFallback = article.querySelector("[data-card-set-icon-fallback]");
