@@ -795,33 +795,32 @@
     image_large: form.elements.card_image_large?.value?.trim() || null,
   });
 
-  const RARITY_ICON_BASE_PATH = "/icon/rarity";
-  const getRarityIconPath = (fileName) => `${RARITY_ICON_BASE_PATH}/${fileName}`;
+  const RARITY_ICON_BASE_PATH = "/static/icons/rarity";
   const RARITY_ICON_MAP = Object.freeze({
-    "common": getRarityIconPath("Rarity_Common.png"),
-    "uncommon": getRarityIconPath("Rarity_Uncommon.png"),
-    "rare": getRarityIconPath("Rarity_Rare.png"),
-    "rare-holo": getRarityIconPath("Rarity_Rare.png"),
-    "holo-rare": getRarityIconPath("Rarity_Rare.png"),
-    "rare-ultra": getRarityIconPath("Rarity_Double_Rare.png"),
-    "ultra-rare": getRarityIconPath("Rarity_Double_Rare.png"),
-    "rare-double": getRarityIconPath("Rarity_Double_Rare.png"),
-    "double-rare": getRarityIconPath("Rarity_Double_Rare.png"),
-    "rare-secret": getRarityIconPath("Rarity_Hyper_Rare.png"),
-    "secret-rare": getRarityIconPath("Rarity_Hyper_Rare.png"),
-    "hyper-rare": getRarityIconPath("Rarity_Hyper_Rare.png"),
-    "rare-rainbow": getRarityIconPath("Rarity_Hyper_Rare.png"),
-    "rainbow-rare": getRarityIconPath("Rarity_Hyper_Rare.png"),
-    "rare-shiny": getRarityIconPath("Rarity_Shiny_Rare.png"),
-    "shiny-rare": getRarityIconPath("Rarity_Shiny_Rare.png"),
-    "shinyrare": getRarityIconPath("Rarity_ShinyRare.png"),
-    "rare-ace": getRarityIconPath("Rarity_ACE_SPEC_Rare.png"),
-    "ace-spec-rare": getRarityIconPath("Rarity_ACE_SPEC_Rare.png"),
-    "rare-illustration": getRarityIconPath("Rarity_Special_Illustration_Rare.png"),
-    "illustration-rare": getRarityIconPath("Rarity_Special_Illustration_Rare.png"),
-    "special-illustration-rare": getRarityIconPath("Rarity_Special_Illustration_Rare.png"),
-    "rare-special-illustration": getRarityIconPath("Rarity_Special_Illustration_Rare.png"),
-    "promo": getRarityIconPath("Rarity_Common.png"),
+    "common": `${RARITY_ICON_BASE_PATH}/common.svg`,
+    "uncommon": `${RARITY_ICON_BASE_PATH}/uncommon.svg`,
+    "rare": `${RARITY_ICON_BASE_PATH}/rare.svg`,
+    "rare-holo": `${RARITY_ICON_BASE_PATH}/rare-holo.svg`,
+    "holo-rare": `${RARITY_ICON_BASE_PATH}/rare-holo.svg`,
+    "rare-ultra": `${RARITY_ICON_BASE_PATH}/rare-ultra.svg`,
+    "ultra-rare": `${RARITY_ICON_BASE_PATH}/rare-ultra.svg`,
+    "rare-double": `${RARITY_ICON_BASE_PATH}/rare-ultra.svg`,
+    "double-rare": `${RARITY_ICON_BASE_PATH}/rare-ultra.svg`,
+    "rare-secret": `${RARITY_ICON_BASE_PATH}/rare-secret.svg`,
+    "secret-rare": `${RARITY_ICON_BASE_PATH}/rare-secret.svg`,
+    "hyper-rare": `${RARITY_ICON_BASE_PATH}/rare-secret.svg`,
+    "rare-rainbow": `${RARITY_ICON_BASE_PATH}/rare-rainbow.svg`,
+    "rainbow-rare": `${RARITY_ICON_BASE_PATH}/rare-rainbow.svg`,
+    "rare-shiny": `${RARITY_ICON_BASE_PATH}/rare-shiny.svg`,
+    "shiny-rare": `${RARITY_ICON_BASE_PATH}/rare-shiny.svg`,
+    "shinyrare": `${RARITY_ICON_BASE_PATH}/rare-shiny.svg`,
+    "rare-ace": `${RARITY_ICON_BASE_PATH}/rare-ace.svg`,
+    "ace-spec-rare": `${RARITY_ICON_BASE_PATH}/rare-ace.svg`,
+    "rare-illustration": `${RARITY_ICON_BASE_PATH}/rare-illustration.svg`,
+    "illustration-rare": `${RARITY_ICON_BASE_PATH}/rare-illustration.svg`,
+    "special-illustration-rare": `${RARITY_ICON_BASE_PATH}/rare-illustration.svg`,
+    "rare-special-illustration": `${RARITY_ICON_BASE_PATH}/rare-illustration.svg`,
+    "promo": `${RARITY_ICON_BASE_PATH}/promo.svg`,
   });
 
   const RARITY_ICON_RULES = [
@@ -954,18 +953,27 @@
       const setIconUrl = resolveSetIconUrl(item);
       const setIconAltBase = setName && setName !== "Nieznany dodatek" ? setName : setCodeText;
       const setIconAlt = setIconAltBase ? `Symbol dodatku ${setIconAltBase}` : "Symbol dodatku";
-      const setIconMarkup = setIconUrl
+      const hasSetIconVisual = Boolean(setIconUrl);
+      const setIconFallbackHiddenAttr = hasSetIconVisual ? " hidden" : "";
+      const setIconImageMarkup = hasSetIconVisual
         ? `<img class="card-search-set-icon" src="${escapeHtml(setIconUrl)}" alt="${escapeHtml(setIconAlt)}" loading="lazy" decoding="async" data-card-set-icon />`
         : "";
-      const setIconFallbackHiddenAttr = setIconMarkup ? " hidden" : "";
+      const setIconMarkup = `
+        <div class="card-search-badge card-search-badge--set">
+          ${setIconImageMarkup}
+          <span class="card-search-set-code card-search-set-fallback"${setIconFallbackHiddenAttr} data-card-set-code data-card-set-icon-fallback>${escapeHtml(setCodeText)}</span>
+        </div>
+      `;
       const rarityIconMarkup = `
-        <div class="card-search-rarity-icon">
-          ${
-            rarityIconUrl
-              ? `<img src="${escapeHtml(rarityIconUrl)}" alt="${escapeHtml(rarityAlt)}" loading="lazy" decoding="async" data-card-rarity-icon />`
-              : ""
-          }
-          <span class="card-search-rarity-icon-fallback"${hasRarityVisual ? " hidden" : ""} data-card-rarity-icon-fallback aria-hidden="true">${escapeHtml(rarityFallback)}</span>
+        <div class="card-search-badge card-search-badge--rarity">
+          <div class="card-search-rarity-icon">
+            ${
+              rarityIconUrl
+                ? `<img src="${escapeHtml(rarityIconUrl)}" alt="${escapeHtml(rarityAlt)}" loading="lazy" decoding="async" data-card-rarity-icon />`
+                : ""
+            }
+            <span class="card-search-rarity-icon-fallback"${hasRarityVisual ? " hidden" : ""} data-card-rarity-icon-fallback aria-hidden="true">${escapeHtml(rarityFallback)}</span>
+          </div>
         </div>
       `;
       const numberDisplay = numberLabel || "—";
@@ -1000,7 +1008,6 @@
             </div>
             <div class="card-search-list-set" title="${escapeHtml(setName)}">
               ${setIconMarkup}
-              <span class="card-search-set-code card-search-set-fallback"${setIconFallbackHiddenAttr} data-card-set-code data-card-set-icon-fallback>${escapeHtml(setCodeText)}</span>
             </div>
             <h3 class="card-search-list-title card-search-list-name" title="${escapeHtml(cardName)}">${escapeHtml(cardName)}</h3>
             <div class="card-search-list-number">${escapeHtml(numberDisplay)}</div>
@@ -1060,7 +1067,6 @@
             </div>
           <div class="card-search-set">
             ${setIconMarkup}
-            <span class="card-search-set-code card-search-set-fallback"${setIconFallbackHiddenAttr} data-card-set-code data-card-set-icon-fallback>${escapeHtml(setCodeText)}</span>
             ${rarityIconMarkup}
           </div>
         </div>
