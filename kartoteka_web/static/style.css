@@ -856,15 +856,8 @@ body[data-theme="dark"] .card-search-results--grid .card-search-item:focus-withi
 }
 
 .card-search-results--list .card-search-item {
-  --card-search-list-columns: auto minmax(56px, auto) minmax(0, 1fr) minmax(88px, auto)
-    minmax(120px, auto) minmax(140px, auto);
   display: grid;
-  align-items: center;
-  grid-template-columns: var(
-    --card-search-list-columns,
-    auto auto minmax(0, 1fr) auto auto auto
-  );
-  column-gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
   row-gap: 6px;
   padding: 8px 12px;
   background: none;
@@ -884,15 +877,14 @@ body[data-theme="dark"] .card-search-results--grid .card-search-item:focus-withi
 
 .card-search-list-row {
   display: grid;
-  grid-template-columns: var(
-    --card-search-list-columns,
-    auto auto minmax(0, 1fr) auto auto auto
-  );
+  grid-template-columns: auto minmax(56px, auto) minmax(0, 1fr) minmax(88px, auto)
+    minmax(120px, auto) minmax(140px, auto);
   grid-template-areas: "thumb set name number rarity price";
   align-items: center;
   column-gap: 12px;
   row-gap: 6px;
   width: 100%;
+  grid-column: 1 / -1;
 }
 
 .card-search-list-thumb {
@@ -1440,8 +1432,6 @@ body[data-theme="dark"] .card-search-set-badges {
 
 @media (max-width: 720px) {
   .card-search-results--list .card-search-item {
-    --card-search-list-columns: minmax(0, 1fr);
-    grid-template-columns: var(--card-search-list-columns);
     row-gap: 12px;
   }
 
