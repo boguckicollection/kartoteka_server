@@ -925,6 +925,19 @@ body[data-theme="dark"] .card-search-results--grid .card-search-item:focus-withi
   gap: 8px;
 }
 
+body[data-theme="dark"] .card-search-badge--rarity {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  body[data-theme="auto"] .card-search-badge--rarity,
+  body:not([data-theme]) .card-search-badge--rarity {
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+}
+
 .card-search-set-icon {
   width: 32px;
   height: 32px;
