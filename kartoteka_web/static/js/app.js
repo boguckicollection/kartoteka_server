@@ -1043,6 +1043,11 @@
         const previewImage = item.image_large || item.image_small || "";
         const hasPreviewImage = Boolean(previewImage);
         const thumbAttributes = hasPreviewImage ? " data-has-preview=\"true\"" : "";
+        const priceClasses = ["card-search-list-price"];
+        if (!priceText) {
+          priceClasses.push("card-search-list-price--empty");
+        }
+        const priceAttributes = priceText ? " data-card-price" : "";
         article.innerHTML = `
           <div class="card-search-list-row">
             <div class="card-search-list-thumb"${thumbAttributes}>
@@ -1070,34 +1075,31 @@
             <div class="card-search-list-number">${escapeHtml(numberDisplay)}</div>
             <div class="card-search-list-rarity" title="${escapeHtml(rarityText)}">
               ${rarityIconMarkup}
-              <span class="card-search-list-rarity-label">${escapeHtml(rarityText)}</span>
             </div>
-            ${
-              priceText
-                ? `<div class="card-search-list-price" data-card-price>${escapeHtml(priceDisplay)}</div>`
-                : `<div class="card-search-list-price card-search-list-price--empty">${escapeHtml(priceDisplay)}</div>`
-            }
-            <form class="card-search-form" data-card-form>
-              <input type="hidden" name="card_name" value="${escapeHtml(item.name)}" />
-              <input type="hidden" name="card_number" value="${escapeHtml(item.number)}" />
-              <input type="hidden" name="card_set_name" value="${escapeHtml(item.set_name)}" />
-              <input type="hidden" name="card_set_code" value="${escapeHtml(item.set_code || "")}" />
-              <input type="hidden" name="card_rarity" value="${escapeHtml(item.rarity || "")}" />
-              <input type="hidden" name="card_image_small" value="${escapeHtml(item.image_small || "")}" />
-              <input type="hidden" name="card_image_large" value="${escapeHtml(item.image_large || "")}" />
-              <input type="hidden" name="quantity" value="1" />
-              <div class="form-footer">
-                <button
-                  type="submit"
-                  class="card-quick-add"
-                  data-card-quick-add
-                  aria-label="${escapeHtml(quickAddLabel)}"
-                  title="Dodaj do kolekcji"
-                >
-                  <span aria-hidden="true">+</span>
-                </button>
-              </div>
-            </form>
+            <div class="${priceClasses.join(" ")}"${priceAttributes}>
+              <span class="card-search-list-price-value">${escapeHtml(priceDisplay)}</span>
+              <form class="card-search-form" data-card-form>
+                <input type="hidden" name="card_name" value="${escapeHtml(item.name)}" />
+                <input type="hidden" name="card_number" value="${escapeHtml(item.number)}" />
+                <input type="hidden" name="card_set_name" value="${escapeHtml(item.set_name)}" />
+                <input type="hidden" name="card_set_code" value="${escapeHtml(item.set_code || "")}" />
+                <input type="hidden" name="card_rarity" value="${escapeHtml(item.rarity || "")}" />
+                <input type="hidden" name="card_image_small" value="${escapeHtml(item.image_small || "")}" />
+                <input type="hidden" name="card_image_large" value="${escapeHtml(item.image_large || "")}" />
+                <input type="hidden" name="quantity" value="1" />
+                <div class="form-footer">
+                  <button
+                    type="submit"
+                    class="card-quick-add"
+                    data-card-quick-add
+                    aria-label="${escapeHtml(quickAddLabel)}"
+                    title="Dodaj do kolekcji"
+                  >
+                    <span aria-hidden="true">+</span>
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         `;
       } else {

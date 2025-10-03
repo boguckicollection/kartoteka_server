@@ -856,13 +856,13 @@ body[data-theme="dark"] .card-search-results--grid .card-search-item:focus-withi
 }
 
 .card-search-results--list .card-search-item {
-  --card-search-list-columns: auto minmax(56px, auto) minmax(0, 2fr) minmax(56px, auto)
-    minmax(140px, auto) minmax(72px, auto) auto;
+  --card-search-list-columns: auto minmax(56px, auto) minmax(0, 1fr) minmax(88px, auto)
+    minmax(120px, auto) minmax(140px, auto);
   display: grid;
   align-items: center;
   grid-template-columns: var(
     --card-search-list-columns,
-    auto auto minmax(0, 1fr) auto auto auto auto
+    auto auto minmax(0, 1fr) auto auto auto
   );
   column-gap: 12px;
   row-gap: 6px;
@@ -879,15 +879,16 @@ body[data-theme="dark"] .card-search-results--grid .card-search-item:focus-withi
   background: var(--color-surface-alt);
   box-shadow: var(--shadow-card);
   transform: translateY(-1px);
+  z-index: 5;
 }
 
 .card-search-list-row {
   display: grid;
   grid-template-columns: var(
     --card-search-list-columns,
-    auto auto minmax(0, 1fr) auto auto auto auto
+    auto auto minmax(0, 1fr) auto auto auto
   );
-  grid-template-areas: "thumb set name number rarity price form";
+  grid-template-areas: "thumb set name number rarity price";
   align-items: center;
   column-gap: 12px;
   row-gap: 6px;
@@ -995,10 +996,10 @@ body[data-theme="dark"] .card-search-results--grid .card-search-item:focus-withi
 
 .card-search-list-set {
   grid-area: set;
-  justify-self: center;
+  justify-self: end;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   gap: 6px;
   width: 56px;
@@ -1068,8 +1069,8 @@ body[data-theme="dark"] .card-search-badge--rarity {
 
 .card-search-list-number {
   grid-area: number;
-  justify-self: center;
-  text-align: center;
+  justify-self: end;
+  text-align: right;
   font-size: 0.85rem;
   color: var(--color-muted);
   white-space: nowrap;
@@ -1077,11 +1078,11 @@ body[data-theme="dark"] .card-search-badge--rarity {
 
 .card-search-list-rarity {
   grid-area: rarity;
-  justify-self: center;
-  text-align: center;
+  justify-self: end;
+  text-align: right;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 10px;
   font-size: 0.8rem;
   color: var(--color-muted);
@@ -1092,10 +1093,6 @@ body[data-theme="dark"] .card-search-badge--rarity {
   gap: 8px;
 }
 
-.card-search-list-rarity-label {
-  white-space: nowrap;
-}
-
 .card-search-list-price {
   grid-area: price;
   justify-self: end;
@@ -1103,7 +1100,10 @@ body[data-theme="dark"] .card-search-badge--rarity {
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--color-accent-dark);
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .card-search-list-price--empty {
@@ -1111,17 +1111,18 @@ body[data-theme="dark"] .card-search-badge--rarity {
   font-weight: 500;
 }
 
-.card-search-results--list .card-search-form {
-  grid-area: form;
-  justify-self: end;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-left: 8px;
+.card-search-list-price-value {
+  display: inline-block;
+  min-width: 0;
+  white-space: nowrap;
 }
 
-.card-search-results--list .card-search-form .form-footer {
+.card-search-results--list .card-search-list-price .card-search-form {
+  display: flex;
+  align-items: center;
+}
+
+.card-search-results--list .card-search-list-price .card-search-form .form-footer {
   margin-left: 0;
 }
 
@@ -1450,8 +1451,7 @@ body[data-theme="dark"] .card-search-set-badges {
       "thumb name"
       "set name"
       "number rarity"
-      "price price"
-      "form form";
+      "price price";
     row-gap: 12px;
   }
 
@@ -1471,19 +1471,14 @@ body[data-theme="dark"] .card-search-set-badges {
     justify-content: flex-start;
   }
 
+  .card-search-list-price {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
   .card-search-inline-fields {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .card-search-results--list .card-search-form {
-    justify-self: start;
-    justify-content: flex-start;
-    width: 100%;
-    margin-left: 0;
-  }
-
-  .card-search-results--list .card-search-form .form-footer {
-    margin-left: 0;
   }
 }
 
