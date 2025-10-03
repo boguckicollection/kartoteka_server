@@ -271,6 +271,44 @@ def test_search_cards_aggregates_multiple_pages():
     assert session.calls[1]["params"]["page"] == "2"
 
 
+def test_search_cards_stops_fetching_when_limit_reached():
+    pages = [
+        {
+            "data": [
+                {
+                    "name": "Test",
+                    "number": str(index),
+                    "set": {"name": "Test Set", "code": "TST"},
+                    "id": f"test-{index}",
+                }
+                for index in range(1, 21)
+            ],
+        },
+        {
+            "data": [
+                {
+                    "name": "Test",
+                    "number": "21",
+                    "set": {"name": "Test Set", "code": "TST"},
+                    "id": "test-21",
+                }
+            ],
+        },
+    ]
+    session = _PagingSession(pages)
+
+    results, filtered_total, total_count = tcg_api.search_cards(
+        name="Test",
+        limit=7,
+        session=session,
+    )
+
+    assert len(session.calls) == 1
+    assert len(results) == 7
+    assert filtered_total == 7
+    assert total_count >= 7
+
+
 def test_list_set_cards_without_key_uses_default_headers():
     session = _DummySession()
     tcg_api.list_set_cards("base", limit=1, session=session)
