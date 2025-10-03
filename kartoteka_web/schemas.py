@@ -80,6 +80,7 @@ class CardSearchResponse(SQLModel):
     page: int = 1
     per_page: int = 20
     suggested_query: Optional[str] = None
+    total_remote: Optional[int] = None
 
 
 class CardPriceHistoryPoint(SQLModel):
