@@ -396,17 +396,54 @@
     return result;
   };
 
+  const ALERT_AUTOHIDE_DELAY = 3600;
+  const ALERT_TRANSITION_DURATION = 220;
+  const alertTimers = new WeakMap();
+  const scheduleFrame =
+    typeof window !== "undefined" && typeof window.requestAnimationFrame === "function"
+      ? window.requestAnimationFrame.bind(window)
+      : (callback) => setTimeout(callback, 16);
+
+  const clearAlertTimer = (element) => {
+    const pending = alertTimers.get(element);
+    if (pending) {
+      clearTimeout(pending);
+      alertTimers.delete(element);
+    }
+  };
+
   const showAlert = (element, message, variant = "info") => {
     if (!element) return;
+    clearAlertTimer(element);
+    const isFloating = element.classList.contains("alert--floating");
     if (!message) {
-      element.textContent = "";
-      element.hidden = true;
+      element.classList.remove("alert--visible");
       delete element.dataset.variant;
+      if (!isFloating) {
+        element.hidden = true;
+        element.textContent = "";
+        return;
+      }
+      const timer = setTimeout(() => {
+        element.hidden = true;
+        element.textContent = "";
+        alertTimers.delete(element);
+      }, ALERT_TRANSITION_DURATION);
+      alertTimers.set(element, timer);
       return;
     }
     element.textContent = message;
     element.dataset.variant = variant;
     element.hidden = false;
+    scheduleFrame(() => {
+      element.classList.add("alert--visible");
+    });
+    if (variant === "success" && isFloating) {
+      const timer = setTimeout(() => {
+        showAlert(element, "");
+      }, ALERT_AUTOHIDE_DELAY);
+      alertTimers.set(element, timer);
+    }
   };
 
   const updateUserBadge = (user) => {
