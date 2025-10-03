@@ -1071,6 +1071,30 @@ img {
   background: none;
 }
 
+.card-search-set-badges {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+body[data-theme="dark"] .card-search-set-badges {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.card-search-set-badges .card-search-badge {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  min-height: 0;
+}
+
 .card-search-set-code {
   font-weight: 700;
   letter-spacing: 0.12em;
