@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import Any
 
 import pytest
@@ -533,6 +534,8 @@ def test_fetch_card_price_history_uses_endpoint_and_parses_data():
         rapidapi_host="https://pokemon-tcg-api.p.rapidapi.com",
         session=session,
         market="tcgplayer",
+        date_from=dt.date(2023, 1, 1),
+        date_to=dt.date(2023, 1, 31),
     )
 
     assert session.calls, "Expected a price history request"
@@ -543,6 +546,8 @@ def test_fetch_card_price_history_uses_endpoint_and_parses_data():
     assert headers.get("X-RapidAPI-Host") == DEFAULT_HOST
     params = call["params"] or {}
     assert params.get("market") == "tcgplayer"
+    assert params.get("date_from") == "2023-01-01"
+    assert params.get("date_to") == "2023-01-31"
     assert history == history_payload["data"]
 
 

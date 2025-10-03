@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 import os
 import re
@@ -516,6 +517,8 @@ def card_info(
     total: str | None = None,
     set_code: str | None = None,
     set_name: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     related_limit: int = 6,
     current_user: models.User | None = Depends(get_optional_user),
     session: Session = Depends(get_session),
@@ -600,6 +603,28 @@ def card_info(
     remote_card = _select_remote_card(remote_results, detail) if remote_results else None
     remote_card_id: str | None = None
 
+    def _parse_date_param(value: str | None) -> dt.date | None:
+        if not value:
+            return None
+        text_value = value.strip()
+        if not text_value:
+            return None
+        try:
+            return dt.date.fromisoformat(text_value)
+        except ValueError:
+            return None
+
+    today = dt.date.today()
+    requested_date_from = _parse_date_param(date_from)
+    requested_date_to = _parse_date_param(date_to)
+    date_to_value = requested_date_to or today
+    if date_to_value > today:
+        date_to_value = today
+    if requested_date_from and requested_date_from <= date_to_value:
+        date_from_value = requested_date_from
+    else:
+        date_from_value = date_to_value - dt.timedelta(days=30)
+
     if remote_card:
         remote_card_id_value = str(remote_card.get("id") or "").strip()
         remote_card_id = remote_card_id_value or None
@@ -678,6 +703,8 @@ def card_info(
                 remote_card_id,
                 rapidapi_key=RAPIDAPI_KEY,
                 rapidapi_host=RAPIDAPI_HOST,
+                date_from=date_from_value,
+                date_to=date_to_value,
             )
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.warning("Failed to fetch price history for card %s: %s", remote_card_id, exc)

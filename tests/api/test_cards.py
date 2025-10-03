@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import importlib
 
 import pytest
@@ -568,6 +569,52 @@ def test_card_info_accepts_normalized_set_code(api_client):
     assert response.status_code == 200, response.text
     payload = response.json()
     assert payload["card"]["set_code"] == "UPPER-SET"
+
+
+def test_card_info_uses_month_range_by_default(api_client, monkeypatch):
+    class _FixedDate(dt.date):
+        @classmethod
+        def today(cls):  # pragma: no cover - patched for deterministic range
+            return cls(2024, 2, 15)
+
+    monkeypatch.setattr(cards_routes.dt, "date", _FixedDate)
+
+    remote_results = [
+        {
+            "id": "sv1-1",
+            "name": "Pikachu",
+            "number": "001",
+            "set_name": "Scarlet & Violet",
+            "set_code": "sv1",
+            "price": 9.99,
+        }
+    ]
+
+    monkeypatch.setattr(
+        cards_routes.tcg_api,
+        "search_cards",
+        lambda **_: (remote_results, len(remote_results), len(remote_results)),
+    )
+
+    captured: dict[str, object] = {}
+
+    def fake_history(card_id, **kwargs):
+        captured["card_id"] = card_id
+        captured["kwargs"] = kwargs
+        return []
+
+    monkeypatch.setattr(cards_routes.tcg_api, "fetch_card_price_history", fake_history)
+
+    response = api_client.get(
+        "/cards/info",
+        params={"name": "Pikachu", "number": "001"},
+    )
+
+    assert response.status_code == 200, response.text
+    assert captured.get("card_id") == "sv1-1"
+    params = captured.get("kwargs") or {}
+    assert params.get("date_from") == dt.date(2024, 1, 16)
+    assert params.get("date_to") == dt.date(2024, 2, 15)
 
 
 def test_card_search_passes_rapidapi_credentials(api_client, monkeypatch):

@@ -1577,7 +1577,7 @@
     const controls = Array.from(document.querySelectorAll("[data-price-range]"));
 
     if (!section || !chart || !chartLayer || !emptyState || !controls.length) {
-      return { setData: () => {} };
+      return { setData: () => {}, setRangeFetcher: () => {} };
     }
 
     const SVG_NS = "http://www.w3.org/2000/svg";
@@ -1586,7 +1586,15 @@
       last_30: [],
       all: [],
     };
+    const RELATED_RANGES = Object.freeze({
+      last_7: [],
+      last_30: ["last_7"],
+      all: ["last_7", "last_30"],
+    });
+    const fetchedRanges = new Set();
     let activeRange = "last_30";
+    let isLoading = false;
+    let rangeFetcher = null;
 
     const parseHistoryPoints = (items) => {
       if (!Array.isArray(items)) return [];
@@ -1618,11 +1626,30 @@
       controls.forEach((button) => {
         const key = button.dataset.priceRange;
         const hasData = Boolean(key && ranges[key] && ranges[key].length);
-        button.disabled = !hasData;
-        const isActive = hasData && key === rangeKey;
+        const attempted = key ? fetchedRanges.has(key) : false;
+        const canFetch = typeof rangeFetcher === "function";
+        const disableBecauseNoData = !hasData && attempted && !canFetch;
+        const disableBecauseLoading = isLoading && key !== rangeKey;
+        button.disabled = disableBecauseNoData || disableBecauseLoading;
+        const isActive = key === rangeKey;
         button.classList.toggle("is-active", isActive);
         button.setAttribute("aria-pressed", isActive ? "true" : "false");
+        if (button.dataset.loading === "true" && !isLoading) {
+          delete button.dataset.loading;
+        }
       });
+    };
+
+    const setSectionLoading = (loading) => {
+      isLoading = Boolean(loading);
+      if (isLoading) {
+        section.dataset.loading = "true";
+        section.setAttribute("aria-busy", "true");
+      } else {
+        delete section.dataset.loading;
+        section.removeAttribute("aria-busy");
+      }
+      updateControls(activeRange);
     };
 
     const setChartAriaLabel = (rangeKey, points) => {
@@ -1714,12 +1741,164 @@
       setChartAriaLabel(rangeKey, points);
     };
 
+    const setData = (history, options = {}) => {
+      const payload = history && typeof history === "object" ? history : {};
+      const { activeRange: requestedRange, sourceRange, preserveActive = false } = options;
+
+      if (sourceRange) {
+        fetchedRanges.add(sourceRange);
+        const related = RELATED_RANGES[sourceRange] || [];
+        related.forEach((key) => fetchedRanges.add(key));
+      }
+
+      const updatedKeys = [];
+      for (const key of ["last_7", "last_30", "all"]) {
+        if (Object.prototype.hasOwnProperty.call(payload, key)) {
+          const parsed = parseHistoryPoints(payload[key]);
+          ranges[key] = parsed;
+          updatedKeys.push(key);
+        }
+      }
+
+      if (!updatedKeys.length && !requestedRange && !preserveActive) {
+        return;
+      }
+
+      let nextRange = null;
+
+      if (
+        requestedRange &&
+        (updatedKeys.includes(requestedRange) || (ranges[requestedRange] && ranges[requestedRange].length))
+      ) {
+        nextRange = requestedRange;
+      } else if (preserveActive && ranges[activeRange]) {
+        nextRange = activeRange;
+      }
+
+      if (!nextRange) {
+        for (const key of ["last_30", "last_7", "all"]) {
+          if (ranges[key] && ranges[key].length) {
+            nextRange = key;
+            break;
+          }
+        }
+      }
+
+      if (!nextRange) {
+        for (const key of ["last_30", "last_7", "all"]) {
+          if (updatedKeys.includes(key)) {
+            nextRange = key;
+            break;
+          }
+        }
+      }
+
+      if (!nextRange) {
+        chartLayer.innerHTML = "";
+        chart.setAttribute("aria-hidden", "true");
+        emptyState.hidden = false;
+        controls.forEach((button) => {
+          button.disabled = true;
+          button.classList.remove("is-active");
+          button.setAttribute("aria-pressed", "false");
+        });
+        section.hidden = true;
+        return;
+      }
+
+      section.hidden = false;
+      activeRange = nextRange;
+      updateControls(activeRange);
+      renderChart(activeRange);
+    };
+
+    const fetchRangeData = async (rangeKey, triggerButton) => {
+      if (typeof rangeFetcher !== "function") {
+        return;
+      }
+      if (isLoading) {
+        return;
+      }
+
+      const button =
+        triggerButton ||
+        controls.find((control) => control.dataset.priceRange === rangeKey) ||
+        null;
+      const wasDisabled = button ? button.disabled : false;
+
+      if (button) {
+        button.dataset.loading = "true";
+        button.disabled = true;
+      }
+
+      setSectionLoading(true);
+
+      try {
+        const result = await rangeFetcher(rangeKey);
+
+        let historyPayload = null;
+        let sourceRange = rangeKey;
+
+        if (result && typeof result === "object") {
+          if (Object.prototype.hasOwnProperty.call(result, "history")) {
+            historyPayload = result.history;
+            if (result.sourceRange) {
+              sourceRange = result.sourceRange;
+            }
+          } else if (Object.prototype.hasOwnProperty.call(result, "price_history")) {
+            historyPayload = result.price_history;
+          } else if (result.card && result.card.price_history) {
+            historyPayload = result.card.price_history;
+          } else {
+            historyPayload = result;
+          }
+        } else {
+          historyPayload = result;
+        }
+
+        if (historyPayload && typeof historyPayload === "object") {
+          setData(historyPayload, {
+            activeRange: rangeKey,
+            sourceRange,
+            preserveActive: true,
+          });
+        } else if (!ranges[rangeKey] || !ranges[rangeKey].length) {
+          setData(
+            { [rangeKey]: [] },
+            { activeRange: rangeKey, sourceRange: rangeKey, preserveActive: true },
+          );
+        }
+      } catch (error) {
+        console.error("Failed to load price history range", error);
+      } finally {
+        if (button) {
+          button.dataset.loading = "false";
+          if (!wasDisabled) {
+            button.disabled = false;
+          }
+        }
+        setSectionLoading(false);
+      }
+    };
+
     controls.forEach((button) => {
-      button.addEventListener("click", () => {
+      button.addEventListener("click", async () => {
         const rangeKey = button.dataset.priceRange;
-        if (!rangeKey || !ranges[rangeKey] || !ranges[rangeKey].length) {
+        if (!rangeKey) {
           return;
         }
+
+        if (!fetchedRanges.has(rangeKey) && typeof rangeFetcher === "function") {
+          await fetchRangeData(rangeKey, button);
+          if (activeRange === rangeKey) {
+            return;
+          }
+        }
+
+        if (activeRange === rangeKey) {
+          return;
+        }
+
         activeRange = rangeKey;
         updateControls(activeRange);
         renderChart(activeRange);
@@ -1727,39 +1906,17 @@
     });
 
     return {
-      setData(history) {
-        ranges.last_7 = parseHistoryPoints(history?.last_7);
-        ranges.last_30 = parseHistoryPoints(history?.last_30);
-        ranges.all = parseHistoryPoints(history?.all);
-
-        const availableRange = ["last_7", "last_30", "all"].find(
-          (key) => ranges[key] && ranges[key].length,
-        );
-
-        if (!availableRange) {
-          chartLayer.innerHTML = "";
-          chart.setAttribute("aria-hidden", "true");
-          emptyState.hidden = false;
-          controls.forEach((button) => {
-            button.disabled = true;
-            button.classList.remove("is-active");
-            button.setAttribute("aria-pressed", "false");
-          });
-          section.hidden = true;
-          return;
-        }
-
-        section.hidden = false;
-        activeRange = availableRange;
+      setData,
+      setRangeFetcher(handler) {
+        rangeFetcher = typeof handler === "function" ? handler : null;
         updateControls(activeRange);
-        renderChart(activeRange);
       },
     };
   };
 
   const renderCardDetail = (card, options = {}) => {
     if (!card) return;
-    const { priceHistoryModule } = options;
+    const { priceHistoryModule, priceHistoryRange } = options;
 
     const sanitizeText = (value) => (typeof value === "string" ? value.trim() : value);
     const setTextOrFallback = (element, value, fallback = "—") => {
@@ -1994,7 +2151,10 @@
     }
 
     if (priceHistoryModule && typeof priceHistoryModule.setData === "function") {
-      priceHistoryModule.setData(card.price_history || {});
+      priceHistoryModule.setData(card.price_history || {}, {
+        sourceRange: priceHistoryRange,
+        activeRange: priceHistoryRange,
+      });
     }
   };
 
@@ -2047,9 +2207,76 @@
     if (setCode) params.set("set_code", setCode);
     if (setName) params.set("set_name", setName);
 
-    apiFetch(`/cards/info?${params.toString()}`)
-      .then((data) => {
-        renderCardDetail(data?.card, { priceHistoryModule });
+    const baseParams = new URLSearchParams(params);
+    const DEFAULT_PRICE_RANGE = "last_30";
+
+    const formatDateParam = (date) => {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+        return "";
+      }
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    const resolveRangeParams = (rangeKey) => {
+      if (rangeKey === "all") {
+        return {};
+      }
+
+      const now = new Date();
+      const toDate = formatDateParam(now);
+      const days = rangeKey === "last_7" ? 7 : 30;
+      const fromDate = new Date(now.getTime());
+      fromDate.setDate(fromDate.getDate() - days);
+      return {
+        date_from: formatDateParam(fromDate),
+        date_to: toDate,
+      };
+    };
+
+    const buildInfoQuery = (rangeKey) => {
+      const range = rangeKey || DEFAULT_PRICE_RANGE;
+      const query = new URLSearchParams(baseParams);
+      const { date_from: dateFrom, date_to: dateTo } = resolveRangeParams(range);
+      if (dateFrom) query.set("date_from", dateFrom);
+      if (dateTo) query.set("date_to", dateTo);
+      return { query, range };
+    };
+
+    const requestCardInfo = async (rangeKey) => {
+      const { query, range } = buildInfoQuery(rangeKey);
+      const data = await apiFetch(`/cards/info?${query.toString()}`);
+      return { data, range };
+    };
+
+    if (priceHistoryModule && typeof priceHistoryModule.setRangeFetcher === "function") {
+      priceHistoryModule.setRangeFetcher(async (rangeKey) => {
+        try {
+          const { data, range } = await requestCardInfo(rangeKey);
+          const cardData = data?.card;
+          if (cardData) {
+            renderCardDetail(cardData, {
+              priceHistoryModule,
+              priceHistoryRange: range,
+            });
+          }
+          showAlert(alertBox, "");
+        } catch (error) {
+          console.error("Card price history fetch failed", error);
+          showAlert(alertBox, error.message || "Nie udało się pobrać danych karty.", "error");
+        }
+        return null;
+      });
+    }
+
+    requestCardInfo(DEFAULT_PRICE_RANGE)
+      .then(({ data, range }) => {
+        renderCardDetail(data?.card, {
+          priceHistoryModule,
+          priceHistoryRange: range,
+        });
         renderRelatedCards(data?.related || []);
         showAlert(alertBox, "");
       })

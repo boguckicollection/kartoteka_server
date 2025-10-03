@@ -1128,6 +1128,27 @@ def list_set_cards(
     return results, request_count
 
 
+def _normalize_history_date_param(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, dt.datetime):
+        value = value.date()
+    if isinstance(value, dt.date):
+        return value.isoformat()
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        parsed = _parse_history_date(text)
+        if parsed:
+            return parsed.isoformat()
+        return text
+    parsed = _parse_history_date(value)
+    if parsed:
+        return parsed.isoformat()
+    return None
+
+
 def fetch_card_price_history(
     card_id: str,
     *,
@@ -1137,6 +1158,8 @@ def fetch_card_price_history(
     timeout: float = 10.0,
     market: Optional[str] = None,
     currency: Optional[str] = None,
+    date_from: Any | None = None,
+    date_to: Any | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch market price history for a Pokémon card via RapidAPI."""
 
@@ -1157,6 +1180,14 @@ def fetch_card_price_history(
         params["market"] = market
     if currency:
         params["currency"] = currency
+    if date_from is not None:
+        normalized_from = _normalize_history_date_param(date_from)
+        if normalized_from:
+            params["date_from"] = normalized_from
+    if date_to is not None:
+        normalized_to = _normalize_history_date_param(date_to)
+        if normalized_to:
+            params["date_to"] = normalized_to
 
     try:
         response = http.get(url, params=params or None, headers=headers, timeout=timeout)
