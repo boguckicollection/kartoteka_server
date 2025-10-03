@@ -813,9 +813,22 @@ def search_cards(
         set_code_clean = set_utils.clean_code(set_code)
         if set_code_clean:
             rapid_search_parts.append(set_code_clean)
+            canonical_set_code = set_utils.resolve_canonical_set_slug(set_code)
+            if (
+                canonical_set_code
+                and canonical_set_code != set_code_clean
+            ):
+                rapid_search_parts.append(canonical_set_code)
     if total_clean:
         rapid_search_parts.append(total_clean)
-    query_value = " ".join(part for part in rapid_search_parts if part)
+    deduped_parts: list[str] = []
+    seen_parts: set[str] = set()
+    for part in rapid_search_parts:
+        if not part or part in seen_parts:
+            continue
+        deduped_parts.append(part)
+        seen_parts.add(part)
+    query_value = " ".join(deduped_parts)
     if not query_value:
         return [], 0, 0
 

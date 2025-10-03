@@ -185,6 +185,22 @@ def test_search_cards_builds_compound_query():
     assert params["search"] == "pikachu base 102"
 
 
+def test_search_cards_uses_canonical_set_code_when_available():
+    session = _DummySession()
+    tcg_api.search_cards(
+        name="Pikachu",
+        set_code="SSP",
+        session=session,
+    )
+
+    call = session.calls[0]
+    params = call["params"] or {}
+    search_value = params["search"]
+    search_parts = search_value.split()
+    assert "ssp" in search_parts
+    assert "sv8" in search_parts
+
+
 def test_search_cards_forwards_pagination_params():
     session = _DummySession()
     tcg_api.search_cards(
