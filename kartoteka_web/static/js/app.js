@@ -1777,11 +1777,11 @@
       title.textContent = sanitizeText(card.name) || "Szczegóły karty";
     }
 
+    const artistValue = sanitizeText(card.artist);
     const era = document.getElementById("card-detail-era");
     if (era) {
-      const eraValue = sanitizeText(card.series);
-      if (eraValue) {
-        era.textContent = eraValue;
+      if (artistValue) {
+        era.textContent = `Ilustrator: ${artistValue}`;
         era.hidden = false;
       } else {
         era.textContent = "";
@@ -1924,18 +1924,6 @@
     setTextOrFallback(totalElement, card.total);
     const releaseElement = document.getElementById("card-detail-release");
     setTextOrFallback(releaseElement, card.release_date);
-
-    const artistElement = document.getElementById("card-detail-artist");
-    const artistValue = sanitizeText(card.artist);
-    if (artistElement) {
-      if (artistValue) {
-        artistElement.textContent = `Ilustrator: ${artistValue}`;
-        artistElement.hidden = false;
-      } else {
-        artistElement.textContent = "";
-        artistElement.hidden = true;
-      }
-    }
 
     const descriptionSection = document.getElementById("card-detail-description-section");
     const descriptionContent = document.getElementById("card-detail-description");

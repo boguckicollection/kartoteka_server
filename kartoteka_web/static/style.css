@@ -1621,7 +1621,7 @@ body[data-theme="dark"] .card-search-set-badges {
   color: var(--color-text);
 }
 
-.card-detail-artist {
+.card-detail-era {
   margin: 0 0 12px;
   color: var(--color-muted);
 }
