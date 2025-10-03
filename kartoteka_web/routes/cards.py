@@ -662,7 +662,7 @@ def card_info(
         detail.shop_url = DEFAULT_SHOP_URL
 
     local_icon = _local_set_icon_path(detail.set_code, detail.set_name)
-    if local_icon:
+    if local_icon and not detail.set_icon_path:
         detail.set_icon_path = local_icon
 
     local_rarity_icon = tcg_api.resolve_rarity_icon_path(detail.rarity)
