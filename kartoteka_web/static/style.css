@@ -905,6 +905,10 @@ body[data-theme="dark"] .card-search-results--grid .card-search-item:focus-withi
   flex-shrink: 0;
 }
 
+.card-search-results--list .card-search-list-set {
+  gap: 4px;
+}
+
 .card-search-badge {
   display: inline-flex;
   align-items: center;
@@ -948,6 +952,11 @@ body[data-theme="dark"] .card-search-badge--rarity {
   flex: 0 0 auto;
 }
 
+.card-search-results--list .card-search-set-icon {
+  width: 28px;
+  height: 28px;
+}
+
 .card-search-set-fallback {
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -972,6 +981,10 @@ body[data-theme="dark"] .card-search-badge--rarity {
   color: var(--color-muted);
   white-space: nowrap;
   flex: 0 0 auto;
+}
+
+.card-search-results--list .card-search-list-rarity {
+  gap: 8px;
 }
 
 .card-search-list-rarity-label {
@@ -1167,6 +1180,11 @@ body[data-theme="dark"] .card-search-set-badges {
   flex-shrink: 0;
 }
 
+.card-search-results--list .card-search-rarity-icon {
+  width: 28px;
+  height: 28px;
+}
+
 .card-search-rarity-icon img {
   width: 100%;
   height: 100%;
@@ -1180,6 +1198,11 @@ body[data-theme="dark"] .card-search-set-badges {
   color: var(--color-muted);
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.card-search-results--list .card-search-rarity-icon-fallback {
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
 }
 
 .card-search-info {
