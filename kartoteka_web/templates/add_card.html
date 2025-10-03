@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Dodaj kartę - Kartoteka{% endblock %}
 {% block content %}
+<div
+  class="alert alert--floating"
+  id="add-card-alert"
+  hidden
+  role="status"
+  aria-live="polite"
+></div>
 <section class="page-hero add-card-hero">
   <div>
     <p class="eyebrow">Rozszerz swoją kolekcję</p>
@@ -36,7 +43,6 @@
       </div>
     </div>
   </form>
-  <div class="alert" id="add-card-alert" hidden></div>
   <div class="card-search-toolbar" data-card-search-toolbar>
     <div class="card-search-toolbar-group card-search-toolbar-group--sort">
       <label for="card-sort-select">Sortowanie</label>
