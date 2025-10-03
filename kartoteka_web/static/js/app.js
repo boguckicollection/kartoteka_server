@@ -1859,19 +1859,15 @@
     }
     if (rarityIconElement) {
       const iconCandidates = [];
-      if (raritySymbolValue) {
-        iconCandidates.push(raritySymbolValue);
-      }
+      const addIconCandidate = (iconUrl) => {
+        if (iconUrl && !iconCandidates.includes(iconUrl)) {
+          iconCandidates.push(iconUrl);
+        }
+      };
       const resolvedRarityIcon = resolveRarityIconUrl(rarityValue);
-      if (resolvedRarityIcon && !iconCandidates.includes(resolvedRarityIcon)) {
-        iconCandidates.push(resolvedRarityIcon);
-      }
-      if (
-        raritySymbolRemoteValue
-        && !iconCandidates.includes(raritySymbolRemoteValue)
-      ) {
-        iconCandidates.push(raritySymbolRemoteValue);
-      }
+      addIconCandidate(resolvedRarityIcon);
+      addIconCandidate(raritySymbolValue);
+      addIconCandidate(raritySymbolRemoteValue);
       const [primaryRarityIcon = "", fallbackRarityIcon = ""] = iconCandidates;
       const showRarityFallback = () => {
         if (rarityFallbackElement) {
