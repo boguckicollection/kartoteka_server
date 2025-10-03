@@ -906,21 +906,30 @@
     if (!item) {
       return { primary: null, fallback: null };
     }
-    const customIcon = (item.set_icon || "").trim() || null;
-    const localOverride = (item.set_icon_path || "").trim() || null;
-    if (localOverride) {
-      return { primary: localOverride, fallback: customIcon };
-    }
+    const primaryIcon = (item.set_icon || "").trim() || null;
+    const explicitFallback = (item.set_icon_path || "").trim() || null;
+
     const setCodeRaw = (item.set_code || "").trim();
-    if (!setCodeRaw) {
-      return { primary: customIcon, fallback: null };
+    let derivedFallback = null;
+    if (setCodeRaw) {
+      const normalizedCode = setCodeRaw.toLowerCase().replace(/[^a-z0-9-]/g, "");
+      if (normalizedCode) {
+        derivedFallback = `${SET_ICON_LOCAL_BASE}/${encodeURIComponent(normalizedCode)}.png`;
+      }
     }
-    const normalizedCode = setCodeRaw.toLowerCase().replace(/[^a-z0-9-]/g, "");
-    if (!normalizedCode) {
-      return { primary: customIcon, fallback: null };
+
+    const fallbackIcon = explicitFallback || derivedFallback;
+
+    if (primaryIcon) {
+      const normalizedFallback = fallbackIcon && fallbackIcon !== primaryIcon ? fallbackIcon : null;
+      return { primary: primaryIcon, fallback: normalizedFallback };
     }
-    const localUrl = `${SET_ICON_LOCAL_BASE}/${encodeURIComponent(normalizedCode)}.png`;
-    return { primary: localUrl, fallback: customIcon };
+
+    if (fallbackIcon) {
+      return { primary: fallbackIcon, fallback: null };
+    }
+
+    return { primary: null, fallback: null };
   };
 
   const renderSearchResults = (
