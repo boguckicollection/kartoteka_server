@@ -149,6 +149,7 @@ def test_card_search_and_detail(api_client, monkeypatch):
         name,
         number=None,
         set_name=None,
+        set_code=None,
         total=None,
         limit,
         sort=None,
@@ -163,6 +164,7 @@ def test_card_search_and_detail(api_client, monkeypatch):
                 "name": name,
                 "number": number,
                 "set_name": set_name,
+                "set_code": set_code,
                 "total": total,
                 "limit": limit,
                 "sort": sort,
@@ -173,6 +175,8 @@ def test_card_search_and_detail(api_client, monkeypatch):
                 "rapidapi_host": rapidapi_host,
             }
         )
+        if name and "missing" in name.lower():
+            return [], 0, 0
         return search_results, len(search_results), 84
 
     monkeypatch.setattr(
@@ -287,6 +291,114 @@ def test_card_search_and_detail(api_client, monkeypatch):
     assert unauthenticated_search.status_code == 401
 
 
+def test_card_info_remote_fallback(api_client, monkeypatch):
+    remote_cards = [
+        {
+            "id": "base1-4",
+            "name": "Charizard",
+            "number": "4",
+            "number_display": "4/102",
+            "total": "102",
+            "set_name": "Base Set",
+            "set_code": "base1",
+            "rarity": "Rare Holo",
+            "image_small": "https://example.com/charizard-small.jpg",
+            "image_large": "https://example.com/charizard-large.jpg",
+            "set_icon": "https://example.com/base-set.png",
+            "artist": "Mitsuhiro Arita",
+            "series": "Base",
+            "release_date": "1999/01/09",
+            "price": 123.45,
+            "price_7d_average": 120.0,
+            "description": "Opis zdalnej karty",
+            "shop_url": "https://example.com/shop/charizard",
+        },
+        {
+            "id": "base1-5",
+            "name": "Charizard",
+            "number": "5",
+            "number_display": "5/102",
+            "total": "102",
+            "set_name": "Base Set",
+            "set_code": "base1",
+            "rarity": "Rare",
+            "image_small": "https://example.com/charizard-5-small.jpg",
+            "image_large": "https://example.com/charizard-5-large.jpg",
+        },
+    ]
+
+    captured: dict[str, object] = {}
+
+    def fake_search_cards(
+        *,
+        name,
+        number=None,
+        set_name=None,
+        set_code=None,
+        total=None,
+        limit=None,
+        sort=None,
+        order=None,
+        page=None,
+        per_page=None,
+        rapidapi_key=None,
+        rapidapi_host=None,
+    ):
+        captured.update(
+            {
+                "name": name,
+                "number": number,
+                "set_name": set_name,
+                "set_code": set_code,
+                "total": total,
+                "limit": limit,
+                "per_page": per_page,
+                "rapidapi_key": rapidapi_key,
+                "rapidapi_host": rapidapi_host,
+            }
+        )
+        return remote_cards, len(remote_cards), len(remote_cards)
+
+    monkeypatch.setattr(cards_routes.tcg_api, "search_cards", fake_search_cards)
+
+    price_history_payload = [
+        {"date": "2024-01-01", "marketPrice": 10.0, "currency": "EUR"},
+        {"date": "2024-01-02", "marketPrice": 12.0, "currency": "EUR"},
+    ]
+
+    monkeypatch.setattr(
+        cards_routes.tcg_api,
+        "fetch_card_price_history",
+        lambda *args, **kwargs: price_history_payload,
+    )
+    monkeypatch.setattr(cards_routes.tcg_api, "get_eur_pln_rate", lambda: 4.0)
+
+    response = api_client.get(
+        "/cards/info",
+        params={
+            "name": "Charizard",
+            "number": "4",
+            "set_name": "Base Set",
+            "set_code": "base1",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    card = payload["card"]
+    assert card["name"] == "Charizard"
+    assert card["set_code"] == "base1"
+    assert card["price"] == pytest.approx(123.45)
+    history = card["price_history"]
+    assert history["all"], "Expected remote price history to be populated"
+    assert captured["set_code"] == "base1"
+    assert payload["related"], "Expected related cards from remote search"
+    assert payload["related"][0]["number"] == "5"
+
+    with database.session_scope() as session:
+        assert session.exec(select(models.Card)).all() == []
+
+
 def test_card_info_accepts_normalized_set_code(api_client):
     with database.session_scope() as session:
         session.add(
@@ -323,6 +435,7 @@ def test_card_search_passes_rapidapi_credentials(api_client, monkeypatch):
         name,
         number=None,
         set_name=None,
+        set_code=None,
         total=None,
         limit,
         sort=None,
@@ -337,6 +450,7 @@ def test_card_search_passes_rapidapi_credentials(api_client, monkeypatch):
                 "name": name,
                 "number": number,
                 "set_name": set_name,
+                "set_code": set_code,
                 "total": total,
                 "limit": limit,
                 "sort": sort,
@@ -390,6 +504,7 @@ def test_cards_module_uses_generic_rapidapi_env(monkeypatch):
         name,
         number=None,
         set_name=None,
+        set_code=None,
         total=None,
         limit,
         sort=None,
@@ -404,6 +519,7 @@ def test_cards_module_uses_generic_rapidapi_env(monkeypatch):
                 "name": name,
                 "number": number,
                 "set_name": set_name,
+                "set_code": set_code,
                 "total": total,
                 "limit": limit,
                 "sort": sort,
@@ -445,6 +561,7 @@ def test_card_search_pagination_clamping(api_client, monkeypatch):
         name,
         number=None,
         set_name=None,
+        set_code=None,
         total=None,
         limit=None,
         sort=None,
@@ -459,6 +576,7 @@ def test_card_search_pagination_clamping(api_client, monkeypatch):
                 "name": name,
                 "number": number,
                 "set_name": set_name,
+                "set_code": set_code,
                 "total": total,
                 "limit": limit,
                 "sort": sort,
@@ -534,6 +652,7 @@ def test_card_search_uses_filtered_total_for_pagination(api_client, monkeypatch)
         name,
         number=None,
         set_name=None,
+        set_code=None,
         total=None,
         limit=None,
         sort=None,
@@ -593,6 +712,7 @@ def test_card_search_uses_local_pagination(api_client, monkeypatch):
         name,
         number=None,
         set_name=None,
+        set_code=None,
         total=None,
         limit=None,
         sort=None,
@@ -605,6 +725,7 @@ def test_card_search_uses_local_pagination(api_client, monkeypatch):
         captured.update(
             {
                 "name": name,
+                "set_code": set_code,
                 "limit": limit,
                 "page": page,
                 "per_page": per_page,
