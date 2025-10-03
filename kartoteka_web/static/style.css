@@ -415,6 +415,17 @@ img {
   margin-bottom: 16px;
 }
 
+.alert--floating {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(640px, calc(100% - 32px));
+  margin: 0;
+  z-index: 2000;
+  box-shadow: var(--shadow-soft);
+}
+
 .alert[data-variant="success"] {
   border-color: rgba(22, 163, 74, 0.35);
   background: rgba(22, 163, 74, 0.08);
@@ -436,6 +447,10 @@ img {
   width: 100%;
   border-collapse: collapse;
   min-width: 720px;
+}
+
+main:has(#add-card-page) {
+  padding-top: 96px;
 }
 
 .collection-table th,
