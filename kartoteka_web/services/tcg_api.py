@@ -22,6 +22,33 @@ _EUR_PLN_RATE_TTL = 60 * 60  # 1 hour
 
 _RARITY_ICON_BASE_PATH = "/static/icons/rarity"
 _RARITY_ICON_IMAGE_BASE_PATH = "/icon/rarity"
+_RARITY_ICON_VECTOR_MAP = {
+    "common": f"{_RARITY_ICON_BASE_PATH}/common.svg",
+    "uncommon": f"{_RARITY_ICON_BASE_PATH}/uncommon.svg",
+    "rare": f"{_RARITY_ICON_BASE_PATH}/rare.svg",
+    "rare-holo": f"{_RARITY_ICON_BASE_PATH}/rare-holo.svg",
+    "holo-rare": f"{_RARITY_ICON_BASE_PATH}/rare-holo.svg",
+    "double-rare": f"{_RARITY_ICON_BASE_PATH}/rare-ultra.svg",
+    "rare-double": f"{_RARITY_ICON_BASE_PATH}/rare-ultra.svg",
+    "ultra-rare": f"{_RARITY_ICON_BASE_PATH}/rare-ultra.svg",
+    "rare-ultra": f"{_RARITY_ICON_BASE_PATH}/rare-ultra.svg",
+    "hyper-rare": f"{_RARITY_ICON_BASE_PATH}/rare-secret.svg",
+    "rare-secret": f"{_RARITY_ICON_BASE_PATH}/rare-secret.svg",
+    "secret-rare": f"{_RARITY_ICON_BASE_PATH}/rare-secret.svg",
+    "rare-rainbow": f"{_RARITY_ICON_BASE_PATH}/rare-rainbow.svg",
+    "rainbow-rare": f"{_RARITY_ICON_BASE_PATH}/rare-rainbow.svg",
+    "illustration-rare": f"{_RARITY_ICON_BASE_PATH}/rare-illustration.svg",
+    "rare-illustration": f"{_RARITY_ICON_BASE_PATH}/rare-illustration.svg",
+    "special-illustration-rare": f"{_RARITY_ICON_BASE_PATH}/rare-illustration.svg",
+    "rare-special-illustration": f"{_RARITY_ICON_BASE_PATH}/rare-illustration.svg",
+    "shiny-rare": f"{_RARITY_ICON_BASE_PATH}/rare-shiny.svg",
+    "rare-shiny": f"{_RARITY_ICON_BASE_PATH}/rare-shiny.svg",
+    "shinyrare": f"{_RARITY_ICON_BASE_PATH}/rare-shiny.svg",
+    "ace-spec": f"{_RARITY_ICON_BASE_PATH}/rare-ace.svg",
+    "rare-ace": f"{_RARITY_ICON_BASE_PATH}/rare-ace.svg",
+    "ace-spec-rare": f"{_RARITY_ICON_BASE_PATH}/rare-ace.svg",
+    "promo": f"{_RARITY_ICON_BASE_PATH}/promo.svg",
+}
 _RARITY_ICON_MAP = {
     "common": f"{_RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Common.png",
     "uncommon": f"{_RARITY_ICON_IMAGE_BASE_PATH}/Rarity_Uncommon.png",
@@ -114,12 +141,18 @@ def resolve_rarity_icon_path(rarity: Optional[str]) -> Optional[str]:
         return None
     normalized = _normalize_rarity_key(str(rarity))
     if normalized:
+        vector_icon = _RARITY_ICON_VECTOR_MAP.get(normalized)
+        if vector_icon:
+            return vector_icon
         mapped = _RARITY_ICON_MAP.get(normalized)
         if mapped:
             return mapped
     lower_value = str(rarity).lower()
     for pattern, key in _RARITY_ICON_RULES:
         if pattern.search(lower_value):
+            vector_icon = _RARITY_ICON_VECTOR_MAP.get(key)
+            if vector_icon:
+                return vector_icon
             return _RARITY_ICON_MAP.get(key)
     return None
 

@@ -26,22 +26,41 @@
       <p class="card-detail-era" id="card-detail-era" hidden></p>
       <h1 id="card-detail-title">{{ card_name or 'Szczegóły karty' }}</h1>
       <div class="card-detail-set">
-        <div class="card-detail-set-badge">
-          <img
-            id="card-detail-set-icon"
-            class="card-detail-set-icon"
-            alt="Symbol dodatku"
-            loading="lazy"
-            decoding="async"
-            hidden
-            data-card-set-icon
-          />
-          <span
-            class="card-detail-set-code"
-            id="card-detail-set-code"
-            hidden
-            data-card-set-icon-fallback
-          ></span>
+        <div class="card-detail-set-visual">
+          <div class="card-detail-set-badge">
+            <img
+              id="card-detail-set-icon"
+              class="card-detail-set-icon"
+              alt="Symbol dodatku"
+              loading="lazy"
+              decoding="async"
+              hidden
+              data-card-set-icon
+            />
+            <span
+              class="card-detail-set-code"
+              id="card-detail-set-code"
+              hidden
+              data-card-set-icon-fallback
+            ></span>
+          </div>
+          <div class="card-detail-rarity-badge">
+            <img
+              id="card-detail-rarity-icon"
+              class="card-detail-rarity-icon"
+              alt="Symbol rzadkości"
+              loading="lazy"
+              decoding="async"
+              hidden
+              data-card-rarity-icon
+            />
+            <span
+              class="card-detail-rarity-fallback"
+              id="card-detail-rarity-fallback"
+              hidden
+              aria-hidden="true"
+            ></span>
+          </div>
         </div>
         <div class="card-detail-set-text">
           <span id="card-detail-set-name">{{ card_set_name or '' }}</span>
