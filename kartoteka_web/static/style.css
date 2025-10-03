@@ -737,7 +737,8 @@ main:has(#add-card-page) {
 .card-search-results--grid {
   display: grid;
   gap: 20px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 260px));
+  justify-content: center;
 }
 
 .card-search-item {
@@ -756,6 +757,8 @@ main:has(#add-card-page) {
   background: var(--color-surface-alt);
   box-shadow: var(--shadow-card);
   min-height: 100%;
+  max-width: 260px;
+  margin: 0 auto;
 }
 
 .card-search-results--grid .card-search-item:hover,
