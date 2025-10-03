@@ -106,6 +106,8 @@ class CardDetail(SQLModel):
     image_small: Optional[str] = None
     image_large: Optional[str] = None
     rarity: Optional[str] = None
+    rarity_symbol: Optional[str] = None
+    rarity_symbol_remote: Optional[str] = None
     artist: Optional[str] = None
     series: Optional[str] = None
     release_date: Optional[str] = None

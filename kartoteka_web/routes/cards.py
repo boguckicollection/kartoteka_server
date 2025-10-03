@@ -139,6 +139,7 @@ def _card_to_search_schema(card: models.Card) -> schemas.CardSearchResult:
 
 
 def _card_to_detail(card: models.Card) -> schemas.CardDetail:
+    rarity_symbol = tcg_api.resolve_rarity_icon_path(card.rarity)
     return schemas.CardDetail(
         name=card.name,
         number=card.number,
@@ -151,6 +152,8 @@ def _card_to_detail(card: models.Card) -> schemas.CardDetail:
         image_small=card.image_small,
         image_large=card.image_large,
         rarity=card.rarity,
+        rarity_symbol=rarity_symbol,
+        rarity_symbol_remote=None,
         artist=None,
         series=None,
         release_date=None,
@@ -575,6 +578,22 @@ def card_info(
             if value:
                 setattr(detail, attr, value)
 
+        rarity_symbol_value = remote_card.get("rarity_symbol")
+        if isinstance(rarity_symbol_value, str):
+            rarity_symbol_clean = rarity_symbol_value.strip()
+        else:
+            rarity_symbol_clean = None
+        if rarity_symbol_clean:
+            detail.rarity_symbol = rarity_symbol_clean
+
+        rarity_symbol_remote_value = remote_card.get("rarity_symbol_remote")
+        if isinstance(rarity_symbol_remote_value, str):
+            rarity_symbol_remote_clean = rarity_symbol_remote_value.strip()
+        else:
+            rarity_symbol_remote_clean = None
+        if rarity_symbol_remote_clean:
+            detail.rarity_symbol_remote = rarity_symbol_remote_clean
+
         price_value = remote_card.get("price")
         if price_value is not None:
             detail.price = price_value
@@ -601,6 +620,12 @@ def card_info(
     local_icon = _local_set_icon_path(detail.set_code, detail.set_name)
     if local_icon:
         detail.set_icon_path = local_icon
+
+    local_rarity_icon = tcg_api.resolve_rarity_icon_path(detail.rarity)
+    if local_rarity_icon and local_rarity_icon != detail.rarity_symbol:
+        detail.rarity_symbol = local_rarity_icon
+    if not detail.rarity_symbol and detail.rarity_symbol_remote:
+        detail.rarity_symbol = detail.rarity_symbol_remote
 
     detail.price_history = schemas.CardPriceHistory()
     if remote_card_id:

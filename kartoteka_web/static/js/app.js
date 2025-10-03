@@ -1742,24 +1742,27 @@
     }
 
     const setCodeElement = document.getElementById("card-detail-set-code");
+    const setCodeValue = sanitizeText(card.set_code);
     if (setCodeElement) {
-      const codeValue = sanitizeText(card.set_code);
-      setCodeElement.textContent = (codeValue || "SET").toUpperCase();
+      setCodeElement.textContent = (setCodeValue || "SET").toUpperCase();
+      setCodeElement.hidden = !setCodeValue;
     }
 
     const { primary: setIconUrl, fallback: setIconFallbackUrl } = resolveSetIconUrl(card);
     const setIconImage = document.getElementById("card-detail-set-icon");
     if (setIconImage) {
-      const fallbackElement = setCodeElement;
+      const showSetCode = () => {
+        if (setCodeElement && setCodeValue) {
+          setCodeElement.hidden = false;
+        }
+      };
       if (setIconUrl) {
         setIconImage.hidden = false;
-        setIconImage.alt = sanitizeText(card.set_name)
-          ? `Symbol dodatku ${sanitizeText(card.set_name)}`
+        const setNameValue = sanitizeText(card.set_name);
+        setIconImage.alt = setNameValue
+          ? `Symbol dodatku ${setNameValue}`
           : "Symbol dodatku";
         setIconImage.src = setIconUrl;
-        if (fallbackElement) {
-          fallbackElement.hidden = true;
-        }
         if (setIconFallbackUrl && setIconFallbackUrl !== setIconUrl) {
           setIconImage.dataset.cardSetIconFallbackUrl = setIconFallbackUrl;
           setIconImage.dataset.cardSetIconFallbackTried = "false";
@@ -1777,27 +1780,97 @@
             }
             setIconImage.hidden = true;
             setIconImage.removeAttribute("src");
-            if (fallbackElement) {
-              fallbackElement.hidden = false;
-            }
+            showSetCode();
           });
           setIconImage.dataset.cardSetIconHandlerAttached = "true";
         }
       } else {
         setIconImage.hidden = true;
         setIconImage.removeAttribute("src");
-        if (fallbackElement) {
-          fallbackElement.hidden = false;
-        }
+        showSetCode();
       }
-    } else if (setCodeElement) {
-      setCodeElement.hidden = !sanitizeText(card.set_code);
     }
 
+    const rarityValue = sanitizeText(card.rarity);
     const numberElement = document.getElementById("card-detail-number");
     setTextOrFallback(numberElement, card.number_display || card.number);
     const rarityElement = document.getElementById("card-detail-rarity");
-    setTextOrFallback(rarityElement, card.rarity);
+    setTextOrFallback(rarityElement, rarityValue);
+    const rarityIconElement = document.getElementById("card-detail-rarity-icon");
+    const rarityFallbackElement = document.getElementById("card-detail-rarity-fallback");
+    const raritySymbolValue = sanitizeText(card.rarity_symbol);
+    const raritySymbolRemoteValue = sanitizeText(card.rarity_symbol_remote);
+    const rarityFallbackLabel = (rarityValue || "?").charAt(0).toUpperCase() || "?";
+    if (rarityFallbackElement) {
+      rarityFallbackElement.textContent = rarityFallbackLabel;
+    }
+    if (rarityIconElement) {
+      const iconCandidates = [];
+      if (raritySymbolValue) {
+        iconCandidates.push(raritySymbolValue);
+      }
+      const resolvedRarityIcon = resolveRarityIconUrl(rarityValue);
+      if (resolvedRarityIcon && !iconCandidates.includes(resolvedRarityIcon)) {
+        iconCandidates.push(resolvedRarityIcon);
+      }
+      if (
+        raritySymbolRemoteValue
+        && !iconCandidates.includes(raritySymbolRemoteValue)
+      ) {
+        iconCandidates.push(raritySymbolRemoteValue);
+      }
+      const [primaryRarityIcon = "", fallbackRarityIcon = ""] = iconCandidates;
+      const showRarityFallback = () => {
+        if (rarityFallbackElement) {
+          rarityFallbackElement.hidden = false;
+        }
+      };
+      const hideRarityFallback = () => {
+        if (rarityFallbackElement) {
+          rarityFallbackElement.hidden = true;
+        }
+      };
+      const resetRarityIcon = () => {
+        rarityIconElement.hidden = true;
+        rarityIconElement.removeAttribute("src");
+        delete rarityIconElement.dataset.cardRarityIconFallbackUrl;
+        delete rarityIconElement.dataset.cardRarityIconFallbackTried;
+      };
+      if (primaryRarityIcon) {
+        rarityIconElement.hidden = false;
+        rarityIconElement.alt = rarityValue
+          ? `Symbol rzadkości ${rarityValue}`
+          : "Symbol rzadkości";
+        rarityIconElement.src = primaryRarityIcon;
+        hideRarityFallback();
+        if (fallbackRarityIcon && fallbackRarityIcon !== primaryRarityIcon) {
+          rarityIconElement.dataset.cardRarityIconFallbackUrl = fallbackRarityIcon;
+          rarityIconElement.dataset.cardRarityIconFallbackTried = "false";
+        } else {
+          delete rarityIconElement.dataset.cardRarityIconFallbackUrl;
+          delete rarityIconElement.dataset.cardRarityIconFallbackTried;
+        }
+        if (!rarityIconElement.dataset.cardRarityIconHandlerAttached) {
+          rarityIconElement.addEventListener("error", () => {
+            const fallbackUrl = rarityIconElement.dataset.cardRarityIconFallbackUrl;
+            if (fallbackUrl && rarityIconElement.dataset.cardRarityIconFallbackTried !== "true") {
+              rarityIconElement.dataset.cardRarityIconFallbackTried = "true";
+              rarityIconElement.src = fallbackUrl;
+              return;
+            }
+            resetRarityIcon();
+            showRarityFallback();
+          });
+          rarityIconElement.dataset.cardRarityIconHandlerAttached = "true";
+        }
+      } else {
+        resetRarityIcon();
+        showRarityFallback();
+      }
+    } else if (rarityFallbackElement) {
+      rarityFallbackElement.hidden = false;
+    }
+
     const totalElement = document.getElementById("card-detail-total");
     setTextOrFallback(totalElement, card.total);
     const releaseElement = document.getElementById("card-detail-release");
