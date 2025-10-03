@@ -749,6 +749,7 @@ def search_cards(
     name: str,
     number: str | None = None,
     set_name: Optional[str] = None,
+    set_code: Optional[str] = None,
     total: Optional[str] = None,
     limit: int = 10,
     sort: Optional[str] = None,
@@ -808,6 +809,10 @@ def search_cards(
         set_query = text.normalize(set_name, keep_spaces=True)
         if set_query:
             rapid_search_parts.append(set_query)
+    if set_code:
+        set_code_clean = set_utils.clean_code(set_code)
+        if set_code_clean:
+            rapid_search_parts.append(set_code_clean)
     if total_clean:
         rapid_search_parts.append(total_clean)
     query_value = " ".join(part for part in rapid_search_parts if part)

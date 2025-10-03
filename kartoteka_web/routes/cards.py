@@ -524,6 +524,12 @@ def card_info(
 
     limit_value = max(0, min(related_limit, 24))
 
+    name_value = name.strip()
+    number_value = number.strip()
+    set_name_value = (set_name or "").strip()
+    set_code_value = set_utils.clean_code(set_code) or None
+    total_value = text.sanitize_number(total) if total else None
+
     card = _find_card(
         session,
         name=name,
@@ -531,24 +537,35 @@ def card_info(
         set_name=set_name,
         set_code=set_code,
     )
-    if card is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nie znaleziono karty.")
 
-    detail = _card_to_detail(card)
-    if total and not detail.total:
-        detail.total = text.sanitize_number(total)
+    if card is not None:
+        detail = _card_to_detail(card)
+        if total and not detail.total:
+            detail.total = text.sanitize_number(total)
+    else:
+        detail = schemas.CardDetail(
+            name=name_value or name,
+            number=number_value or number,
+            number_display=number_value or number,
+            total=total_value,
+            set_name=set_name_value,
+            set_code=set_code_value,
+            shop_url=DEFAULT_SHOP_URL,
+        )
 
     detail.shop_url = (detail.shop_url or DEFAULT_SHOP_URL).strip() or DEFAULT_SHOP_URL
 
     remote_results: list[dict[str, Any]] = []
+    remote_fetch_limit = max(6, limit_value + 1)
     try:
         remote_results, _, _ = tcg_api.search_cards(
-            name=detail.name or name,
-            number=detail.number,
-            set_name=detail.set_name,
-            total=detail.total,
-            limit=6,
-            per_page=6,
+            name=name,
+            number=number,
+            set_name=set_name,
+            set_code=set_code,
+            total=total,
+            limit=remote_fetch_limit,
+            per_page=remote_fetch_limit,
             rapidapi_key=RAPIDAPI_KEY,
             rapidapi_host=RAPIDAPI_HOST,
         )
@@ -655,8 +672,29 @@ def card_info(
                 ),
             )
 
-    related_cards = _load_related_cards(session, card, limit_value)
-    related_items = [_card_to_search_schema(item) for item in related_cards[:limit_value]]
+    if card is None and not remote_card:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Nie znaleziono karty."
+        )
+
+    related_items: list[schemas.CardSearchResult] = []
+    if card is not None:
+        related_cards = _load_related_cards(session, card, limit_value)
+        related_items = [
+            _card_to_search_schema(item) for item in related_cards[:limit_value]
+        ]
+    elif remote_results:
+        remote_related: list[dict[str, Any]] = []
+        selected_id = remote_card.get("id") if remote_card else None
+        for record in remote_results:
+            if remote_card is not None and record is remote_card:
+                continue
+            if selected_id and record.get("id") == selected_id:
+                continue
+            remote_related.append(record)
+        related_items = [
+            _payload_to_search_schema(item) for item in remote_related[:limit_value]
+        ]
 
     return schemas.CardDetailResponse(card=detail, related=related_items)
 
