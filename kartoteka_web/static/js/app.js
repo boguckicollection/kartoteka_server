@@ -902,7 +902,8 @@
 
   const SET_ICON_LOCAL_BASE = "/icon/set";
 
-  const resolveSetIconUrl = (item) => {
+  const resolveSetIconUrl = (item, options = {}) => {
+    const { preferLocal = false } = options || {};
     if (!item) {
       return { primary: null, fallback: null };
     }
@@ -918,15 +919,20 @@
       }
     }
 
-    const fallbackIcon = explicitFallback || derivedFallback;
+    const localIcon = explicitFallback || derivedFallback;
+
+    if (preferLocal && localIcon) {
+      const normalizedFallback = primaryIcon && primaryIcon !== localIcon ? primaryIcon : null;
+      return { primary: localIcon, fallback: normalizedFallback };
+    }
 
     if (primaryIcon) {
-      const normalizedFallback = fallbackIcon && fallbackIcon !== primaryIcon ? fallbackIcon : null;
+      const normalizedFallback = localIcon && localIcon !== primaryIcon ? localIcon : null;
       return { primary: primaryIcon, fallback: normalizedFallback };
     }
 
-    if (fallbackIcon) {
-      return { primary: fallbackIcon, fallback: null };
+    if (localIcon) {
+      return { primary: localIcon, fallback: null };
     }
 
     return { primary: null, fallback: null };
@@ -1001,7 +1007,7 @@
       const hasRarityVisual = Boolean(rarityIconUrl);
       const rarityAlt = `Symbol rzadkości ${rarityText}`;
       const rarityFallback = rarityRaw ? rarityRaw.charAt(0).toUpperCase() : "?";
-      const { primary: setIconUrl, fallback: setIconFallbackUrl } = resolveSetIconUrl(item);
+      const { primary: setIconUrl, fallback: setIconFallbackUrl } = resolveSetIconUrl(item, { preferLocal: true });
       const setIconAltBase = setName && setName !== "Nieznany dodatek" ? setName : setCodeText;
       const setIconAlt = setIconAltBase ? `Symbol dodatku ${setIconAltBase}` : "Symbol dodatku";
       const hasSetIconVisual = Boolean(setIconUrl);
