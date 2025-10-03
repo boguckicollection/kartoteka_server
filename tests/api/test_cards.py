@@ -399,6 +399,74 @@ def test_card_info_remote_fallback(api_client, monkeypatch):
         assert session.exec(select(models.Card)).all() == []
 
 
+def test_card_info_remote_fallback_without_set_filters(api_client, monkeypatch):
+    remote_payload = {
+        "id": "sv1-12",
+        "name": "Pikachu",
+        "number": "12",
+        "number_display": "012/190",
+        "total": "190",
+        "set_name": "Scarlet & Violet",
+        "set_code": "sv1",
+        "rarity": "Common",
+        "image_small": "https://example.com/pikachu-small.jpg",
+        "image_large": "https://example.com/pikachu-large.jpg",
+    }
+
+    attempts: list[tuple[str | None, str | None, str | None]] = []
+
+    def fake_search_cards(
+        *,
+        name,
+        number=None,
+        set_name=None,
+        set_code=None,
+        total=None,
+        limit=None,
+        sort=None,
+        order=None,
+        page=None,
+        per_page=None,
+        rapidapi_key=None,
+        rapidapi_host=None,
+    ):
+        attempts.append((number, set_name, set_code))
+        if set_code or set_name:
+            return [], 0, 0
+        return [remote_payload], 1, 1
+
+    monkeypatch.setattr(cards_routes.tcg_api, "search_cards", fake_search_cards)
+    monkeypatch.setattr(
+        cards_routes.tcg_api, "fetch_card_price_history", lambda *args, **kwargs: []
+    )
+
+    response = api_client.get(
+        "/cards/info",
+        params={
+            "name": "Pikachu",
+            "number": "12",
+            "set_name": "Scarlet & Violet",
+            "set_code": "sv1",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["card"]["name"] == "Pikachu"
+    assert payload["card"]["set_code"] == "sv1"
+    assert payload["related"] == []
+    assert payload["card"]["image_small"] == remote_payload["image_small"]
+    assert payload["card"]["image_large"] == remote_payload["image_large"]
+
+    assert len(attempts) >= 3
+    # Initial query retains the provided number and set filters.
+    assert attempts[0] == ("12", "Scarlet & Violet", "sv1")
+    # First retry drops the number but still carries the set filters.
+    assert attempts[1] == (None, "Scarlet & Violet", "sv1")
+    # Final retry removes the set filters entirely, allowing the remote result.
+    assert attempts[-1] == (None, None, None)
+
+
 def test_card_info_retries_without_number(api_client, monkeypatch):
     calls: list[dict[str, object]] = []
 
