@@ -776,14 +776,20 @@ body[data-theme="dark"] .card-search-results--grid .card-search-item:focus-withi
 }
 
 .card-search-results--list .card-search-item {
-  display: flex;
+  --card-search-list-columns: auto minmax(72px, auto) minmax(0, 1fr) minmax(72px, auto)
+    minmax(160px, auto) minmax(80px, auto) auto;
+  display: grid;
   align-items: center;
-  gap: 16px;
+  grid-template-columns: var(
+    --card-search-list-columns,
+    auto auto minmax(0, 1fr) auto auto auto auto
+  );
+  column-gap: 16px;
+  row-gap: 12px;
   padding: 12px 18px;
   background: none;
   border: none;
   transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-  flex-wrap: nowrap;
   position: relative;
   z-index: 0;
 }
@@ -796,10 +802,20 @@ body[data-theme="dark"] .card-search-results--grid .card-search-item:focus-withi
 }
 
 .card-search-list-row {
-  display: contents;
+  display: grid;
+  grid-template-columns: var(
+    --card-search-list-columns,
+    auto auto minmax(0, 1fr) auto auto auto auto
+  );
+  grid-template-areas: "thumb set name number rarity price form";
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 12px;
+  width: 100%;
 }
 
 .card-search-list-thumb {
+  grid-area: thumb;
   position: relative;
   width: 52px;
   height: 52px;
@@ -888,7 +904,9 @@ body[data-theme="dark"] .card-search-results--grid .card-search-item:focus-withi
 }
 
 .card-search-list-name {
-  flex: 1 1 auto;
+  grid-area: name;
+  justify-self: start;
+  text-align: left;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -896,6 +914,8 @@ body[data-theme="dark"] .card-search-results--grid .card-search-item:focus-withi
 }
 
 .card-search-list-set {
+  grid-area: set;
+  justify-self: center;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -967,20 +987,25 @@ body[data-theme="dark"] .card-search-badge--rarity {
 }
 
 .card-search-list-number {
+  grid-area: number;
+  justify-self: center;
+  text-align: center;
   font-size: 0.9rem;
   color: var(--color-muted);
   white-space: nowrap;
-  flex: 0 0 auto;
 }
 
 .card-search-list-rarity {
+  grid-area: rarity;
+  justify-self: center;
+  text-align: center;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   font-size: 0.85rem;
   color: var(--color-muted);
   white-space: nowrap;
-  flex: 0 0 auto;
 }
 
 .card-search-results--list .card-search-list-rarity {
@@ -992,10 +1017,12 @@ body[data-theme="dark"] .card-search-badge--rarity {
 }
 
 .card-search-list-price {
+  grid-area: price;
+  justify-self: end;
+  text-align: right;
   font-weight: 600;
   color: var(--color-accent-dark);
   white-space: nowrap;
-  flex: 0 0 auto;
 }
 
 .card-search-list-price--empty {
@@ -1004,12 +1031,13 @@ body[data-theme="dark"] .card-search-badge--rarity {
 }
 
 .card-search-results--list .card-search-form {
+  grid-area: form;
+  justify-self: end;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
   margin-left: 8px;
-  flex: 0 0 auto;
 }
 
 .card-search-results--list .card-search-form .form-footer {
@@ -1330,12 +1358,36 @@ body[data-theme="dark"] .card-search-set-badges {
 
 @media (max-width: 720px) {
   .card-search-results--list .card-search-item {
-    flex-wrap: wrap;
-    gap: 12px;
+    --card-search-list-columns: minmax(0, 1fr);
+    grid-template-columns: var(--card-search-list-columns);
+    row-gap: 16px;
   }
 
-  .card-search-list-name {
-    flex-basis: 100%;
+  .card-search-list-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "thumb name"
+      "set name"
+      "number rarity"
+      "price price"
+      "form form";
+    row-gap: 16px;
+  }
+
+  .card-search-list-set {
+    justify-self: start;
+  }
+
+  .card-search-list-name,
+  .card-search-list-number,
+  .card-search-list-rarity,
+  .card-search-list-price {
+    justify-self: start;
+    text-align: left;
+  }
+
+  .card-search-list-rarity {
+    justify-content: flex-start;
   }
 
   .card-search-inline-fields {
@@ -1343,6 +1395,7 @@ body[data-theme="dark"] .card-search-set-badges {
   }
 
   .card-search-results--list .card-search-form {
+    justify-self: start;
     justify-content: flex-start;
     width: 100%;
     margin-left: 0;
