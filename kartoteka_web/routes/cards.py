@@ -569,6 +569,18 @@ def card_info(
             rapidapi_key=RAPIDAPI_KEY,
             rapidapi_host=RAPIDAPI_HOST,
         )
+        if not remote_results and number_value:
+            remote_results, _, _ = tcg_api.search_cards(
+                name=name,
+                number=None,
+                set_name=set_name,
+                set_code=set_code,
+                total=None,
+                limit=remote_fetch_limit,
+                per_page=remote_fetch_limit,
+                rapidapi_key=RAPIDAPI_KEY,
+                rapidapi_host=RAPIDAPI_HOST,
+            )
     except Exception as exc:  # pragma: no cover - defensive logging
         logger.warning("Failed to fetch remote card details for %s #%s: %s", name, number, exc)
         remote_results = []

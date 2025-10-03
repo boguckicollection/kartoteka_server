@@ -399,6 +399,83 @@ def test_card_info_remote_fallback(api_client, monkeypatch):
         assert session.exec(select(models.Card)).all() == []
 
 
+def test_card_info_retries_without_number(api_client, monkeypatch):
+    calls: list[dict[str, object]] = []
+
+    def fake_search_cards(
+        *,
+        name,
+        number=None,
+        set_name=None,
+        set_code=None,
+        total=None,
+        limit=None,
+        sort=None,
+        order=None,
+        page=None,
+        per_page=None,
+        rapidapi_key=None,
+        rapidapi_host=None,
+    ):
+        calls.append(
+            {
+                "name": name,
+                "number": number,
+                "set_name": set_name,
+                "set_code": set_code,
+                "total": total,
+                "limit": limit,
+                "per_page": per_page,
+            }
+        )
+        if number == "146":
+            return [], 0, 0
+        return (
+            [
+                {
+                    "id": "basep-h1",
+                    "name": "Zapdos",
+                    "number": "H1",
+                    "number_display": "H1",
+                    "set_name": "Wizards Black Star Promos",
+                    "set_code": "basep",
+                    "rarity": "Promo",
+                    "image_small": "https://example.com/zapdos-small.jpg",
+                    "image_large": "https://example.com/zapdos-large.jpg",
+                    "price": 9.99,
+                }
+            ],
+            1,
+            1,
+        )
+
+    monkeypatch.setattr(cards_routes.tcg_api, "search_cards", fake_search_cards)
+    monkeypatch.setattr(cards_routes.tcg_api, "fetch_card_price_history", lambda *_, **__: [])
+    monkeypatch.setattr(cards_routes.tcg_api, "get_eur_pln_rate", lambda: 4.0)
+
+    response = api_client.get(
+        "/cards/info",
+        params={
+            "name": "Zapdos",
+            "number": "146",
+            "set_name": "Wizards Black Star Promos",
+            "set_code": "basep",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    card = payload["card"]
+    assert card["number_display"] == "H1"
+    assert card["name"] == "Zapdos"
+    assert card["image_small"] == "https://example.com/zapdos-small.jpg"
+    assert card["price"] == pytest.approx(9.99)
+
+    assert len(calls) == 2
+    assert calls[0]["number"] == "146"
+    assert calls[1]["number"] is None
+    assert calls[1]["total"] is None
+
 def test_card_info_accepts_normalized_set_code(api_client):
     with database.session_scope() as session:
         session.add(
