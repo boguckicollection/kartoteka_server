@@ -759,9 +759,9 @@ def search_cards(
     rapidapi_host: Optional[str] = None,
     session: Optional[requests.sessions.Session] = None,
     timeout: float = 10.0,
-) -> tuple[list[dict], int]:
+) -> tuple[list[dict], int, int]:
     if not name:
-        return [], 0
+        return [], 0, 0
 
     http = session or requests
 
@@ -812,7 +812,7 @@ def search_cards(
         rapid_search_parts.append(total_clean)
     query_value = " ".join(part for part in rapid_search_parts if part)
     if not query_value:
-        return [], 0
+        return [], 0, 0
 
     max_results = 100
     aggregated_cards: list[dict[str, Any]] = []
@@ -981,9 +981,10 @@ def search_cards(
     if not total_count:
         total_count = len(results)
 
-    total_count = min(max_results, total_count)
+    total_count = max(total_count, len(results))
+    filtered_total = len(results)
 
-    return results, total_count
+    return results, filtered_total, total_count
 
 
 def list_set_cards(

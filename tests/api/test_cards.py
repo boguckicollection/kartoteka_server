@@ -173,7 +173,7 @@ def test_card_search_and_detail(api_client, monkeypatch):
                 "rapidapi_host": rapidapi_host,
             }
         )
-        return search_results, 84
+        return search_results, len(search_results), 84
 
     monkeypatch.setattr(
         "kartoteka_web.routes.cards.tcg_api.search_cards",
@@ -210,7 +210,8 @@ def test_card_search_and_detail(api_client, monkeypatch):
     assert captured["page"] == 1
     assert captured["per_page"] == 20
     assert payload["total"] == len(search_results)
-    assert payload["total_count"] == 84
+    assert payload["total_count"] == len(search_results)
+    assert payload["total_remote"] == 84
     assert payload["page"] == 1
     assert payload["per_page"] == 20
     assert payload["suggested_query"] == "Eevee"
@@ -346,7 +347,7 @@ def test_card_search_passes_rapidapi_credentials(api_client, monkeypatch):
                 "rapidapi_host": rapidapi_host,
             }
         )
-        return [], 0
+        return [], 0, 0
 
     monkeypatch.setattr(cards_routes.tcg_api, "search_cards", fake_search_cards)
     monkeypatch.setattr(cards_routes, "RAPIDAPI_KEY", "rapid-key")
@@ -413,7 +414,7 @@ def test_cards_module_uses_generic_rapidapi_env(monkeypatch):
                 "rapidapi_host": rapidapi_host,
             }
         )
-        return [], 0
+        return [], 0, 0
 
     monkeypatch.setattr(reloaded_cards.tcg_api, "search_cards", fake_search_cards)
 
@@ -468,7 +469,7 @@ def test_card_search_pagination_clamping(api_client, monkeypatch):
                 "rapidapi_host": rapidapi_host,
             }
         )
-        return [], 150
+        return [], 0, 150
 
     monkeypatch.setattr(cards_routes.tcg_api, "search_cards", fake_search_cards)
 
@@ -483,9 +484,83 @@ def test_card_search_pagination_clamping(api_client, monkeypatch):
     assert captured["page"] == 1
     assert captured["per_page"] == 20
     assert captured["limit"] == 100
-    assert payload["page"] == 5
+    assert payload["page"] == 1
     assert payload["per_page"] == 20
-    assert payload["total_count"] == 100
+    assert payload["total_count"] == 0
+    assert payload["total_remote"] == 150
+
+
+def test_card_search_uses_filtered_total_for_pagination(api_client, monkeypatch):
+    headers = _auth_headers(api_client, username="janine", password="ariados")
+
+    filtered_records = [
+        {
+            "name": "Mew",
+            "number": "001",
+            "number_display": "1/20",
+            "total": "20",
+            "set_name": "Mythical Collection",
+            "set_code": "mythic",
+            "rarity": "Rare",
+            "image_small": None,
+            "image_large": None,
+        },
+        {
+            "name": "Mew",
+            "number": "002",
+            "number_display": "2/20",
+            "total": "20",
+            "set_name": "Mythical Collection",
+            "set_code": "mythic",
+            "rarity": "Rare",
+            "image_small": None,
+            "image_large": None,
+        },
+        {
+            "name": "Mew",
+            "number": "003",
+            "number_display": "3/20",
+            "total": "20",
+            "set_name": "Mythical Collection",
+            "set_code": "mythic",
+            "rarity": "Rare",
+            "image_small": None,
+            "image_large": None,
+        },
+    ]
+
+    def fake_search_cards(
+        *,
+        name,
+        number=None,
+        set_name=None,
+        total=None,
+        limit=None,
+        sort=None,
+        order=None,
+        page=None,
+        per_page=None,
+        rapidapi_key=None,
+        rapidapi_host=None,
+    ):
+        return filtered_records, len(filtered_records), 80
+
+    monkeypatch.setattr(cards_routes.tcg_api, "search_cards", fake_search_cards)
+
+    response = api_client.get(
+        "/cards/search",
+        params={"query": "Mew", "page": 5, "per_page": 2},
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["page"] == 2
+    assert payload["per_page"] == 2
+    assert payload["total"] == 1
+    assert payload["total_count"] == len(filtered_records)
+    assert payload["total_remote"] == 80
+    assert [item["number"] for item in payload["items"]] == ["003"]
 
 
 def test_card_search_uses_local_pagination(api_client, monkeypatch):
@@ -535,7 +610,7 @@ def test_card_search_uses_local_pagination(api_client, monkeypatch):
                 "per_page": per_page,
             }
         )
-        return records, 100
+        return records, len(records), 100
 
     monkeypatch.setattr(cards_routes.tcg_api, "search_cards", fake_search_cards)
 
@@ -552,7 +627,8 @@ def test_card_search_uses_local_pagination(api_client, monkeypatch):
     assert payload["page"] == 3
     assert payload["per_page"] == 20
     assert payload["total"] == 20
-    assert payload["total_count"] == 100
+    assert payload["total_count"] == len(records)
+    assert payload["total_remote"] == 100
     returned_numbers = [item["number"] for item in payload["items"]]
     assert returned_numbers[0] == "041"
     assert returned_numbers[-1] == "060"

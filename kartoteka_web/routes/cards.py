@@ -470,7 +470,7 @@ def search_cards_endpoint(
         requested_page = 1
     requested_page = max(1, requested_page)
 
-    records, total_count = tcg_api.search_cards(
+    records, filtered_total, upstream_total = tcg_api.search_cards(
         name=name_value or search_query,
         number=number_value,
         set_name=set_name,
@@ -484,9 +484,11 @@ def search_cards_endpoint(
         rapidapi_host=RAPIDAPI_HOST,
     )
 
-    effective_total = min(overall_cap, max(len(records), total_count))
     if result_cap < overall_cap:
         records = records[:result_cap]
+
+    filtered_total = len(records)
+    effective_total = min(overall_cap, filtered_total)
     max_pages = max(1, (effective_total + per_page_value - 1) // per_page_value)
     page_value = min(requested_page, max_pages)
 
@@ -503,6 +505,7 @@ def search_cards_endpoint(
         page=page_value,
         per_page=per_page_value,
         suggested_query=suggestion,
+        total_remote=upstream_total,
     )
 
 
@@ -539,7 +542,7 @@ def card_info(
 
     remote_results: list[dict[str, Any]] = []
     try:
-        remote_results, _ = tcg_api.search_cards(
+        remote_results, _, _ = tcg_api.search_cards(
             name=detail.name or name,
             number=detail.number,
             set_name=detail.set_name,

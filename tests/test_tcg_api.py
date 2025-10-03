@@ -75,7 +75,7 @@ class _PagingSession:
 
 def test_search_cards_uses_rapidapi_headers():
     session = _DummySession()
-    results, total_count = tcg_api.search_cards(
+    results, filtered_total, total_count = tcg_api.search_cards(
         name="Pikachu",
         rapidapi_key="rapid-key",
         rapidapi_host=DEFAULT_HOST,
@@ -85,6 +85,7 @@ def test_search_cards_uses_rapidapi_headers():
     )
 
     assert results == []
+    assert filtered_total == 0
     assert total_count == 0
     assert session.calls, "Expected a single HTTP request"
     call = session.calls[0]
@@ -103,7 +104,7 @@ def test_search_cards_uses_rapidapi_headers():
 
 def test_search_cards_uses_default_host_when_missing():
     session = _DummySession()
-    results, total_count = tcg_api.search_cards(
+    results, filtered_total, total_count = tcg_api.search_cards(
         name="Eevee",
         rapidapi_key="rapid-key",
         rapidapi_host=None,
@@ -111,6 +112,7 @@ def test_search_cards_uses_default_host_when_missing():
     )
 
     assert results == []
+    assert filtered_total == 0
     assert total_count == 0
     assert session.calls, "Expected a single HTTP request"
     call = session.calls[0]
@@ -125,11 +127,12 @@ def test_search_cards_uses_default_host_when_missing():
 
 def test_search_cards_without_key_omits_auth_header():
     session = _DummySession()
-    results, total_count = tcg_api.search_cards(
+    results, filtered_total, total_count = tcg_api.search_cards(
         name="Ditto", rapidapi_host=DEFAULT_HOST, session=session
     )
 
     assert results == []
+    assert filtered_total == 0
     assert total_count == 0
     assert session.calls, "Expected a single HTTP request"
     call = session.calls[0]
@@ -205,7 +208,7 @@ def test_search_cards_matches_uppercase_collector_number():
     }
     session = _DummySession(response_data={"data": [card_payload]})
 
-    results, total_count = tcg_api.search_cards(
+    results, filtered_total, total_count = tcg_api.search_cards(
         name="Pikachu",
         number="RC5A",
         session=session,
@@ -213,6 +216,7 @@ def test_search_cards_matches_uppercase_collector_number():
 
     assert results, "Expected to receive at least one suggestion"
     assert results[0]["number"] == "rc5a"
+    assert filtered_total == 1
     assert total_count == 1
 
 
@@ -236,7 +240,7 @@ def test_search_cards_aggregates_multiple_pages():
         pages.append({"data": cards, "totalCount": 150})
 
     session = _PagingSession(pages)
-    results, total_count = tcg_api.search_cards(
+    results, filtered_total, total_count = tcg_api.search_cards(
         name="Pikachu",
         limit=100,
         per_page=50,
@@ -244,7 +248,8 @@ def test_search_cards_aggregates_multiple_pages():
     )
 
     assert len(results) == 100
-    assert total_count == 100
+    assert filtered_total == 100
+    assert total_count == 150
     assert len(session.calls) == 2
     assert session.calls[0]["params"]["page"] == "1"
     assert session.calls[1]["params"]["page"] == "2"
