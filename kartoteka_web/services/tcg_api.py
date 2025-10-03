@@ -833,6 +833,8 @@ def search_cards(
         return [], 0, 0
 
     max_results = 100
+    limit_value = limit if limit and limit > 0 else per_page_value
+    limit_value = min(limit_value, max_results)
     aggregated_cards: list[dict[str, Any]] = []
     total_count_remote = 0
     inferred_total = 0
@@ -887,6 +889,8 @@ def search_cards(
             break
 
         aggregated_cards.extend(cards_page)
+        if len(aggregated_cards) >= limit_value:
+            break
 
         fetched_total = (current_page - page_value) * per_page_value + len(cards_page)
         inferred_total = max(inferred_total, fetched_total)
@@ -973,8 +977,6 @@ def search_cards(
 
     seen: set[tuple[str | None, str]] = set()
     results: list[dict] = []
-    limit_value = limit if limit and limit > 0 else per_page_value
-    limit_value = min(limit_value, max_results)
     for item in suggestions:
         score_value = float(item.get("_score", 0) or 0)
         if score_value <= 0:
