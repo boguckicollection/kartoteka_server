@@ -994,6 +994,12 @@
           </div>
         </div>
       `;
+      const setBadgesGridMarkup = `
+        <div class="card-search-set-badges">
+          ${setIconMarkup}
+          ${rarityIconMarkup}
+        </div>
+      `;
       const numberDisplay = numberLabel || "—";
       const priceDisplay = priceText || "—";
       if (isListView) {
@@ -1073,8 +1079,7 @@
               </a>
             </div>
           <div class="card-search-set">
-            ${setIconMarkup}
-            ${rarityIconMarkup}
+            ${setBadgesGridMarkup}
           </div>
         </div>
         <div class="card-search-info">
