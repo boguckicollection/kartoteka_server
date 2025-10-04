@@ -2262,6 +2262,7 @@
     const buildInfoQuery = (rangeKey) => {
       const range = rangeKey || DEFAULT_PRICE_RANGE;
       const query = new URLSearchParams(baseParams);
+      query.set("range", range);
       const { date_from: dateFrom, date_to: dateTo } = resolveRangeParams(range);
       if (dateFrom) query.set("date_from", dateFrom);
       if (dateTo) query.set("date_to", dateTo);

@@ -519,6 +519,7 @@ def card_info(
     set_name: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    range: str | None = None,
     related_limit: int = 6,
     current_user: models.User | None = Depends(get_optional_user),
     session: Session = Depends(get_session),
@@ -532,6 +533,7 @@ def card_info(
     set_name_value = (set_name or "").strip()
     set_code_value = set_utils.clean_code(set_code) or None
     total_value = text.sanitize_number(total) if total else None
+    range_value = (range or "").strip().lower() or None
 
     card = _find_card(
         session,
@@ -622,6 +624,8 @@ def card_info(
         date_to_value = today
     if requested_date_from and requested_date_from <= date_to_value:
         date_from_value = requested_date_from
+    elif range_value == "all":
+        date_from_value = None
     else:
         date_from_value = date_to_value - dt.timedelta(days=30)
 
