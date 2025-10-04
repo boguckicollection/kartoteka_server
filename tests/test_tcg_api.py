@@ -545,6 +545,7 @@ def test_fetch_card_price_history_uses_endpoint_and_parses_data():
     assert headers.get("X-RapidAPI-Key") == "rapid-key"
     assert headers.get("X-RapidAPI-Host") == DEFAULT_HOST
     params = call["params"] or {}
+    assert params.get("id") == "sv1-1"
     assert params.get("market") == "tcgplayer"
     assert params.get("date_from") == "2023-01-01"
     assert params.get("date_to") == "2023-01-31"

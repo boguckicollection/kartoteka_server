@@ -617,6 +617,50 @@ def test_card_info_uses_month_range_by_default(api_client, monkeypatch):
     assert params.get("date_to") == dt.date(2024, 2, 15)
 
 
+def test_card_info_price_history_section_visible_when_data_present(
+    api_client, monkeypatch
+):
+    remote_results = [
+        {
+            "id": "sv1-001",
+            "name": "Pikachu",
+            "number": "001",
+            "set_name": "Scarlet & Violet",
+            "set_code": "sv1",
+        }
+    ]
+
+    monkeypatch.setattr(
+        cards_routes.tcg_api,
+        "search_cards",
+        lambda **_: (remote_results, len(remote_results), len(remote_results)),
+    )
+
+    price_history_payload = [
+        {"date": "2024-01-01", "marketPrice": 7.5, "currency": "EUR"},
+        {"date": "2024-01-15", "marketPrice": 8.25, "currency": "EUR"},
+    ]
+
+    monkeypatch.setattr(
+        cards_routes.tcg_api,
+        "fetch_card_price_history",
+        lambda *_, **__: price_history_payload,
+    )
+    monkeypatch.setattr(cards_routes.tcg_api, "get_eur_pln_rate", lambda: 4.0)
+
+    response = api_client.get(
+        "/cards/info",
+        params={"name": "Pikachu", "number": "001", "set_name": "Scarlet & Violet"},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    history = payload["card"]["price_history"]
+    assert history["all"], "Expected chart data to be available"
+    assert history["last_30"], "Expected month range data for chart"
+    assert all(point["currency"] == "PLN" for point in history["all"])
+
+
 def test_card_search_passes_rapidapi_credentials(api_client, monkeypatch):
     headers = _auth_headers(api_client, username="misty", password="starmie")
 
