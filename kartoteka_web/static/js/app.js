@@ -2200,10 +2200,36 @@
         set_name: item.set_name,
       });
       if (item.set_code) params.set("set_code", item.set_code);
+      const cardName = (item.name || "").trim() || "Bez nazwy";
+      const setName = (item.set_name || "").trim() || "Nieznany dodatek";
+      const numberLabel = (item.number_display || item.number || "").trim();
+      const metaParts = [setName];
+      if (numberLabel) {
+        metaParts.push(numberLabel);
+      }
+      const metaText = metaParts.filter(Boolean).join(" • ");
+      const previewImage = (item.image_small || item.image_large || "").trim();
+      const hasPreviewImage = Boolean(previewImage);
+      const thumbnailAlt = `Miniatura karty ${cardName}`;
       anchor.href = `/cards/${encodeURIComponent(item.set_code || item.set_name || "")}/${encodeURIComponent(item.number)}?${params.toString()}`;
       anchor.innerHTML = `
-        <span class="related-card-name">${escapeHtml(item.name)}</span>
-        <span class="related-card-meta">${escapeHtml(item.set_name || "")}</span>
+        <figure class="related-card-media">
+          <div class="related-card-thumbnail">
+            ${
+              hasPreviewImage
+                ? `<img src="${escapeHtml(previewImage)}" alt="${escapeHtml(thumbnailAlt)}" loading="lazy" decoding="async" />`
+                : ""
+            }
+            <div class="related-card-thumbnail-fallback"${hasPreviewImage ? " hidden" : ""}>
+              <span class="related-card-thumbnail-emoji" aria-hidden="true">🖼️</span>
+              <span class="related-card-thumbnail-text">Brak miniatury</span>
+            </div>
+          </div>
+        </figure>
+        <div class="related-card-info">
+          <span class="related-card-name">${escapeHtml(cardName)}</span>
+          <span class="related-card-meta">${escapeHtml(metaText)}</span>
+        </div>
       `;
       container.appendChild(anchor);
     }
