@@ -2137,30 +2137,21 @@
       }
     }
 
-    const priceBadge = document.getElementById("card-detail-price-badge");
+    const priceContainer = document.getElementById("card-detail-price-container");
     const priceElement = document.getElementById("card-detail-price");
-    const priceValue = normalizePriceInput(card.price);
-    if (priceBadge && priceElement) {
-      if (priceValue !== null) {
-        priceElement.textContent = formatCardPrice(priceValue);
-        priceBadge.hidden = false;
+    const priceValue = getCardPriceValue(card);
+    const priceText = priceValue === null ? "" : formatCardPrice(priceValue);
+    if (priceElement) {
+      if (priceText) {
+        priceElement.textContent = `Cena: ${priceText}`;
+        priceElement.hidden = false;
       } else {
         priceElement.textContent = "";
-        priceBadge.hidden = true;
+        priceElement.hidden = true;
       }
     }
-
-    const averageBadge = document.getElementById("card-detail-price-average-badge");
-    const averageElement = document.getElementById("card-detail-price-average");
-    const averageValue = normalizePriceInput(card.price_7d_average);
-    if (averageBadge && averageElement) {
-      if (averageValue !== null) {
-        averageElement.textContent = formatCardPrice(averageValue);
-        averageBadge.hidden = false;
-      } else {
-        averageElement.textContent = "";
-        averageBadge.hidden = true;
-      }
+    if (priceContainer) {
+      priceContainer.hidden = !priceText;
     }
 
     const buyButton = document.getElementById("detail-buy-button");
