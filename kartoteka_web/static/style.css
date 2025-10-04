@@ -1520,7 +1520,7 @@ body[data-theme="dark"] .card-search-set-badges {
 .card-detail-set {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
   font-size: 1rem;
   color: var(--color-muted);
   margin-bottom: 16px;
@@ -1529,8 +1529,8 @@ body[data-theme="dark"] .card-search-set-badges {
 .card-detail-set-visual {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
+  gap: 16px;
+  padding: 8px 16px;
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: 0 8px 28px rgba(15, 23, 42, 0.12);
@@ -1540,11 +1540,9 @@ body[data-theme="dark"] .card-search-set-badges {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   border-radius: var(--radius-md);
-  background: var(--color-surface-alt);
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.12);
 }
 
 .card-detail-rarity-badge {
@@ -1559,25 +1557,16 @@ body[data-theme="dark"] .card-search-set-badges {
   box-shadow: none;
 }
 
-.card-detail-set-icon,
+.card-detail-set-icon {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
 .card-detail-rarity-icon {
   width: 36px;
   height: 36px;
   object-fit: contain;
-}
-
-.card-detail-set-code {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 44px;
-  height: 100%;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  font-size: 0.82rem;
-  color: var(--color-text);
-  text-transform: uppercase;
-  white-space: nowrap;
 }
 
 .card-detail-rarity-fallback {
@@ -1596,8 +1585,19 @@ body[data-theme="dark"] .card-search-set-badges {
 .card-detail-set-text {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   color: var(--color-text);
+}
+
+.card-detail-set-code {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  font-size: 0.82rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .card-detail-price-badges {

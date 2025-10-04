@@ -1959,19 +1959,27 @@
 
     const setCodeElement = document.getElementById("card-detail-set-code");
     const setCodeValue = sanitizeText(card.set_code);
+    const hasSetCodeValue = Boolean(setCodeValue);
     if (setCodeElement) {
       setCodeElement.textContent = (setCodeValue || "SET").toUpperCase();
-      setCodeElement.hidden = !setCodeValue;
+      setCodeElement.hidden = true;
     }
 
     const { primary: setIconUrl, fallback: setIconFallbackUrl } = resolveSetIconUrl(card);
     const setIconImage = document.getElementById("card-detail-set-icon");
     if (setIconImage) {
-      const showSetCode = () => {
-        if (setCodeElement && setCodeValue) {
-          setCodeElement.hidden = false;
+      const showSetCodeFallback = () => {
+        if (setCodeElement) {
+          setCodeElement.hidden = !hasSetCodeValue;
         }
       };
+
+      const hideSetCodeFallback = () => {
+        if (setCodeElement) {
+          setCodeElement.hidden = true;
+        }
+      };
+
       if (setIconUrl) {
         setIconImage.hidden = false;
         const setNameValue = sanitizeText(card.set_name);
@@ -1986,6 +1994,7 @@
           delete setIconImage.dataset.cardSetIconFallbackUrl;
           delete setIconImage.dataset.cardSetIconFallbackTried;
         }
+        hideSetCodeFallback();
         if (!setIconImage.dataset.cardSetIconHandlerAttached) {
           setIconImage.addEventListener("error", () => {
             const fallbackUrl = setIconImage.dataset.cardSetIconFallbackUrl;
@@ -1996,14 +2005,18 @@
             }
             setIconImage.hidden = true;
             setIconImage.removeAttribute("src");
-            showSetCode();
+            delete setIconImage.dataset.cardSetIconFallbackUrl;
+            delete setIconImage.dataset.cardSetIconFallbackTried;
+            showSetCodeFallback();
           });
           setIconImage.dataset.cardSetIconHandlerAttached = "true";
         }
       } else {
         setIconImage.hidden = true;
         setIconImage.removeAttribute("src");
-        showSetCode();
+        delete setIconImage.dataset.cardSetIconFallbackUrl;
+        delete setIconImage.dataset.cardSetIconFallbackTried;
+        showSetCodeFallback();
       }
     }
 
