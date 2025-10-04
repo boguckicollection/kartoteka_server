@@ -1632,7 +1632,8 @@ body[data-theme="dark"] .card-search-set-badges {
   color: var(--color-text);
 }
 
-.card-detail-era {
+.card-detail-era,
+.card-detail-artist {
   margin: 0 0 12px;
   color: var(--color-muted);
 }

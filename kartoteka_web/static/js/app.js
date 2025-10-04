@@ -1941,14 +1941,26 @@
     }
 
     const artistValue = sanitizeText(card.artist);
+    const eraValue = sanitizeText(card.era);
     const era = document.getElementById("card-detail-era");
     if (era) {
-      if (artistValue) {
-        era.textContent = `Ilustrator: ${artistValue}`;
+      if (eraValue) {
+        era.textContent = eraValue;
         era.hidden = false;
       } else {
         era.textContent = "";
         era.hidden = true;
+      }
+    }
+
+    const artistElement = document.getElementById("card-detail-artist");
+    if (artistElement) {
+      if (artistValue) {
+        artistElement.textContent = `Ilustrator: ${artistValue}`;
+        artistElement.hidden = false;
+      } else {
+        artistElement.textContent = "";
+        artistElement.hidden = true;
       }
     }
 
@@ -2104,6 +2116,7 @@
     const descriptionSection = document.getElementById("card-detail-description-section");
     const descriptionContent = document.getElementById("card-detail-description");
     const descriptionMeta = document.getElementById("card-detail-description-meta");
+    const descriptionMetaValue = sanitizeText(card.description_meta);
     const descriptionValue = sanitizeText(card.description);
     if (descriptionSection && descriptionContent) {
       if (descriptionValue) {
@@ -2115,8 +2128,8 @@
       }
     }
     if (descriptionMeta) {
-      if (artistValue) {
-        descriptionMeta.textContent = `Ilustrator: ${artistValue}`;
+      if (descriptionMetaValue) {
+        descriptionMeta.textContent = descriptionMetaValue;
         descriptionMeta.hidden = false;
       } else {
         descriptionMeta.textContent = "";
