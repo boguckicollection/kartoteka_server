@@ -2156,8 +2156,56 @@
 
     const buyButton = document.getElementById("detail-buy-button");
     if (buyButton) {
-      const shopUrl = sanitizeText(card.shop_url) || DEFAULT_SHOP_URL;
-      buyButton.href = shopUrl;
+      const sanitizeSearchComponent = (value) => {
+        const text = sanitizeText(value);
+        if (text === null || text === undefined) return "";
+        const stringValue = String(text).trim();
+        if (!stringValue) return "";
+        return stringValue
+          .normalize("NFKD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^\p{L}\p{N}\s/-]+/gu, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      };
+
+      const buildFallbackShopUrl = () => {
+        const parts = [];
+        const uniqueParts = new Set();
+        const addPart = (value) => {
+          const sanitized = sanitizeSearchComponent(value);
+          if (sanitized) {
+            const key = sanitized.toLowerCase();
+            if (!uniqueParts.has(key)) {
+              uniqueParts.add(key);
+              parts.push(sanitized);
+            }
+          }
+        };
+
+        addPart(card.name);
+        addPart(card.set_code ? String(card.set_code).toUpperCase() : null);
+        addPart(card.number_display || card.number);
+
+        const query = parts.join(" ").trim();
+        if (!query) return DEFAULT_SHOP_URL;
+        const encodedQuery = encodeURIComponent(query);
+        return `https://kartoteka.shop/pl/searchquery/${encodedQuery}/1/full/5?url=${encodedQuery}`;
+      };
+
+      const isGenericShopUrl = (url) => {
+        if (!url) return true;
+        const normalizedDefault = DEFAULT_SHOP_URL.replace(/\/+$/, "").toLowerCase();
+        const normalizedUrl = String(url).trim().replace(/\/+$/, "").toLowerCase();
+        if (!normalizedUrl) return true;
+        return normalizedUrl === normalizedDefault;
+      };
+
+      const shopUrl = sanitizeText(card.shop_url);
+      const resolvedShopUrl =
+        shopUrl && !isGenericShopUrl(shopUrl) ? shopUrl : buildFallbackShopUrl();
+
+      buyButton.href = resolvedShopUrl || DEFAULT_SHOP_URL;
     }
 
     const image = document.getElementById("card-detail-image");
