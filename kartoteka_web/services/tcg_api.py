@@ -1175,7 +1175,7 @@ def fetch_card_price_history(
         headers["X-RapidAPI-Key"] = rapidapi_key
     headers["X-RapidAPI-Host"] = api_host_header
 
-    params: dict[str, str] = {}
+    params: dict[str, str] = {"id": card_id}
     if market:
         params["market"] = market
     if currency:
@@ -1190,7 +1190,7 @@ def fetch_card_price_history(
             params["date_to"] = normalized_to
 
     try:
-        response = http.get(url, params=params or None, headers=headers, timeout=timeout)
+        response = http.get(url, params=params, headers=headers, timeout=timeout)
     except requests.Timeout:
         logger.warning("Price history request timed out for card %s", card_id)
         return []
