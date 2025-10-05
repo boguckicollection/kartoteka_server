@@ -400,6 +400,71 @@ def test_card_info_remote_fallback(api_client, monkeypatch):
         assert session.exec(select(models.Card)).all() == []
 
 
+def test_card_info_price_history_bounded_then_fallback(api_client, monkeypatch):
+    today = dt.date.today()
+    remote_cards = [
+        {
+            "id": "base1-7",
+            "name": "Squirtle",
+            "number": "7",
+            "number_display": "7/102",
+            "total": "102",
+            "set_name": "Base Set",
+            "set_code": "base1",
+            "rarity": "Common",
+            "image_small": "https://example.com/squirtle-small.jpg",
+            "image_large": "https://example.com/squirtle-large.jpg",
+        }
+    ]
+
+    monkeypatch.setattr(
+        cards_routes.tcg_api,
+        "search_cards",
+        lambda **kwargs: (remote_cards, len(remote_cards), len(remote_cards)),
+    )
+
+    history_calls: list[dict[str, object]] = []
+
+    def fake_fetch_history(card_id, *, date_from=None, date_to=None, **kwargs):
+        history_calls.append({"date_from": date_from, "date_to": date_to})
+        if len(history_calls) == 1:
+            return []
+        return [
+            {"date": "2023-12-01", "marketPrice": 5.0, "currency": "EUR"},
+            {"date": "2024-01-01", "marketPrice": 6.5, "currency": "EUR"},
+        ]
+
+    monkeypatch.setattr(
+        cards_routes.tcg_api,
+        "fetch_card_price_history",
+        fake_fetch_history,
+    )
+    monkeypatch.setattr(cards_routes.tcg_api, "get_eur_pln_rate", lambda: 4.0)
+
+    response = api_client.get(
+        "/cards/info",
+        params={
+            "name": "Squirtle",
+            "number": "7",
+            "set_name": "Base Set",
+            "set_code": "base1",
+            "date_from": (today - dt.timedelta(days=30)).isoformat(),
+            "date_to": today.isoformat(),
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    history = payload["card"]["price_history"]
+    assert history["all"], "Expected fallback history to populate price history"
+    assert history["last_30"], "Expected 30-day slice after fallback"
+    assert len(history["all"]) == 2
+    assert len(history_calls) == 2
+    assert isinstance(history_calls[0]["date_from"], dt.date)
+    assert history_calls[1]["date_from"] is None
+    assert history_calls[1]["date_to"] is None
+
+
 def test_card_info_remote_fallback_without_set_filters(api_client, monkeypatch):
     remote_payload = {
         "id": "sv1-12",
@@ -596,11 +661,10 @@ def test_card_info_uses_month_range_by_default(api_client, monkeypatch):
         lambda **_: (remote_results, len(remote_results), len(remote_results)),
     )
 
-    captured: dict[str, object] = {}
+    captured_calls: list[dict[str, object]] = []
 
     def fake_history(card_id, **kwargs):
-        captured["card_id"] = card_id
-        captured["kwargs"] = kwargs
+        captured_calls.append({"card_id": card_id, "kwargs": kwargs})
         return []
 
     monkeypatch.setattr(cards_routes.tcg_api, "fetch_card_price_history", fake_history)
@@ -611,8 +675,10 @@ def test_card_info_uses_month_range_by_default(api_client, monkeypatch):
     )
 
     assert response.status_code == 200, response.text
-    assert captured.get("card_id") == "sv1-1"
-    params = captured.get("kwargs") or {}
+    assert captured_calls, "Expected price history requests to be made"
+    first_call = captured_calls[0]
+    assert first_call.get("card_id") == "sv1-1"
+    params = first_call.get("kwargs") or {}
     assert params.get("date_from") == dt.date(2024, 1, 16)
     assert params.get("date_to") == dt.date(2024, 2, 15)
 
