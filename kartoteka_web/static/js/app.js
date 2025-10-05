@@ -1632,9 +1632,8 @@
       controls.forEach((button) => {
         const key = button.dataset.priceRange;
         const hasData = Boolean(key && ranges[key] && ranges[key].length);
-        const attempted = key ? fetchedRanges.has(key) : false;
         const canFetch = typeof rangeFetcher === "function";
-        const disableBecauseNoData = !hasData && attempted && !canFetch;
+        const disableBecauseNoData = !hasData && !canFetch;
         const disableBecauseLoading = isLoading && key !== rangeKey;
         button.disabled = disableBecauseNoData || disableBecauseLoading;
         const isActive = key === rangeKey;
@@ -1803,12 +1802,17 @@
         chartLayer.innerHTML = "";
         chart.setAttribute("aria-hidden", "true");
         emptyState.hidden = false;
-        controls.forEach((button) => {
-          button.disabled = true;
-          button.classList.remove("is-active");
-          button.setAttribute("aria-pressed", "false");
-        });
-        section.hidden = true;
+        if (typeof rangeFetcher === "function") {
+          section.hidden = false;
+          updateControls(activeRange);
+        } else {
+          section.hidden = true;
+          controls.forEach((button) => {
+            button.disabled = true;
+            button.classList.remove("is-active");
+            button.setAttribute("aria-pressed", "false");
+          });
+        }
         return;
       }
 
