@@ -1658,11 +1658,15 @@
     };
 
     const setChartAriaLabel = (rangeKey, points) => {
+      const label = PRICE_HISTORY_RANGE_LABELS[rangeKey] || rangeKey || "";
       if (!points.length) {
-        chart.setAttribute("aria-label", "Brak danych historii cen");
+        const labelSuffix = label ? ` dla zakresu ${label}` : "";
+        chart.setAttribute(
+          "aria-label",
+          `Brak danych historii cen${labelSuffix}. Wyświetlany jest pusty wykres referencyjny.`,
+        );
         return;
       }
-      const label = PRICE_HISTORY_RANGE_LABELS[rangeKey] || rangeKey || "";
       const firstPoint = points[0];
       const lastPoint = points[points.length - 1];
       const priceText = Number.isFinite(lastPoint.price)
@@ -1679,20 +1683,46 @@
       const points = ranges[rangeKey] || [];
       chartLayer.innerHTML = "";
 
+      const width = 100;
+      const height = 48;
+      const marginX = 6;
+      const marginY = 8;
+
+      chart.setAttribute("aria-hidden", "false");
+
       if (!points.length) {
         emptyState.hidden = false;
-        chart.setAttribute("aria-hidden", "true");
+        const fallbackGroup = document.createElementNS(SVG_NS, "g");
+        fallbackGroup.setAttribute("class", "card-price-chart-empty-state");
+
+        const band = document.createElementNS(SVG_NS, "rect");
+        band.setAttribute("class", "card-price-chart-area");
+        band.setAttribute("x", marginX.toFixed(2));
+        band.setAttribute("y", marginY.toFixed(2));
+        band.setAttribute("width", (width - marginX * 2).toFixed(2));
+        band.setAttribute("height", (height - marginY * 2).toFixed(2));
+        band.setAttribute("fill", "url(#card-price-chart-gradient)");
+        band.setAttribute("fill-opacity", "0.25");
+
+        const baseline = document.createElementNS(SVG_NS, "line");
+        baseline.setAttribute("class", "card-price-chart-line");
+        baseline.setAttribute("x1", marginX.toFixed(2));
+        baseline.setAttribute("x2", (width - marginX).toFixed(2));
+        const baselineY = (height - marginY).toFixed(2);
+        baseline.setAttribute("y1", baselineY);
+        baseline.setAttribute("y2", baselineY);
+        baseline.setAttribute("stroke-dasharray", "4 3");
+
+        fallbackGroup.appendChild(band);
+        fallbackGroup.appendChild(baseline);
+        chartLayer.appendChild(fallbackGroup);
+
+        chart.dataset.range = rangeKey;
         setChartAriaLabel(rangeKey, points);
         return;
       }
 
       emptyState.hidden = true;
-      chart.setAttribute("aria-hidden", "false");
-
-      const width = 100;
-      const height = 48;
-      const marginX = 6;
-      const marginY = 8;
       const prices = points.map((point) => point.price);
       const minPrice = Math.min(...prices);
       const maxPrice = Math.max(...prices);
