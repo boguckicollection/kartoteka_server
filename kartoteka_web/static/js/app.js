@@ -1799,19 +1799,25 @@
         return;
       }
 
+      const fallbackRangeOrder = ["last_30", "last_7", "all"];
+      const requestedHasData =
+        requestedRange &&
+        Array.isArray(ranges[requestedRange]) &&
+        ranges[requestedRange].length > 0;
+      const activeHasData =
+        preserveActive &&
+        activeRange &&
+        Array.isArray(ranges[activeRange]) &&
+        ranges[activeRange].length > 0;
+
       let nextRange = null;
 
-      if (
-        requestedRange &&
-        (updatedKeys.includes(requestedRange) || (ranges[requestedRange] && ranges[requestedRange].length))
-      ) {
+      if (requestedHasData) {
         nextRange = requestedRange;
-      } else if (preserveActive && ranges[activeRange]) {
+      } else if (activeHasData) {
         nextRange = activeRange;
-      }
-
-      if (!nextRange) {
-        for (const key of ["last_30", "last_7", "all"]) {
+      } else {
+        for (const key of fallbackRangeOrder) {
           if (ranges[key] && ranges[key].length) {
             nextRange = key;
             break;
@@ -1820,7 +1826,7 @@
       }
 
       if (!nextRange) {
-        for (const key of ["last_30", "last_7", "all"]) {
+        for (const key of fallbackRangeOrder) {
           if (updatedKeys.includes(key)) {
             nextRange = key;
             break;
