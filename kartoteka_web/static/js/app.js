@@ -1577,16 +1577,15 @@
 
   const createPriceHistoryModule = () => {
     const section = document.getElementById("card-price-history-section");
-    const chart = document.getElementById("card-price-chart");
-    const chartLayer = chart?.querySelector("#card-price-chart-data");
+    const chartCanvas = document.getElementById("card-price-chart");
+    const chartContainer = chartCanvas?.closest(".card-price-chart-container") || null;
     const emptyState = document.getElementById("card-price-chart-empty");
     const controls = Array.from(document.querySelectorAll("[data-price-range]"));
 
-    if (!section || !chart || !chartLayer || !emptyState || !controls.length) {
+    if (!section || !chartCanvas || !emptyState || !controls.length) {
       return { setData: () => {}, setRangeFetcher: () => {} };
     }
 
-    const SVG_NS = "http://www.w3.org/2000/svg";
     const ranges = {
       last_7: [],
       last_30: [],
@@ -1601,6 +1600,7 @@
     let activeRange = "last_30";
     let isLoading = false;
     let rangeFetcher = null;
+    let chartInstance = null;
 
     const parseHistoryPoints = (items) => {
       if (!Array.isArray(items)) return [];
@@ -1626,6 +1626,184 @@
         return a.iso.localeCompare(b.iso);
       });
       return parsed;
+    };
+
+    const getCssVariableValue = (name, fallback = "") => {
+      const root = document.documentElement;
+      if (!root) return fallback;
+      const value = getComputedStyle(root).getPropertyValue(name);
+      return value ? value.trim() || fallback : fallback;
+    };
+
+    const hexToRgba = (hex, alpha = 1) => {
+      if (typeof hex !== "string") {
+        return hex;
+      }
+      const normalized = hex.trim();
+      if (!normalized.startsWith("#")) {
+        return hex;
+      }
+      const raw = normalized.slice(1);
+      const size = raw.length;
+      if (size !== 3 && size !== 6) {
+        return hex;
+      }
+      const expand = size === 3 ? raw.split("").map((char) => `${char}${char}`).join("") : raw;
+      const r = parseInt(expand.slice(0, 2), 16);
+      const g = parseInt(expand.slice(2, 4), 16);
+      const b = parseInt(expand.slice(4, 6), 16);
+      if ([r, g, b].some((value) => Number.isNaN(value))) {
+        return hex;
+      }
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+
+    const getChartPalette = () => {
+      const accent = getCssVariableValue("--color-accent", "#2563eb");
+      const surface = getCssVariableValue("--color-surface", "#ffffff");
+      const muted = getCssVariableValue("--color-muted", "#6b7280");
+      const grid = getCssVariableValue("--color-border", "rgba(148, 163, 184, 0.25)");
+      return {
+        border: accent,
+        background: hexToRgba(accent, 0.15),
+        pointBorder: accent,
+        pointBackground: surface,
+        muted,
+        grid,
+      };
+    };
+
+    const destroyChart = () => {
+      if (chartInstance && typeof chartInstance.destroy === "function") {
+        chartInstance.destroy();
+      }
+      chartInstance = null;
+    };
+
+    const ensureChart = () => {
+      if (!chartCanvas || typeof window.Chart === "undefined") {
+        return null;
+      }
+      if (chartInstance) {
+        return chartInstance;
+      }
+      const context = chartCanvas.getContext("2d");
+      if (!context) {
+        return null;
+      }
+      const palette = getChartPalette();
+      chartInstance = new window.Chart(context, {
+        type: "line",
+        data: { datasets: [] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          parsing: false,
+          animation: false,
+          interaction: {
+            mode: "nearest",
+            intersect: false,
+          },
+          scales: {
+            x: {
+              type: "time",
+              time: {
+                tooltipFormat: "PPP",
+                displayFormats: {
+                  day: "d MMM",
+                  week: "d MMM",
+                  month: "MMM yyyy",
+                },
+              },
+              ticks: {
+                maxRotation: 0,
+                minRotation: 0,
+                color: palette.muted,
+              },
+              grid: {
+                display: false,
+              },
+              border: {
+                display: false,
+              },
+            },
+            y: {
+              type: "linear",
+              ticks: {
+                callback(value) {
+                  const numeric = Number(value);
+                  return Number.isFinite(numeric) ? formatCardPrice(numeric) : value;
+                },
+                color: palette.muted,
+              },
+              grid: {
+                color: palette.grid,
+              },
+              border: {
+                display: false,
+              },
+            },
+          },
+          plugins: {
+            legend: {
+              display: false,
+            },
+            tooltip: {
+              callbacks: {
+                title(context) {
+                  const item = context?.[0];
+                  if (!item) return "";
+                  const value = item.parsed?.x;
+                  if (!value) return "";
+                  try {
+                    const date = new Date(value);
+                    if (!Number.isNaN(date.getTime())) {
+                      return date.toLocaleDateString("pl-PL", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      });
+                    }
+                  } catch (error) {
+                    // fall through
+                  }
+                  return String(value);
+                },
+                label(context) {
+                  const price = context.parsed?.y;
+                  if (!Number.isFinite(price)) {
+                    return "";
+                  }
+                  return formatCardPrice(price);
+                },
+              },
+            },
+          },
+        },
+      });
+      return chartInstance;
+    };
+
+    const updateChartTheme = (chart) => {
+      const palette = getChartPalette();
+      if (chart.options?.scales?.x?.ticks) {
+        chart.options.scales.x.ticks.color = palette.muted;
+      }
+      if (chart.options?.scales?.y?.ticks) {
+        chart.options.scales.y.ticks.color = palette.muted;
+      }
+      if (chart.options?.scales?.y?.grid) {
+        chart.options.scales.y.grid.color = palette.grid;
+      }
+      const dataset = chart.data.datasets?.[0];
+      if (dataset) {
+        dataset.borderColor = palette.border;
+        dataset.backgroundColor = palette.background;
+        dataset.pointBorderColor = palette.pointBorder;
+        dataset.pointBackgroundColor = palette.pointBackground;
+        dataset.hoverBorderColor = palette.border;
+        dataset.hoverBackgroundColor = palette.pointBackground;
+      }
     };
 
     const updateControls = (rangeKey) => {
@@ -1661,7 +1839,7 @@
       const label = PRICE_HISTORY_RANGE_LABELS[rangeKey] || rangeKey || "";
       if (!points.length) {
         const labelSuffix = label ? ` dla zakresu ${label}` : "";
-        chart.setAttribute(
+        chartCanvas.setAttribute(
           "aria-label",
           `Brak danych historii cen${labelSuffix}. Wyświetlany jest pusty wykres referencyjny.`,
         );
@@ -1673,7 +1851,7 @@
         ? formatCardPrice(lastPoint.price)
         : "";
       const suffix = priceText ? `. Aktualna cena ${priceText}.` : ".";
-      chart.setAttribute(
+      chartCanvas.setAttribute(
         "aria-label",
         `Historia cen (${label}): od ${firstPoint.label} do ${lastPoint.label}${suffix}`,
       );
@@ -1681,98 +1859,71 @@
 
     const renderChart = (rangeKey) => {
       const points = ranges[rangeKey] || [];
-      chartLayer.innerHTML = "";
+      const dataset = points.map((point) => ({ x: point.iso, y: point.price }));
+      const hasData = dataset.length > 0;
 
-      const width = 100;
-      const height = 48;
-      const marginX = 6;
-      const marginY = 8;
+      if (chartContainer) {
+        chartContainer.classList.toggle("is-empty", !hasData);
+      }
 
-      chart.setAttribute("aria-hidden", "false");
-
-      if (!points.length) {
+      if (!hasData) {
         emptyState.hidden = false;
-        const fallbackGroup = document.createElementNS(SVG_NS, "g");
-        fallbackGroup.setAttribute("class", "card-price-chart-empty-state");
-
-        const band = document.createElementNS(SVG_NS, "rect");
-        band.setAttribute("class", "card-price-chart-area");
-        band.setAttribute("x", marginX.toFixed(2));
-        band.setAttribute("y", marginY.toFixed(2));
-        band.setAttribute("width", (width - marginX * 2).toFixed(2));
-        band.setAttribute("height", (height - marginY * 2).toFixed(2));
-        band.setAttribute("fill", "url(#card-price-chart-gradient)");
-        band.setAttribute("fill-opacity", "0.25");
-
-        const baseline = document.createElementNS(SVG_NS, "line");
-        baseline.setAttribute("class", "card-price-chart-line");
-        baseline.setAttribute("x1", marginX.toFixed(2));
-        baseline.setAttribute("x2", (width - marginX).toFixed(2));
-        const baselineY = (height - marginY).toFixed(2);
-        baseline.setAttribute("y1", baselineY);
-        baseline.setAttribute("y2", baselineY);
-        baseline.setAttribute("stroke-dasharray", "4 3");
-
-        fallbackGroup.appendChild(band);
-        fallbackGroup.appendChild(baseline);
-        chartLayer.appendChild(fallbackGroup);
-
-        chart.dataset.range = rangeKey;
+        chartCanvas.setAttribute("aria-hidden", "true");
+        if (chartInstance) {
+          chartInstance.data.datasets = [];
+          chartInstance.update("none");
+        }
+        chartCanvas.dataset.range = rangeKey;
         setChartAriaLabel(rangeKey, points);
         return;
       }
 
       emptyState.hidden = true;
+      chartCanvas.setAttribute("aria-hidden", "false");
+
+      const chart = ensureChart();
+      if (!chart) {
+        return;
+      }
+
       const prices = points.map((point) => point.price);
       const minPrice = Math.min(...prices);
       const maxPrice = Math.max(...prices);
-      const priceRange = maxPrice - minPrice || 1;
-      const step = points.length > 1 ? (width - marginX * 2) / (points.length - 1) : 0;
+      const padding = (maxPrice - minPrice) * 0.1 || Math.max(minPrice * 0.1, 1);
+      const palette = getChartPalette();
 
-      const areaParts = [];
-      const lineParts = [];
-      let lastX = width / 2;
-      let lastY = height / 2;
-
-      points.forEach((point, index) => {
-        const x = points.length === 1 ? width / 2 : marginX + index * step;
-        const normalized = (point.price - minPrice) / priceRange;
-        const y = height - marginY - normalized * (height - marginY * 2);
-        const command = index === 0 ? "M" : "L";
-        lineParts.push(`${command}${x.toFixed(2)} ${y.toFixed(2)}`);
-        areaParts.push(`${command}${x.toFixed(2)} ${y.toFixed(2)}`);
-        lastX = x;
-        lastY = y;
-      });
-
-      if (points.length > 1) {
-        areaParts.push(`L${lastX.toFixed(2)} ${height - marginY}`);
-        areaParts.push(`L${marginX.toFixed(2)} ${height - marginY}`);
+      if (chart.data.datasets.length === 0) {
+        chart.data.datasets.push({
+          label: "Cena karty",
+          data: dataset,
+          fill: "origin",
+          borderWidth: 2,
+          borderColor: palette.border,
+          backgroundColor: palette.background,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          pointBorderColor: palette.pointBorder,
+          pointBackgroundColor: palette.pointBackground,
+          tension: 0.35,
+        });
       } else {
-        areaParts.push(`L${lastX.toFixed(2)} ${height - marginY}`);
-        areaParts.push(`L${lastX.toFixed(2)} ${height - marginY}`);
+        const primaryDataset = chart.data.datasets[0];
+        primaryDataset.data = dataset;
+        primaryDataset.borderColor = palette.border;
+        primaryDataset.backgroundColor = palette.background;
+        primaryDataset.pointBorderColor = palette.pointBorder;
+        primaryDataset.pointBackgroundColor = palette.pointBackground;
       }
-      areaParts.push("Z");
 
-      const areaPath = document.createElementNS(SVG_NS, "path");
-      areaPath.setAttribute("class", "card-price-chart-area");
-      areaPath.setAttribute("d", areaParts.join(" "));
-      areaPath.setAttribute("fill", "url(#card-price-chart-gradient)");
+      chart.options.scales.y.suggestedMin = Math.max(0, minPrice - padding);
+      chart.options.scales.y.suggestedMax = maxPrice + padding;
+      chart.options.scales.x.min = dataset[0].x;
+      chart.options.scales.x.max = dataset[dataset.length - 1].x;
 
-      const linePath = document.createElementNS(SVG_NS, "path");
-      linePath.setAttribute("class", "card-price-chart-line");
-      linePath.setAttribute("d", lineParts.join(" "));
+      updateChartTheme(chart);
 
-      const marker = document.createElementNS(SVG_NS, "circle");
-      marker.setAttribute("class", "card-price-chart-marker");
-      marker.setAttribute("cx", lastX.toFixed(2));
-      marker.setAttribute("cy", lastY.toFixed(2));
-      marker.setAttribute("r", "1.6");
-
-      chartLayer.appendChild(areaPath);
-      chartLayer.appendChild(linePath);
-      chartLayer.appendChild(marker);
-      chart.dataset.range = rangeKey;
+      chart.update();
+      chartCanvas.dataset.range = rangeKey;
       setChartAriaLabel(rangeKey, points);
     };
 
@@ -1835,8 +1986,11 @@
       }
 
       if (!nextRange) {
-        chartLayer.innerHTML = "";
-        chart.setAttribute("aria-hidden", "true");
+        destroyChart();
+        chartCanvas.setAttribute("aria-hidden", "true");
+        if (chartContainer) {
+          chartContainer.classList.add("is-empty");
+        }
         emptyState.hidden = false;
         if (typeof rangeFetcher === "function") {
           section.hidden = false;

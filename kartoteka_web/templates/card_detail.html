@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ card_name or 'Szczegóły karty' }} - Kartoteka{% endblock %}
+{% block head_extra %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js" crossorigin="anonymous"></script>
+{% endblock %}
+
 {% block content %}
 <section
   class="panel card-detail-hero"
@@ -109,23 +114,12 @@
       </div>
     </div>
     <div class="card-price-chart-container">
-      <svg
+      <canvas
         class="card-price-chart-figure"
         id="card-price-chart"
-        viewBox="0 0 100 48"
         role="img"
-        aria-labelledby="card-price-chart-title"
-        preserveAspectRatio="none"
-      >
-        <title id="card-price-chart-title">Historia ceny karty</title>
-        <defs>
-          <linearGradient id="card-price-chart-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="var(--color-accent)" stop-opacity="0.3" />
-            <stop offset="100%" stop-color="var(--color-accent)" stop-opacity="0" />
-          </linearGradient>
-        </defs>
-        <g id="card-price-chart-data" class="card-price-chart-data"></g>
-      </svg>
+        aria-label="Historia ceny karty"
+      ></canvas>
       <p class="card-price-chart-empty" id="card-price-chart-empty" hidden>Brak danych do wyświetlenia.</p>
     </div>
   </section>
