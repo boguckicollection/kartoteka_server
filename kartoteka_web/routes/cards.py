@@ -713,7 +713,26 @@ def card_info(
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.warning("Failed to fetch price history for card %s: %s", remote_card_id, exc)
             raw_history = []
+
         normalized_history = tcg_api.normalize_price_history(raw_history)
+
+        if not normalized_history and date_from_value is not None:
+            try:
+                fallback_history = tcg_api.fetch_card_price_history(
+                    remote_card_id,
+                    rapidapi_key=RAPIDAPI_KEY,
+                    rapidapi_host=RAPIDAPI_HOST,
+                )
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.warning(
+                    "Fallback price history fetch failed for card %s: %s",
+                    remote_card_id,
+                    exc,
+                )
+                fallback_history = []
+
+            normalized_history = tcg_api.normalize_price_history(fallback_history)
+
         if normalized_history:
             detail.price_history = schemas.CardPriceHistory(
                 last_7=_history_points_to_schema(
