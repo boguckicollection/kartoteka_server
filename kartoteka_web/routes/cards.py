@@ -201,7 +201,10 @@ def _history_points_to_schema(
 
 
 def _select_remote_card(
-    records: list[dict[str, Any]], detail: schemas.CardDetail
+    records: list[dict[str, Any]],
+    detail: schemas.CardDetail,
+    *,
+    require_number_match: bool = False,
 ) -> dict[str, Any] | None:
     if not records:
         return None
@@ -209,8 +212,22 @@ def _select_remote_card(
     def _norm(value: Any) -> str:
         return (str(value or "").strip().lower())
 
-    target_number = _norm(detail.number)
+    def _clean_number(value: Any) -> str:
+        text_value = str(value or "").strip()
+        if not text_value:
+            return ""
+        simplified = re.sub(r"[^0-9a-zA-Z]+", "", text_value)
+        if not simplified:
+            return ""
+        normalized = text.sanitize_number(simplified)
+        return normalized.lower()
+
+    target_number_raw = detail.number or detail.number_display or ""
+    target_number = _norm(target_number_raw)
+    target_number_clean = _clean_number(target_number_raw)
+    target_total_clean = _clean_number(detail.total)
     target_set_code = _norm(detail.set_code)
+    target_set_code_clean = set_utils.clean_code(detail.set_code) or ""
     target_set_name = _norm(detail.set_name)
 
     best_score = -1
@@ -218,14 +235,43 @@ def _select_remote_card(
 
     for record in records:
         score = 0
-        record_number = _norm(record.get("number"))
+        record_number_value = record.get("number")
+        record_number_display = record.get("number_display")
+        record_number_raw = record_number_value or record_number_display
+        record_number = _norm(record_number_raw)
+        record_number_clean = _clean_number(record_number_value)
+        record_number_display_clean = _clean_number(record_number_display)
+        combined_number_clean = record_number_clean or record_number_display_clean
+        record_total_clean = _clean_number(record.get("total"))
         record_set_code = _norm(record.get("set_code"))
+        record_set_code_clean = set_utils.clean_code(record.get("set_code")) or ""
         record_set_name = _norm(record.get("set_name"))
 
         if target_number and record_number == target_number:
-            score += 3
+            score += 5
+        if (
+            target_number_clean
+            and combined_number_clean
+            and target_number_clean == combined_number_clean
+        ):
+            score += 4
+        if (
+            target_number_clean
+            and combined_number_clean
+            and combined_number_clean.startswith(target_number_clean)
+        ):
+            score += 1
+        if target_total_clean and record_total_clean:
+            if target_total_clean == record_total_clean:
+                score += 1
         if target_set_code and record_set_code == target_set_code:
             score += 3
+        if (
+            target_set_code_clean
+            and record_set_code_clean
+            and target_set_code_clean == record_set_code_clean
+        ):
+            score += 2
         if target_set_name and record_set_name == target_set_name:
             score += 1
         if score > best_score:
@@ -233,8 +279,14 @@ def _select_remote_card(
             best_record = record
 
     if best_record and best_score > 0:
+        if require_number_match and target_number_clean:
+            best_number_clean = _clean_number(best_record.get("number"))
+            best_number_display_clean = _clean_number(best_record.get("number_display"))
+            combined_best_number = best_number_clean or best_number_display_clean
+            if not combined_best_number or combined_best_number != target_number_clean:
+                return None
         return best_record
-    return records[0]
+    return None
 
 
 def _matches_filters(
@@ -602,7 +654,15 @@ def card_info(
         logger.warning("Failed to fetch remote card details for %s #%s: %s", name, number, exc)
         remote_results = []
 
-    remote_card = _select_remote_card(remote_results, detail) if remote_results else None
+    remote_card = (
+        _select_remote_card(
+            remote_results,
+            detail,
+            require_number_match=card is not None and bool(detail.number),
+        )
+        if remote_results
+        else None
+    )
     remote_card_id: str | None = None
 
     def _parse_date_param(value: str | None) -> dt.date | None:
