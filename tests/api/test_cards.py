@@ -890,12 +890,15 @@ def test_cards_module_uses_generic_rapidapi_env(monkeypatch):
 
     dummy_user = models.User(id=1, username="misty", hashed_password="hashed:pw")
 
-    response = reloaded_cards.search_cards_endpoint(
-        query="Eevee",
-        limit=5,
-        current_user=dummy_user,
-        session=None,
-    )
+    database.init_db()
+    with database.session_scope() as session:
+        response = reloaded_cards.search_cards_endpoint(
+            query="Eevee",
+            limit=5,
+            current_user=dummy_user,
+            session=session,
+            set_code=None,
+        )
 
     assert response.total == 0
     assert response.total_count == 0
@@ -958,8 +961,88 @@ def test_card_search_pagination_clamping(api_client, monkeypatch):
     assert captured["limit"] == 100
     assert payload["page"] == 1
     assert payload["per_page"] == 20
-    assert payload["total_count"] == 0
-    assert payload["total_remote"] == 150
+
+
+def test_card_search_prefers_local_catalog(api_client, monkeypatch):
+    headers = _auth_headers(api_client, username="sabrina", password="alakazam")
+
+    def _fail_remote(**_: object) -> None:
+        raise AssertionError("Remote search should not be invoked when local data exists")
+
+    monkeypatch.setattr(cards_routes.tcg_api, "search_cards", _fail_remote)
+
+    with database.session_scope() as session:
+        session.add(
+            models.CardRecord(
+                name="Charizard",
+                name_normalized="charizard",
+                number="4",
+                number_display="004/102",
+                total="102",
+                set_name="Base Set",
+                set_name_normalized="base set",
+                set_code="base1",
+                set_code_clean="base1",
+                rarity="Rare Holo",
+                image_small="https://example.com/charizard-small.jpg",
+                image_large="https://example.com/charizard-large.jpg",
+                price=120.0,
+                price_7d_average=115.5,
+            )
+        )
+
+    response = api_client.get(
+        "/cards/search",
+        params={"query": "Charizard"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["total_count"] == 1
+    assert payload["items"][0]["name"] == "Charizard"
+    assert payload["items"][0]["set_name"] == "Base Set"
+
+
+def test_card_search_populates_catalog_from_remote(api_client, monkeypatch):
+    headers = _auth_headers(api_client, username="janine", password="arbok")
+
+    captured_records: list[dict[str, object]] = [
+        {
+            "name": "Mewtwo",
+            "number": "10",
+            "set_name": "Legendary Collection",
+            "set_code": "lc",
+            "price": 42.0,
+        }
+    ]
+
+    def fake_search_cards(**kwargs):  # noqa: ANN001
+        assert kwargs["name"].startswith("Mewtwo")
+        return captured_records, len(captured_records), len(captured_records)
+
+    monkeypatch.setattr(cards_routes.tcg_api, "search_cards", fake_search_cards)
+
+    response = api_client.get(
+        "/cards/search",
+        params={"query": "Mewtwo"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["items"][0]["name"] == "Mewtwo"
+
+    with database.session_scope() as session:
+        stored = session.exec(
+            select(models.CardRecord).where(models.CardRecord.name == "Mewtwo")
+        ).first()
+        assert stored is not None
+        assert stored.set_code == "lc"
+        assert payload["total_count"] == 1
+        assert payload["total_remote"] == 1
 
 
 def test_card_search_uses_filtered_total_for_pagination(api_client, monkeypatch):

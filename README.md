@@ -41,6 +41,22 @@ uvicorn server:app --reload
 
 The development server defaults to `http://127.0.0.1:8000/` and serves the dashboard, collection and portfolio pages alongside the JSON API.
 
+### Synchronising the Card Catalogue
+
+The `/cards/search` endpoint now reads directly from the local `CardRecord` table. Populate it with the cards you care about before switching the UI to offline mode:
+
+```bash
+./sync_catalog.py --verbose
+```
+
+By default the command walks every set listed in `tcg_sets.json` and stores the payload in the local database while respecting your `RAPIDAPI_*` credentials. Pass a list of set codes to limit the import scope or `--limit` to fetch only a handful of cards during testing:
+
+```bash
+./sync_catalog.py --sets sv01 sv02 sv03 --limit 25
+```
+
+Once the import completes, subsequent searches and detail views return the locally cached results and only hit RapidAPI if the catalogue misses the requested card.
+
 ### Developing the Frontend
 The shipped UI is compiled into `kartoteka_web/static`. When iterating on the new branding or implementing a custom JavaScript frontend:
 

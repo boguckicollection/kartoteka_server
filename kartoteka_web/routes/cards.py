@@ -10,13 +10,14 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func, or_
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from .. import models, schemas
 from ..auth import get_current_user, get_optional_user
 from ..database import get_session
-from ..services import tcg_api
+from ..services import catalog_sync, tcg_api
 from ..utils import images as image_utils, text, sets as set_utils
 
 router = APIRouter(prefix="/cards", tags=["cards"])
@@ -136,6 +137,27 @@ def _card_to_search_schema(card: models.Card) -> schemas.CardSearchResult:
         release_date=None,
         price=card.price,
         price_7d_average=card.price_7d_average,
+    )
+
+
+def _card_record_to_search_schema(record: models.CardRecord) -> schemas.CardSearchResult:
+    return schemas.CardSearchResult(
+        name=record.name,
+        number=record.number,
+        number_display=record.number_display or record.number,
+        total=record.total,
+        set_name=record.set_name,
+        set_code=record.set_code,
+        rarity=record.rarity,
+        image_small=record.image_small,
+        image_large=record.image_large,
+        set_icon=record.set_icon,
+        set_icon_path=_local_set_icon_path(record.set_code, record.set_name),
+        artist=record.artist,
+        series=record.series,
+        release_date=record.release_date,
+        price=record.price,
+        price_7d_average=record.price_7d_average,
     )
 
 
@@ -479,6 +501,44 @@ def _payload_to_search_schema(payload: dict[str, Any]) -> schemas.CardSearchResu
     )
 
 
+def _apply_card_record_filters(
+    stmt,
+    *,
+    name_norm: str,
+    query_norm: str,
+    number_clean: str,
+    total_clean: str,
+    set_name_norm: str,
+    set_code_clean: str,
+):
+    if name_norm:
+        stmt = stmt.where(models.CardRecord.name_normalized.contains(name_norm))
+    elif query_norm:
+        stmt = stmt.where(models.CardRecord.name_normalized.contains(query_norm))
+
+    if number_clean:
+        number_like = f"{number_clean}%"
+        stmt = stmt.where(
+            or_(
+                models.CardRecord.number == number_clean,
+                models.CardRecord.number.like(number_like),
+                models.CardRecord.number_display == number_clean,
+                models.CardRecord.number_display.like(number_like),
+            )
+        )
+
+    if total_clean:
+        stmt = stmt.where(models.CardRecord.total == total_clean)
+
+    if set_code_clean:
+        stmt = stmt.where(models.CardRecord.set_code_clean == set_code_clean)
+
+    if set_name_norm:
+        stmt = stmt.where(models.CardRecord.set_name_normalized.contains(set_name_norm))
+
+    return stmt
+
+
 @router.get("/search", response_model=schemas.CardSearchResponse)
 def search_cards_endpoint(
     query: str | None = None,
@@ -486,6 +546,7 @@ def search_cards_endpoint(
     number: str | None = None,
     total: str | None = None,
     set_name: str | None = None,
+    set_code: str | None = None,
     limit: int | None = None,
     sort: str | None = None,
     order: str | None = None,
@@ -498,8 +559,13 @@ def search_cards_endpoint(
 
     parsed_name = ""
     parsed_number: str | None = None
+    parsed_total: str | None = None
     if query:
-        parsed_name, parsed_number, _ = _parse_card_query(query)
+        parsed_name, parsed_number, parsed_total = _parse_card_query(query)
+
+    set_name_value = (set_name or "").strip()
+    set_code_value = (set_code or "").strip()
+    total_value = total or parsed_total
 
     name_value = (name or parsed_name or "").strip()
     number_value = number or parsed_number
@@ -508,13 +574,11 @@ def search_cards_endpoint(
         result_cap = max(1, min(limit, MAX_SEARCH_RESULTS))
     overall_cap = 100
     result_cap = min(result_cap, overall_cap)
-    search_query = query or _compose_query(name_value, number_value, set_name)
+    search_query = query or _compose_query(name_value, number_value, set_name_value)
     if not (search_query or name_value):
         return schemas.CardSearchResponse(items=[], total=0, page=1, per_page=20, total_count=0)
     if not name_value:
         name_value = search_query
-
-    del session  # Database access unused when delegating to external API.
 
     per_page_value = max(1, min(per_page or 1, 20))
     try:
@@ -523,12 +587,82 @@ def search_cards_endpoint(
         requested_page = 1
     requested_page = max(1, requested_page)
 
+    name_norm = text.normalize(name_value, keep_spaces=True)
+    query_norm = text.normalize(search_query, keep_spaces=True)
+    set_name_norm = text.normalize(set_name_value, keep_spaces=True)
+    set_code_clean = set_utils.clean_code(set_code_value) or ""
+    number_clean = (
+        text.sanitize_number(str(number_value))
+        if number_value is not None
+        else ""
+    )
+    total_clean = (
+        text.sanitize_number(str(total_value))
+        if total_value is not None
+        else ""
+    )
+
+    filtered_stmt = _apply_card_record_filters(
+        select(models.CardRecord),
+        name_norm=name_norm,
+        query_norm=query_norm,
+        number_clean=number_clean,
+        total_clean=total_clean,
+        set_name_norm=set_name_norm,
+        set_code_clean=set_code_clean,
+    )
+
+    count_stmt = _apply_card_record_filters(
+        select(func.count()).select_from(models.CardRecord),
+        name_norm=name_norm,
+        query_norm=query_norm,
+        number_clean=number_clean,
+        total_clean=total_clean,
+        set_name_norm=set_name_norm,
+        set_code_clean=set_code_clean,
+    )
+    total_local = session.exec(count_stmt).one()
+    total_local = int(total_local or 0)
+
+    if total_local > 0:
+        capped_total = min(total_local, result_cap)
+        total_pages = max(1, (capped_total + per_page_value - 1) // per_page_value)
+        page_value = min(requested_page, total_pages)
+        offset = (page_value - 1) * per_page_value
+        limit_value = min(per_page_value, max(0, capped_total - offset))
+        records: list[models.CardRecord] = []
+        if limit_value > 0:
+            records = session.exec(
+                filtered_stmt
+                .order_by(
+                    models.CardRecord.name_normalized,
+                    models.CardRecord.set_name_normalized,
+                    models.CardRecord.number,
+                    models.CardRecord.id,
+                )
+                .offset(offset)
+                .limit(limit_value)
+            ).all()
+
+        items = [_card_record_to_search_schema(record) for record in records]
+        total_remote_value = total_local if total_local > result_cap else None
+        return schemas.CardSearchResponse(
+            items=items,
+            total=len(items),
+            total_count=min(total_local, result_cap),
+            total_remote=total_remote_value,
+            page=page_value,
+            per_page=per_page_value,
+            suggested_query=None,
+        )
+
     records, filtered_total, upstream_total = tcg_api.search_cards(
         name=name_value or search_query,
         number=number_value,
-        set_name=set_name,
-        total=total,
-        limit=overall_cap,
+        set_name=set_name_value,
+        set_code=set_code_value,
+        total=total_value,
+        limit=result_cap,
         sort=sort,
         order=order,
         page=1,
@@ -537,11 +671,25 @@ def search_cards_endpoint(
         rapidapi_host=RAPIDAPI_HOST,
     )
 
-    if result_cap < overall_cap:
+    filtered_total_value = int(filtered_total or len(records))
+    if len(records) > result_cap:
         records = records[:result_cap]
 
-    filtered_total = len(records)
-    effective_total = min(overall_cap, filtered_total)
+    suggestion = None
+    if records and isinstance(records[0], dict):
+        suggestion = records[0].get("name")
+
+    changed_catalog = False
+    for record in records:
+        if isinstance(record, dict):
+            _, created, updated = catalog_sync.upsert_card_record(session, record)
+            if created or updated:
+                changed_catalog = True
+
+    if changed_catalog:
+        session.commit()
+
+    effective_total = min(result_cap, filtered_total_value)
     max_pages = max(1, (effective_total + per_page_value - 1) // per_page_value)
     page_value = min(requested_page, max_pages)
 
@@ -549,16 +697,19 @@ def search_cards_endpoint(
     end_index = start_index + per_page_value
     page_records = records[start_index:end_index]
 
-    items = [_payload_to_search_schema(record) for record in page_records]
-    suggestion = records[0].get("name") if records else None
+    items = [
+        _payload_to_search_schema(record)
+        for record in page_records
+        if isinstance(record, dict)
+    ]
     return schemas.CardSearchResponse(
         items=items,
-        total=len(page_records),
+        total=len(items),
         total_count=effective_total,
         page=page_value,
         per_page=per_page_value,
         suggested_query=suggestion,
-        total_remote=upstream_total,
+        total_remote=upstream_total or filtered_total_value,
     )
 
 
