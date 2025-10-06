@@ -378,7 +378,7 @@ def test_card_info_remote_fallback(api_client, monkeypatch):
         "/cards/info",
         params={
             "name": "Charizard",
-            "number": "4",
+            "number": "004",
             "set_name": "Base Set",
             "set_code": "base1",
         },
@@ -390,6 +390,7 @@ def test_card_info_remote_fallback(api_client, monkeypatch):
     assert card["name"] == "Charizard"
     assert card["set_code"] == "base1"
     assert card["price"] == pytest.approx(123.45)
+    assert card["number_display"] == "4/102"
     history = card["price_history"]
     assert history["all"], "Expected remote price history to be populated"
     assert captured["set_code"] == "base1"
@@ -399,6 +400,57 @@ def test_card_info_remote_fallback(api_client, monkeypatch):
     with database.session_scope() as session:
         assert session.exec(select(models.Card)).all() == []
 
+
+def test_card_info_remote_skip_when_numbers_conflict(api_client, monkeypatch):
+    with database.session_scope() as session:
+        session.add(
+            models.Card(
+                name="Eevee",
+                number="133",
+                set_name="Base Set",
+                set_code="base1",
+                rarity="Common",
+            )
+        )
+
+    remote_cards = [
+        {
+            "id": "base2-200",
+            "name": "Eevee",
+            "number": "200",
+            "number_display": "200/151",
+            "total": "151",
+            "set_name": "Base Set 2",
+            "set_code": "base2",
+            "rarity": "Rare",
+            "price": 99.99,
+        }
+    ]
+
+    monkeypatch.setattr(
+        cards_routes.tcg_api,
+        "search_cards",
+        lambda *args, **kwargs: (remote_cards, len(remote_cards), len(remote_cards)),
+    )
+
+    response = api_client.get(
+        "/cards/info",
+        params={
+            "name": "Eevee",
+            "number": "133",
+            "set_name": "Base Set",
+            "set_code": "base1",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    card = payload["card"]
+    assert card["number"] == "133"
+    assert card["number_display"] == "133"
+    assert card["set_code"] == "base1"
+    assert card.get("price") is None
+    assert payload["related"] == []
 
 def test_card_info_price_history_bounded_then_fallback(api_client, monkeypatch):
     today = dt.date.today()
