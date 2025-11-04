@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import contextlib
+import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +61,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "frame-ancestors 'none';",
         )
         return response
+
+
+logger = logging.getLogger(__name__)
 
 
 app = FastAPI(title="Kartoteka Web", version="1.0.0", lifespan=lifespan)
@@ -308,12 +313,32 @@ async def cookies_page(request: Request) -> HTMLResponse:
     return templates.TemplateResponse("cookies.html", context)
 
 
+def _uvicorn_config() -> tuple[str, int, bool]:
+    """Return host, port and reload flag for running the server."""
+
+    host = os.getenv("HOST") or os.getenv("KARTOTEKA_HOST") or "0.0.0.0"
+    host = host.strip() or "0.0.0.0"
+
+    port_value = os.getenv("PORT") or os.getenv("KARTOTEKA_PORT") or "8000"
+    try:
+        port = int(port_value)
+    except (TypeError, ValueError):
+        logger.warning("Invalid port value %r provided; falling back to 8000", port_value)
+        port = 8000
+
+    reload_value = os.getenv("KARTOTEKA_RELOAD", "").strip().lower()
+    reload_enabled = reload_value in {"1", "true", "yes", "on"}
+
+    return host, port, reload_enabled
+
+
 def run() -> None:
     """Helper to run the development server."""
 
     import uvicorn
 
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=False)
+    host, port, reload_enabled = _uvicorn_config()
+    uvicorn.run("server:app", host=host, port=port, reload=reload_enabled)
 
 
 if __name__ == "__main__":
