@@ -41,6 +41,24 @@ uvicorn server:app --reload
 
 The development server defaults to `http://127.0.0.1:8000/` and serves the dashboard, collection and portfolio pages alongside the JSON API.
 
+### Running with Docker Compose
+Container builds are provided for local development and automated testing. Build the image and start the stack (FastAPI app + ngrok tunnel) with:
+
+```bash
+docker compose up --build
+```
+
+By default the application is exposed on `http://localhost:8000`. Copy `.env.example` to `.env` if you need to customise configuration values before starting the stack.
+
+The ngrok sidecar shares a public tunnel that you can use for remote testing. Set `NGROK_AUTHTOKEN` either in your shell environment or in the `.env` file before starting Compose:
+
+```bash
+export NGROK_AUTHTOKEN=your-token-here
+docker compose up
+```
+
+After the tunnel boots, inspect requests and retrieve the assigned public URL at `http://localhost:4040`.
+
 ### Synchronising the Card Catalogue
 
 The `/cards/search` endpoint now reads directly from the local `CardRecord` table. Populate it with the cards you care about before switching the UI to offline mode:
