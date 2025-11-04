@@ -13,3 +13,4 @@ store_export.csv
 logs/
 *.log
 card_images/
+kartoteka.db
