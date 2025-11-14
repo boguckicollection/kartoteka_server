@@ -744,6 +744,91 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
     }
 
 
+def build_product_payload(product: dict[str, Any]) -> Optional[dict[str, Any]]:
+    episode = product.get("episode") or product.get("set") or {}
+    set_name_value = (
+        episode.get("name")
+        or product.get("set_name")
+        or product.get("setName")
+        or ""
+    )
+    set_code_value = (
+        episode.get("code")
+        or episode.get("slug")
+        or episode.get("id")
+        or product.get("set_code")
+        or product.get("setCode")
+    )
+
+    release_date = _normalize_text_field(
+        episode.get("released_at")
+        or episode.get("releaseDate")
+        or episode.get("release_date")
+        or product.get("releaseDate")
+        or product.get("release_date")
+    )
+    set_icon = (
+        episode.get("symbol")
+        or episode.get("logo")
+        or episode.get("icon")
+        or product.get("set_symbol")
+        or product.get("set_logo")
+    )
+
+    icon_slug, set_icon_path = set_utils.resolve_cached_set_icon(
+        episode,
+        set_code=set_code_value,
+        set_name=set_name_value,
+    )
+
+    image_small, image_large = _extract_images(product)
+    product_id_value = _normalize_text_field(
+        product.get("id")
+        or product.get("product_id")
+        or product.get("productId")
+        or product.get("uuid")
+        or product.get("productUuid")
+        or product.get("tcgplayerProductId")
+    )
+    product_id = product_id_value.strip() if isinstance(product_id_value, str) else None
+
+    price_eur = _extract_card_price(product)
+    price_7d_average_eur = _extract_7d_average_price(product)
+
+    price_pln = None
+    price_7d_average_pln = None
+    if price_eur is not None or price_7d_average_eur is not None:
+        rate = get_eur_pln_rate()
+    else:
+        rate = None
+    if rate is not None:
+        if price_eur is not None:
+            price_pln = round(price_eur * rate * 1.23, 2)
+        if price_7d_average_eur is not None:
+            price_7d_average_pln = round(price_7d_average_eur * rate * 1.23, 2)
+
+    description = _extract_description_text(product)
+    shop_url = _extract_shop_url(product)
+
+    return {
+        "name": product.get("name") or "",
+        "set_name": set_name_value,
+        "set_code": set_code_value,
+        "image_small": image_small,
+        "image_large": image_large,
+        "release_date": release_date,
+        "set_icon": set_icon,
+        "set_icon_path": set_icon_path,
+        "set_icon_slug": icon_slug,
+        "price": price_pln,
+        "price_7d_average": price_7d_average_pln,
+        "description": description,
+        "shop_url": shop_url,
+        "id": product_id,
+    }
+
+
+
 def search_cards(
     *,
     name: str,
@@ -1005,6 +1090,250 @@ def search_cards(
     filtered_total = len(results)
 
     return results, filtered_total, total_count
+
+
+def search_products(
+    *,
+    name: str,
+    set_name: Optional[str] = None,
+    set_code: Optional[str] = None,
+    limit: int = 10,
+    sort: Optional[str] = None,
+    order: Optional[str] = None,
+    page: int = 1,
+    per_page: int = 20,
+    rapidapi_key: Optional[str] = None,
+    rapidapi_host: Optional[str] = None,
+    session: Optional[requests.sessions.Session] = None,
+    timeout: float = 10.0,
+) -> tuple[list[dict], int, int]:
+    if not name:
+        return [], 0, 0
+
+    http = session or requests
+
+    try:
+        page_value = int(page)
+    except (TypeError, ValueError):
+        page_value = 1
+    page_value = max(1, page_value)
+
+    try:
+        per_page_value = int(per_page)
+    except (TypeError, ValueError):
+        per_page_value = limit if limit and limit > 0 else 20
+    per_page_value = max(1, min(per_page_value, 250))
+
+    name_api = text.normalize(name, keep_spaces=True)
+    headers: dict[str, str] = {}
+    _apply_default_user_agent(headers, session)
+    api_host_value, api_host_header = _normalize_host(rapidapi_host)
+    url = _build_cards_endpoint(api_host_value, "products", "search")
+    if rapidapi_key:
+        headers["X-RapidAPI-Key"] = rapidapi_key
+    headers["X-RapidAPI-Host"] = api_host_header
+
+    rapid_search_parts: list[str] = []
+    if name_api:
+        rapid_search_parts.append(name_api)
+    if set_name:
+        set_query = text.normalize(set_name, keep_spaces=True)
+        if set_query:
+            rapid_search_parts.append(set_query)
+    if set_code:
+        set_code_clean = set_utils.clean_code(set_code)
+        if set_code_clean:
+            rapid_search_parts.append(set_code_clean)
+            canonical_set_code = set_utils.resolve_canonical_set_slug(set_code)
+            if (
+                canonical_set_code
+                and canonical_set_code != set_code_clean
+            ):
+                rapid_search_parts.append(canonical_set_code)
+
+    deduped_parts: list[str] = []
+    seen_parts: set[str] = set()
+    for part in rapid_search_parts:
+        if not part or part in seen_parts:
+            continue
+        deduped_parts.append(part)
+        seen_parts.add(part)
+    query_value = " ".join(deduped_parts)
+    if not query_value:
+        return [], 0, 0
+
+    max_results = 100
+    limit_value = limit if limit and limit > 0 else per_page_value
+    limit_value = min(limit_value, max_results)
+    aggregated_products: list[dict[str, Any]] = []
+    total_count_remote = 0
+    inferred_total = 0
+    current_page = page_value
+
+    while len(aggregated_products) < max_results:
+        params = {
+            "search": query_value,
+            "page": str(current_page),
+            "pageSize": str(per_page_value),
+        }
+        if sort:
+            params["sort"] = sort
+        if order:
+            params["order"] = order
+
+        try:
+            response = http.get(url, params=params, headers=headers, timeout=timeout)
+        except requests.Timeout:
+            logger.warning("Request timed out")
+            break
+        except (requests.RequestException, ValueError) as exc:  # pragma: no cover
+            logger.warning("Fetching products from RapidAPI failed: %s", exc)
+            break
+
+        if response.status_code != 200:
+            logger.warning("API error: %s", response.status_code)
+            break
+
+        try:
+            products_payload = response.json()
+        except ValueError:
+            logger.warning("RapidAPI returned invalid JSON payload")
+            break
+
+        products_page: list[dict[str, Any]] = []
+        page_total_count = 0
+        if isinstance(products_payload, dict):
+            products_page = (
+                products_payload.get("data")
+                or products_payload.get("products")
+                or []
+            )
+            page_total_count = int(products_payload.get("totalCount") or 0)
+        elif isinstance(products_payload, list):
+            products_page = products_payload
+
+        if page_total_count:
+            total_count_remote = page_total_count
+
+        if not isinstance(products_page, list) or not products_page:
+            break
+
+        aggregated_products.extend(products_page)
+        if len(aggregated_products) >= limit_value:
+            break
+
+        fetched_total = (current_page - page_value) * per_page_value + len(products_page)
+        inferred_total = max(inferred_total, fetched_total)
+
+        if len(aggregated_products) >= max_results:
+            break
+        if total_count_remote and fetched_total >= total_count_remote:
+            break
+        if len(products_page) < per_page_value:
+            break
+
+        current_page += 1
+
+    products = aggregated_products
+    total_count = total_count_remote or inferred_total
+
+    suggestions: list[dict[str, Any]] = []
+    for product in products or []:
+        payload = build_product_payload(product)
+        if not payload:
+            continue
+        suggestions.append(payload)
+
+    if not total_count:
+        total_count = len(suggestions)
+
+    total_count = max(total_count, len(suggestions))
+    filtered_total = len(suggestions)
+
+    return suggestions, filtered_total, total_count
+
+
+def get_latest_products(
+    *,
+    limit: int = 10,
+    rapidapi_key: Optional[str] = None,
+    rapidapi_host: Optional[str] = None,
+    session: Optional[requests.sessions.Session] = None,
+    timeout: float = 10.0,
+) -> list[dict]:
+    http = session or requests
+
+    headers: dict[str, str] = {}
+    _apply_default_user_agent(headers, session)
+    api_host_value, api_host_header = _normalize_host(rapidapi_host)
+    url = _build_cards_endpoint(api_host_value, "products")
+    if rapidapi_key:
+        headers["X-RapidAPI-Key"] = rapidapi_key
+    headers["X-RapidAPI-Host"] = api_host_header
+
+    params = {
+        "page": "1",
+        "pageSize": "100",
+        "sort": "releaseDate",
+        "order": "desc",
+    }
+
+    try:
+        response = http.get(url, params=params, headers=headers, timeout=timeout)
+    except requests.Timeout:
+        logger.warning("Request timed out")
+        return []
+    except (requests.RequestException, ValueError) as exc:  # pragma: no cover
+        logger.warning("Fetching latest products from RapidAPI failed: %s", exc)
+        return []
+
+    if response.status_code != 200:
+        logger.warning("API error: %s", response.status_code)
+        return []
+
+    try:
+        products_payload = response.json()
+    except ValueError:
+        logger.warning("RapidAPI returned invalid JSON payload")
+        return []
+
+    products_page: list[dict[str, Any]] = []
+    if isinstance(products_payload, dict):
+        products_page = (
+            products_payload.get("data")
+            or products_payload.get("products")
+            or []
+        )
+    elif isinstance(products_payload, list):
+        products_page = products_payload
+
+    if not isinstance(products_page, list) or not products_page:
+        return []
+
+    suggestions: list[dict[str, Any]] = []
+    for product in products_page or []:
+        payload = build_product_payload(product)
+        if not payload:
+            continue
+        suggestions.append(payload)
+
+    today = dt.date.today()
+    first_day_of_month = today.replace(day=1)
+    filtered_products = []
+    for product in suggestions:
+        release_date_str = product.get("release_date")
+        if not release_date_str:
+            continue
+        release_date = _parse_history_date(release_date_str)
+        if release_date and release_date >= first_day_of_month:
+            filtered_products.append(product)
+
+    filtered_products.sort(key=lambda p: p.get("release_date") or "")
+
+    return filtered_products[:limit]
+
+
+
 
 
 def list_set_cards(
