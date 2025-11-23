@@ -84,3 +84,4 @@ The shipped UI is compiled into `kartoteka_web/static`. When iterating on the ne
 
 ## Branding Assets
 Updated badges, favicons and screenshots should reflect the latest design language and live under `kartoteka_web/static/` for convenient reuse across documentation and the deployed UI.
+# kartoteka_servera
