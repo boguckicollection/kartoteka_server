@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import os
+import secrets
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
@@ -15,9 +17,21 @@ from sqlmodel import Session, select
 from .database import get_session
 from .models import User
 
+logger = logging.getLogger(__name__)
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-SECRET_KEY = os.getenv("KARTOTEKA_SECRET_KEY", os.getenv("SECRET_KEY", "change-me"))
+# SECRET_KEY configuration with security warning
+_default_secret = "change-me"
+SECRET_KEY = os.getenv("KARTOTEKA_SECRET_KEY", os.getenv("SECRET_KEY", _default_secret))
+
+if SECRET_KEY == _default_secret:
+    logger.warning(
+        "⚠️  SECURITY WARNING: Using default SECRET_KEY! "
+        "Set KARTOTEKA_SECRET_KEY environment variable to a secure random value. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+    )
+
 ALGORITHM = os.getenv("KARTOTEKA_JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(
     os.getenv("KARTOTEKA_ACCESS_TOKEN_EXPIRE_MINUTES", "60")

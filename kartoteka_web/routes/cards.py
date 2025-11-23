@@ -714,7 +714,10 @@ def search_cards_endpoint(
     total_local = session.exec(count_stmt).one()
     total_local = int(total_local or 0)
 
-    if total_local > 0:
+    # Only use local results if we have enough cards (at least per_page_value results)
+    # Otherwise, fall through to remote API search for better coverage
+    LOCAL_THRESHOLD = per_page_value
+    if total_local >= LOCAL_THRESHOLD:
         capped_total = min(total_local, result_cap)
         total_pages = max(1, (capped_total + per_page_value - 1) // per_page_value)
         page_value = min(requested_page, total_pages)
@@ -746,20 +749,52 @@ def search_cards_endpoint(
             suggested_query=None,
         )
 
-    records, filtered_total, upstream_total = tcg_api.search_cards(
-        name=name_value or search_query,
-        number=number_value,
-        set_name=set_name_value,
-        set_code=set_code_value,
-        total=total_value,
-        limit=result_cap,
-        sort=sort,
-        order=order,
-        page=1,
-        per_page=per_page_value,
-        rapidapi_key=RAPIDAPI_KEY,
-        rapidapi_host=RAPIDAPI_HOST,
-    )
+    # Try search with query variants for flexible matching
+    # e.g., "boss orders" -> "boss's order"
+    search_name = name_value or search_query
+    query_variants = text.expand_search_variants(search_name)
+    
+    records: list[dict[str, Any]] = []
+    filtered_total = 0
+    upstream_total = 0
+    used_variant: str | None = None
+    
+    for variant in query_variants:
+        records, filtered_total, upstream_total = tcg_api.search_cards(
+            name=variant,
+            number=number_value,
+            set_name=set_name_value,
+            set_code=set_code_value,
+            total=total_value,
+            limit=result_cap,
+            sort=sort,
+            order=order,
+            page=1,
+            per_page=per_page_value,
+            rapidapi_key=RAPIDAPI_KEY,
+            rapidapi_host=RAPIDAPI_HOST,
+        )
+        if records:
+            used_variant = variant
+            logger.debug(f"Search found results with variant: '{variant}' (original: '{search_name}')")
+            break
+    
+    # If still no results, try original query as fallback
+    if not records and query_variants and search_name not in query_variants:
+        records, filtered_total, upstream_total = tcg_api.search_cards(
+            name=search_name,
+            number=number_value,
+            set_name=set_name_value,
+            set_code=set_code_value,
+            total=total_value,
+            limit=result_cap,
+            sort=sort,
+            order=order,
+            page=1,
+            per_page=per_page_value,
+            rapidapi_key=RAPIDAPI_KEY,
+            rapidapi_host=RAPIDAPI_HOST,
+        )
 
     filtered_total_value = int(filtered_total or len(records))
     if len(records) > result_cap:
@@ -1063,6 +1098,7 @@ def card_info(
         detail.rarity_symbol = detail.rarity_symbol_remote
 
     detail.price_history = schemas.CardPriceHistory()
+    logger.info(f"card_info: remote_card_id={remote_card_id}, fetching price history...")
     if remote_card_id:
         try:
             raw_history = tcg_api.fetch_card_price_history(
@@ -1072,11 +1108,13 @@ def card_info(
                 date_from=date_from_value,
                 date_to=date_to_value,
             )
+            logger.info(f"card_info: Got {len(raw_history)} raw history points")
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.warning("Failed to fetch price history for card %s: %s", remote_card_id, exc)
             raw_history = []
 
         normalized_history = tcg_api.normalize_price_history(raw_history)
+        logger.info(f"card_info: Got {len(normalized_history)} normalized history points")
 
         if not normalized_history and date_from_value is not None:
             try:
@@ -1368,13 +1406,36 @@ def _fetch_collection_history(
     Fetch historical collection values, sourcing from local DB and backfilling from the API
     for any cards with missing or stale data.
     This implementation is optimized for performance and correctness.
+    Now returns separate cards_value and products_value for each history point.
     """
     today = dt.date.today()
     date_from = today - dt.timedelta(days=days)
 
+    # Separate cards and products
     card_entries = {entry.card.id: entry for entry in entries if entry.card and entry.quantity > 0}
-    if not card_entries:
+    product_entries = [entry for entry in entries if entry.product and entry.quantity > 0]
+    
+    # Calculate total products value (products don't have historical prices, so it's constant)
+    products_total = sum(
+        (entry.product.price or 0.0) * (entry.quantity or 1) 
+        for entry in product_entries
+    )
+    
+    if not card_entries and not product_entries:
         return []
+    
+    # If no cards but we have products, return history with just products value
+    if not card_entries:
+        date_range = [date_from + dt.timedelta(days=x) for x in range((today - date_from).days + 1)]
+        return [
+            schemas.CollectionValueHistoryPoint(
+                date=day.isoformat(), 
+                value=round(products_total, 2),
+                cards_value=0.0,
+                products_value=round(products_total, 2)
+            )
+            for day in date_range
+        ]
 
     card_map = {card_id: entry.card for card_id, entry in card_entries.items()}
 
@@ -1470,7 +1531,7 @@ def _fetch_collection_history(
     value_history = []
     date_range = [date_from + dt.timedelta(days=x) for x in range((today - date_from).days + 1)]
 
-    daily_total = sum(
+    daily_cards_total = sum(
         (latest_prices.get(record_id, 0.0) * (card_entries[card_id].quantity or 1))
         for card_id, record_id in card_to_record_id_map.items()
     )
@@ -1483,12 +1544,19 @@ def _fetch_collection_history(
                 if card_id:
                     quantity = card_entries[card_id].quantity or 1
                     old_price = latest_prices.get(record_id, 0.0)
-                    daily_total -= old_price * quantity
-                    daily_total += new_price * quantity
+                    daily_cards_total -= old_price * quantity
+                    daily_cards_total += new_price * quantity
                     latest_prices[record_id] = new_price
 
+        # Total = cards + products (products value is constant)
+        daily_total = daily_cards_total + products_total
         value_history.append(
-            schemas.CollectionValueHistoryPoint(date=day.isoformat(), value=round(daily_total, 2))
+            schemas.CollectionValueHistoryPoint(
+                date=day.isoformat(), 
+                value=round(daily_total, 2),
+                cards_value=round(daily_cards_total, 2),
+                products_value=round(products_total, 2)
+            )
         )
         
     return value_history
@@ -1510,34 +1578,44 @@ def get_collection_stats(
         )
     ).all()
     
-    # Calculate current stats
-    total_cards = sum(entry.quantity or 0 for entry in entries)
-    unique_cards = len(entries)
-    total_value = 0.0
+    # Calculate current stats - separate cards and products
+    total_cards = 0
+    unique_cards = 0
+    total_products = 0
+    cards_value = 0.0
+    products_value = 0.0
     purchase_value = 0.0
+    purchase_cards_value = 0.0  # Sum of card values that have purchase price
 
     # Refresh prices for cards/products that don't have them
     for entry in entries:
         quantity = entry.quantity or 0
+        purchase_price = entry.purchase_price or 0.0
+        purchase_value += purchase_price * quantity
         
         if entry.card:
+            total_cards += quantity
+            unique_cards += 1
             if entry.card.price is None:
                 _apply_card_price(entry.card, session)
             price = entry.card.price or 0.0
-            total_value += price * quantity
+            cards_value += price * quantity
+            # Track value of cards with purchase price set
+            if entry.purchase_price is not None and entry.purchase_price > 0:
+                purchase_cards_value += price * quantity
         elif entry.product:
+            total_products += quantity
             from .products import _apply_product_price
             if entry.product.price is None:
                 _apply_product_price(entry.product, session)
             price = entry.product.price or 0.0
-            total_value += price * quantity
-
-        purchase_price = entry.purchase_price or 0.0
-        purchase_value += purchase_price * quantity
+            products_value += price * quantity
     
     session.commit()
     
-    # Generate monthly value history
+    total_value = cards_value + products_value
+    
+    # Generate value history
     value_history: list[schemas.CollectionValueHistoryPoint] = []
     
     if use_history:
@@ -1552,8 +1630,12 @@ def get_collection_stats(
     return schemas.CollectionStats(
         total_cards=total_cards,
         unique_cards=unique_cards,
+        total_products=total_products,
         total_value=total_value,
+        cards_value=cards_value,
+        products_value=products_value,
         purchase_value=purchase_value,
+        purchase_cards_value=purchase_cards_value,
         value_history=value_history,
     )
 

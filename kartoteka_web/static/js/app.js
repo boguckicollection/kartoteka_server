@@ -987,8 +987,12 @@
   const updateCollectionStats = async (useHistory = false) => {
     const totalCardsEl = document.getElementById("stat-total-cards");
     const uniqueCardsEl = document.getElementById("stat-unique-cards");
+    const totalProductsEl = document.getElementById("stat-total-products");
     const totalValueEl = document.getElementById("stat-total-value");
+    const cardsValueEl = document.getElementById("stat-cards-value");
+    const productsValueEl = document.getElementById("stat-products-value");
     const purchaseValueEl = document.getElementById("stat-purchase-value");
+    const profitLossEl = document.getElementById("stat-profit-loss");
     
     try {
       const url = useHistory ? "/cards/stats?use_history=true" : "/cards/stats";
@@ -999,8 +1003,20 @@
       // Update statistics
       if (totalCardsEl) totalCardsEl.textContent = stats.total_cards?.toString() || "0";
       if (uniqueCardsEl) uniqueCardsEl.textContent = stats.unique_cards?.toString() || "0";
+      if (totalProductsEl) totalProductsEl.textContent = stats.total_products?.toString() || "0";
       if (totalValueEl) totalValueEl.textContent = `${(stats.total_value || 0).toFixed(2)} PLN`;
+      if (cardsValueEl) cardsValueEl.textContent = `${(stats.cards_value || 0).toFixed(2)} PLN`;
+      if (productsValueEl) productsValueEl.textContent = `${(stats.products_value || 0).toFixed(2)} PLN`;
       if (purchaseValueEl) purchaseValueEl.textContent = `${(stats.purchase_value || 0).toFixed(2)} PLN`;
+      
+      // Calculate and display profit/loss
+      if (profitLossEl) {
+        const profitLoss = (stats.total_value || 0) - (stats.purchase_value || 0);
+        const sign = profitLoss >= 0 ? "+" : "";
+        profitLossEl.textContent = `${sign}${profitLoss.toFixed(2)} PLN`;
+        profitLossEl.classList.toggle("stat-value--positive", profitLoss > 0);
+        profitLossEl.classList.toggle("stat-value--negative", profitLoss < 0);
+      }
       
       // Update chart with historical data
       if (collectionValueChart && stats.value_history && stats.value_history.length > 0) {
@@ -1019,8 +1035,12 @@
       // Fallback to 0 values
       if (totalCardsEl) totalCardsEl.textContent = "0";
       if (uniqueCardsEl) uniqueCardsEl.textContent = "0";
+      if (totalProductsEl) totalProductsEl.textContent = "0";
       if (totalValueEl) totalValueEl.textContent = "0 PLN";
+      if (cardsValueEl) cardsValueEl.textContent = "0 PLN";
+      if (productsValueEl) productsValueEl.textContent = "0 PLN";
       if (purchaseValueEl) purchaseValueEl.textContent = "0 PLN";
+      if (profitLossEl) profitLossEl.textContent = "0 PLN";
       return false;
     }
   };
@@ -1491,12 +1511,14 @@
     }
 
     const labels = filteredHistory.map(point => new Date(point.date));
-    const values = filteredHistory.map(point => point.value || 0);
-    const purchaseValues = Array(labels.length).fill(currentStats.purchase_value || 0);
+    // Use cards_value from history points if available, otherwise fall back to total value
+    const cardsValues = filteredHistory.map(point => point.cards_value ?? point.value ?? 0);
+    // Products value from each history point (constant over time but included in data)
+    const productsValues = filteredHistory.map(point => point.products_value ?? currentStats.products_value ?? 0);
 
     collectionValueChart.data.labels = labels;
-    collectionValueChart.data.datasets[0].data = values;
-    collectionValueChart.data.datasets[1].data = purchaseValues;
+    collectionValueChart.data.datasets[0].data = cardsValues;
+    collectionValueChart.data.datasets[1].data = productsValues;
     
     collectionValueChart.options.scales.x.time.unit = unit;
 
@@ -1519,7 +1541,7 @@
       data: {
         labels: [],
         datasets: [{
-          label: "Wartość kolekcji (PLN)",
+          label: "Wartość kart (PLN)",
           data: [],
           borderColor: "rgb(37, 99, 235)",
           backgroundColor: "rgba(37, 99, 235, 0.1)",
@@ -1528,14 +1550,14 @@
           pointRadius: 0,
           pointHitRadius: 10,
         }, {
-          label: "Koszt zakupu (PLN)",
+          label: "Wartość produktów (PLN)",
           data: [],
-          borderColor: "rgb(255, 99, 132)",
-          backgroundColor: "rgba(255, 99, 132, 0.1)",
-          tension: 0,
-          fill: false,
+          borderColor: "rgb(234, 179, 8)",
+          backgroundColor: "rgba(234, 179, 8, 0.1)",
+          tension: 0.4,
+          fill: true,
           pointRadius: 0,
-          borderDash: [5, 5],
+          pointHitRadius: 10,
         }]
       },
       options: {
@@ -1590,12 +1612,12 @@
       }
     });
 
-    const togglePurchaseCost = document.getElementById("toggle-purchase-cost");
-    if (togglePurchaseCost) {
-        collectionValueChart.data.datasets[1].hidden = !togglePurchaseCost.checked;
-        togglePurchaseCost.addEventListener("change", () => {
+    const toggleProductsValue = document.getElementById("toggle-products-value");
+    if (toggleProductsValue) {
+        collectionValueChart.data.datasets[1].hidden = !toggleProductsValue.checked;
+        toggleProductsValue.addEventListener("change", () => {
             if (!collectionValueChart) return;
-            collectionValueChart.data.datasets[1].hidden = !togglePurchaseCost.checked;
+            collectionValueChart.data.datasets[1].hidden = !toggleProductsValue.checked;
             collectionValueChart.update();
         });
     }
@@ -2825,6 +2847,7 @@
 
     const ensureChart = () => {
       if (!chartCanvas || typeof window.Chart === "undefined") {
+        console.warn("[PriceHistory] Chart.js not available or canvas missing", { chartCanvas: !!chartCanvas, Chart: typeof window.Chart });
         return null;
       }
       if (chartInstance) {
@@ -3002,6 +3025,7 @@
 
     const renderChart = (rangeKey) => {
       const points = ranges[rangeKey] || [];
+      console.log("[PriceHistory] renderChart:", rangeKey, "points:", points.length, points.slice(0, 3));
       const dataset = points.map((point) => ({ x: point.iso, y: point.price }));
       const hasData = dataset.length > 0;
 
@@ -3071,6 +3095,7 @@
     };
 
     const setData = (history, options = {}) => {
+      console.log("[PriceHistory] setData called with:", history, options);
       const payload = history && typeof history === "object" ? history : {};
       const { activeRange: requestedRange, sourceRange, preserveActive = false } = options;
 
@@ -3149,6 +3174,7 @@
         return;
       }
 
+      console.log("[PriceHistory] Showing section, nextRange:", nextRange);
       section.hidden = false;
       activeRange = nextRange;
       updateControls(activeRange);
@@ -3639,6 +3665,7 @@
     }
 
     if (priceHistoryModule && typeof priceHistoryModule.setData === "function") {
+      console.log("[CardDetail] price_history data:", card.price_history);
       priceHistoryModule.setData(card.price_history || {}, {
         sourceRange: priceHistoryRange,
         activeRange: priceHistoryRange,

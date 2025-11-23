@@ -173,16 +173,21 @@ class CollectionEntryRead(CollectionEntryBase):
 class CollectionValueHistoryPoint(SQLModel):
     """Single point in collection value history."""
     date: str
-    value: float
-    purchase_value: Optional[float] = None
+    value: float  # Total value (cards + products)
+    cards_value: Optional[float] = None  # Value of cards only
+    products_value: Optional[float] = None  # Value of products only
 
 
 class CollectionStats(SQLModel):
     """Collection statistics and value tracking."""
     total_cards: int = 0
     unique_cards: int = 0
-    total_value: float = 0.0
-    purchase_value: float = 0.0
+    total_products: int = 0
+    total_value: float = 0.0  # cards_value + products_value
+    cards_value: float = 0.0  # Value of cards only
+    products_value: float = 0.0  # Value of products (boosters, ETBs, etc.)
+    purchase_value: float = 0.0  # Total purchase cost
+    purchase_cards_value: float = 0.0  # Sum of card values that have purchase price set
     value_history: List[CollectionValueHistoryPoint] = Field(default_factory=list)
 
 

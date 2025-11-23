@@ -33,14 +33,31 @@
       <div class="stat-value" id="stat-unique-cards">0</div>
     </div>
     <div class="stat-card">
+      <div class="stat-label">Produkty</div>
+      <div class="stat-value" id="stat-total-products">0</div>
+    </div>
+    <div class="stat-card stat-card--highlight">
       <div class="stat-label">Wartość kolekcji</div>
       <div class="stat-value" id="stat-total-value">0 PLN</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Wartość zakupu</div>
-      <div class="stat-value" id="stat-purchase-value">0 PLN</div>
+      <div class="stat-breakdown">
+        <span><small>Karty:</small> <span id="stat-cards-value">0 PLN</span></span>
+        <span><small>Produkty:</small> <span id="stat-products-value">0 PLN</span></span>
+      </div>
     </div>
   </div>
+  <details class="stats-purchase-details">
+    <summary>Pokaż koszty zakupu</summary>
+    <div class="stats-grid stats-grid--secondary">
+      <div class="stat-card stat-card--small">
+        <div class="stat-label">Koszt zakupu (razem)</div>
+        <div class="stat-value" id="stat-purchase-value">0 PLN</div>
+      </div>
+      <div class="stat-card stat-card--small">
+        <div class="stat-label">Zysk/Strata</div>
+        <div class="stat-value" id="stat-profit-loss">0 PLN</div>
+      </div>
+    </div>
+  </details>
 </section>
 
 <!-- Wykres wartości -->
@@ -52,8 +69,8 @@
     </div>
     <div class="panel-header-actions chart-controls">
       <div class="form-control form-control--checkbox">
-        <input type="checkbox" id="toggle-purchase-cost" checked>
-        <label for="toggle-purchase-cost">Pokaż koszt zakupu</label>
+        <input type="checkbox" id="toggle-products-value" checked>
+        <label for="toggle-products-value">Pokaż wartość produktów</label>
       </div>
       <div class="button-group" id="chart-range-selector">
         <button type="button" class="button secondary" data-range="90d">90D</button>

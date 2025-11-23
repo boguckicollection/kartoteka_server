@@ -17,7 +17,7 @@
 >
   <div class="card-detail-main">
     <div class="card-detail-media">
-      <div class="card" id="pokemon-card">
+      <div class="card interactive" id="pokemon-card">
         <div class="card__translater">
           <div class="card__rotator" id="card-rotator">
             <div class="card__front">
@@ -211,6 +211,12 @@
           x: round(percent.x),
           y: round(percent.y),
       };
+      
+      // Calculate pointer distance from center (0-1)
+      const pointerFromCenter = clamp(
+        Math.sqrt(center.x * center.x + center.y * center.y) / 50,
+        0, 1
+      );
 
       card.style.setProperty('--pointer-x', `${glare.x}%`);
       card.style.setProperty('--pointer-y', `${glare.y}%`);
@@ -219,6 +225,9 @@
       card.style.setProperty('--rotate-x', `${rotate.x}deg`);
       card.style.setProperty('--rotate-y', `${rotate.y}deg`);
       card.style.setProperty('--card-opacity', '1');
+      card.style.setProperty('--pointer-from-center', `${round(pointerFromCenter)}`);
+      card.style.setProperty('--pointer-from-top', `${round(percent.y / 100)}`);
+      card.style.setProperty('--pointer-from-left', `${round(percent.x / 100)}`);
     };
 
     const resetCard = () => {
