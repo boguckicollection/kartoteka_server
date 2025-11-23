@@ -3,16 +3,49 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 import logging
+import os
 import re
 import time
 from difflib import SequenceMatcher
+from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import urlparse
 
 import requests
 
 from ..utils import text, sets as set_utils
+
+# Cache for set code to API mapping
+_SET_CODE_TO_API_CACHE: dict[str, dict[str, Any]] = {}
+
+
+def _load_set_code_mapping() -> dict[str, dict[str, Any]]:
+    """Load set code to API ID mapping from JSON file."""
+    global _SET_CODE_TO_API_CACHE
+    if _SET_CODE_TO_API_CACHE:
+        return _SET_CODE_TO_API_CACHE
+    
+    # Try to find the mapping file
+    mapping_paths = [
+        Path(__file__).parent.parent.parent.parent / "set_code_to_api.json",
+        Path(os.getcwd()) / "set_code_to_api.json",
+        Path(__file__).parent / "set_code_to_api.json",
+    ]
+    
+    for path in mapping_paths:
+        if path.exists():
+            try:
+                with open(path) as f:
+                    _SET_CODE_TO_API_CACHE = json.load(f)
+                    logger.info("Loaded set mapping from %s (%d sets)", path, len(_SET_CODE_TO_API_CACHE))
+                    return _SET_CODE_TO_API_CACHE
+            except Exception as e:
+                logger.warning("Failed to load set mapping from %s: %s", path, e)
+    
+    logger.warning("Set code mapping file not found, API sync will use fallback")
+    return {}
 
 logger = logging.getLogger(__name__)
 
@@ -312,10 +345,15 @@ def _normalize_price_value(value: Any) -> Optional[float]:
 
 
 def _extract_cardmarket_price(card: dict[str, Any]) -> Optional[float]:
+    # For products, cardmarket data is in card.prices.cardmarket
+    # For cards, it's directly in card.cardmarket
+    prices = card.get("prices") or {}
     cardmarket = (
         card.get("cardmarket")
         or card.get("cardMarket")
         or card.get("card_market")
+        or (prices.get("cardmarket") if isinstance(prices, dict) else None)
+        or (prices.get("cardMarket") if isinstance(prices, dict) else None)
         or {}
     )
     if not isinstance(cardmarket, dict):
@@ -333,7 +371,9 @@ def _extract_cardmarket_price(card: dict[str, Any]) -> Optional[float]:
             price = _normalize_price_value(prices.get(key))
             if price is not None:
                 return price
-    for key in ("price", "marketPrice"):
+    # Check direct price fields including 'lowest' (common in product data)
+    # Use only international/English prices (without regional variants like _DE, _FR)
+    for key in ("price", "marketPrice", "lowest", "lowest_near_mint"):
         price = _normalize_price_value(cardmarket.get(key))
         if price is not None:
             return price
@@ -710,6 +750,7 @@ def build_card_payload(card: dict[str, Any]) -> Optional[dict[str, Any]]:
     else:
         rate = None
     if rate is not None:
+        # For cards: add VAT markup (1.24) because cards are sold with VAT included
         if price_eur is not None:
             price_pln = round(price_eur * rate * 1.24, 2)
         if price_7d_average_eur is not None:
@@ -803,9 +844,9 @@ def build_product_payload(product: dict[str, Any]) -> Optional[dict[str, Any]]:
         rate = None
     if rate is not None:
         if price_eur is not None:
-            price_pln = round(price_eur * rate * 1.23, 2)
+            price_pln = round(price_eur * rate, 2)
         if price_7d_average_eur is not None:
-            price_7d_average_pln = round(price_7d_average_eur * rate * 1.23, 2)
+            price_7d_average_pln = round(price_7d_average_eur * rate, 2)
 
     description = _extract_description_text(product)
     shop_url = _extract_shop_url(product)
@@ -916,6 +957,9 @@ def search_cards(
     query_value = " ".join(deduped_parts)
     if not query_value:
         return [], 0, 0
+
+    # Debug logging (set to DEBUG level to avoid production log clutter)
+    logger.debug(f"search_cards: query='{query_value}' (name={name}, number={number}, set_code={set_code})")
 
     max_results = 100
     limit_value = limit if limit and limit > 0 else per_page_value
@@ -1274,8 +1318,9 @@ def get_latest_products(
     params = {
         "page": "1",
         "pageSize": "100",
-        "sort": "releaseDate",
-        "order": "desc",
+        # Note: Do NOT add sort/order parameters here
+        # The API's default sorting returns the newest products correctly
+        # Adding sort=releaseDate&order=desc actually returns OLD products (bug in API)
     }
 
     try:
@@ -1317,20 +1362,52 @@ def get_latest_products(
             continue
         suggestions.append(payload)
 
+    # Filter products from the last 90 days and next 60 days
+    # This shows recent releases and upcoming products, excluding old and far-future products
     today = dt.date.today()
-    first_day_of_month = today.replace(day=1)
+    past_cutoff_date = today - dt.timedelta(days=90)
+    future_cutoff_date = today + dt.timedelta(days=60)
+
     filtered_products = []
     for product in suggestions:
+        # Filter by product type: only ETB, Booster Box, and Booster
+        name = product.get("name", "").lower()
+
+        # Check if product is one of the allowed types
+        is_etb = "elite trainer box" in name or "etb" in name
+        is_booster_box = "booster box" in name
+        is_booster = (
+            "booster" in name
+            and "box" not in name
+            and "case" not in name
+            and "bundle" not in name
+        )
+
+        if not (is_etb or is_booster_box or is_booster):
+            # Skip products that are not ETB, Booster Box, or Booster
+            continue
+
+        # Filter by release date: show products from last 90 days OR next 60 days
         release_date_str = product.get("release_date")
         if not release_date_str:
-            continue
-        release_date = _parse_history_date(release_date_str)
-        if release_date and release_date >= first_day_of_month:
+            # Include products without date (better than excluding them)
             filtered_products.append(product)
+            continue
 
-    filtered_products.sort(key=lambda p: p.get("release_date") or "")
-
-    return filtered_products[:limit]
+        release_date = _parse_history_date(release_date_str)
+        if release_date and past_cutoff_date <= release_date <= future_cutoff_date:
+            filtered_products.append(product)
+    
+    # Sort by release date descending to show newest first
+    filtered_products.sort(key=lambda p: p.get("release_date") or "", reverse=True)
+    
+    # If we have filtered products, return them; otherwise fallback to all suggestions
+    if filtered_products:
+        return filtered_products[:limit]
+    
+    # Fallback: return all products if none match the filter
+    suggestions.sort(key=lambda p: p.get("release_date") or "", reverse=True)
+    return suggestions[:limit]
 
 
 
@@ -1345,6 +1422,11 @@ def list_set_cards(
     session: Optional[requests.sessions.Session] = None,
     timeout: float = 10.0,
 ) -> tuple[list[dict[str, Any]], int]:
+    """Fetch cards for a set from the API.
+    
+    Uses /episodes/{id}/cards endpoint with the API's episode ID.
+    Falls back to search query if no mapping is found.
+    """
     if not set_code:
         return [], 0
 
@@ -1352,108 +1434,191 @@ def list_set_cards(
     headers: dict[str, str] = {}
     _apply_default_user_agent(headers, session)
     api_host_value, api_host_header = _normalize_host(rapidapi_host)
-    url = _build_cards_endpoint(api_host_value, "cards")
     if rapidapi_key:
         headers["X-RapidAPI-Key"] = rapidapi_key
     headers["X-RapidAPI-Host"] = api_host_header
 
-    def _escape_query(value: str) -> str:
-        return value.replace("\\", "\\\\").replace('"', r"\"")
-
-    set_value = set_code.strip()
-    normalized = text.normalize(set_code, keep_spaces=True)
-    escaped_value = _escape_query(set_value)
-    def _map_query_field(field: str) -> str:
-        mapping = {
-            "set.id": "setId",
-            "set.ptcgoCode": "setPtcgoCode",
-            "set.name": "setName",
-        }
-        return mapping.get(field, field.replace(".", ""))
-
-    set_filters = {
-        f'{_map_query_field("set.id")}:"{escaped_value}"',
-        f'{_map_query_field("set.ptcgoCode")}:"{escaped_value}"',
-        f'{_map_query_field("set.name")}:"*{escaped_value}*"',
-    }
-    if normalized and normalized != set_value:
-        escaped_normalized = _escape_query(normalized)
-        set_filters.add(f'{_map_query_field("set.id")}:"{escaped_normalized}"')
-        set_filters.add(f'{_map_query_field("set.ptcgoCode")}:"{escaped_normalized}"')
-        set_filters.add(f'{_map_query_field("set.name")}:"*{escaped_normalized}*"')
-
-    query = "(" + " OR ".join(sorted(set_filters)) + ")"
+    # Try to get API episode ID from mapping
+    set_mapping = _load_set_code_mapping()
+    api_info = set_mapping.get(set_code.strip())
+    
     page = 1
-    page_size = 250
+    page_size = 50  # API returns max 20 per page for episodes endpoint
     results: list[dict[str, Any]] = []
     fetched_total = 0
     request_count = 0
+    total_count = 0
 
-    while True:
-        params = {
-            "search": query,
-            "page": str(page),
-            "pageSize": str(page_size),
-            "sort": "number",
+    if api_info and api_info.get("api_id"):
+        # Use /episodes/{id}/cards endpoint (preferred)
+        api_id = api_info["api_id"]
+        logger.info("Using episodes endpoint for set %s (api_id=%s)", set_code, api_id)
+        
+        while True:
+            url = _build_cards_endpoint(api_host_value, f"episodes/{api_id}/cards")
+            params = {
+                "page": str(page),
+                "pageSize": str(page_size),
+            }
+            try:
+                response = http.get(
+                    url,
+                    params=params,
+                    headers=headers,
+                    timeout=timeout,
+                )
+            except requests.Timeout:
+                request_count += 1
+                logger.warning("Request timed out for set %s page %d", set_code, page)
+                break
+            except (requests.RequestException, ValueError) as exc:
+                request_count += 1
+                logger.warning("Fetching cards for set %s failed: %s", set_code, exc)
+                break
+            else:
+                request_count += 1
+                if response.status_code != 200:
+                    logger.warning("API error for set %s: %s", set_code, response.status_code)
+                    break
+                payload = response.json()
+
+            cards = []
+            if isinstance(payload, dict):
+                cards = payload.get("data") or []
+                total_count = int(payload.get("results") or payload.get("totalCount") or 0)
+                paging = payload.get("paging", {})
+                total_pages = paging.get("total", 1)
+            elif isinstance(payload, list):
+                cards = payload
+                total_pages = 1
+
+            if not cards:
+                break
+
+            for card in cards:
+                item = build_card_payload(card)
+                if not item:
+                    continue
+                if not item.get("name"):
+                    item["name"] = card.get("name") or ""
+                if not item.get("image_small") and item.get("image_large"):
+                    item["image_small"] = item.get("image_large")
+                # Add set code to the card
+                if not item.get("set_code"):
+                    item["set_code"] = set_code
+                results.append(item)
+
+            fetched_total += len(cards)
+            logger.debug("Set %s: page %d/%d, got %d cards, total %d", 
+                        set_code, page, total_pages, len(cards), fetched_total)
+            
+            if limit and limit > 0 and len(results) >= limit:
+                break
+
+            if page >= total_pages:
+                break
+            
+            page += 1
+    else:
+        # Fallback: use search query (old method)
+        logger.info("No API mapping for set %s, using search fallback", set_code)
+        url = _build_cards_endpoint(api_host_value, "cards")
+        
+        def _escape_query(value: str) -> str:
+            return value.replace("\\", "\\\\").replace('"', r"\"")
+
+        set_value = set_code.strip()
+        normalized = text.normalize(set_code, keep_spaces=True)
+        escaped_value = _escape_query(set_value)
+        
+        def _map_query_field(field: str) -> str:
+            mapping = {
+                "set.id": "setId",
+                "set.ptcgoCode": "setPtcgoCode",
+                "set.name": "setName",
+            }
+            return mapping.get(field, field.replace(".", ""))
+
+        set_filters = {
+            f'{_map_query_field("set.id")}:"{escaped_value}"',
+            f'{_map_query_field("set.ptcgoCode")}:"{escaped_value}"',
+            f'{_map_query_field("set.name")}:"*{escaped_value}*"',
         }
-        try:
-            response = http.get(
-                url,
-                params=params,
-                headers=headers,
-                timeout=timeout,
-            )
-        except requests.Timeout:
-            request_count += 1
-            logger.warning("Request timed out")
-            break
-        except (requests.RequestException, ValueError) as exc:  # pragma: no cover
-            request_count += 1
-            logger.warning("Fetching cards for set %s failed: %s", set_code, exc)
-            break
-        else:
-            request_count += 1
-            if response.status_code != 200:
-                logger.warning("API error: %s", response.status_code)
+        if normalized and normalized != set_value:
+            escaped_normalized = _escape_query(normalized)
+            set_filters.add(f'{_map_query_field("set.id")}:"{escaped_normalized}"')
+            set_filters.add(f'{_map_query_field("set.ptcgoCode")}:"{escaped_normalized}"')
+            set_filters.add(f'{_map_query_field("set.name")}:"*{escaped_normalized}*"')
+
+        query = "(" + " OR ".join(sorted(set_filters)) + ")"
+        page_size = 250
+
+        while True:
+            params = {
+                "search": query,
+                "page": str(page),
+                "pageSize": str(page_size),
+                "sort": "number",
+            }
+            try:
+                response = http.get(
+                    url,
+                    params=params,
+                    headers=headers,
+                    timeout=timeout,
+                )
+            except requests.Timeout:
+                request_count += 1
+                logger.warning("Request timed out")
                 break
-            payload = response.json()
-
-        cards = []
-        total_count = 0
-        if isinstance(payload, dict):
-            cards = payload.get("data") or []
-            total_count = int(payload.get("totalCount") or 0)
-        elif isinstance(payload, list):
-            cards = payload
-
-        if not cards:
-            break
-
-        for card in cards:
-            item = build_card_payload(card)
-            if not item:
-                continue
-            if not item.get("name"):
-                item["name"] = card.get("name") or ""
-            if not item.get("image_small") and item.get("image_large"):
-                item["image_small"] = item.get("image_large")
-            results.append(item)
-
-        fetched_total += len(cards)
-        if limit and limit > 0 and len(results) >= limit:
-            break
-
-        if total_count:
-            if fetched_total >= total_count:
+            except (requests.RequestException, ValueError) as exc:
+                request_count += 1
+                logger.warning("Fetching cards for set %s failed: %s", set_code, exc)
                 break
-        elif len(cards) < page_size:
-            break
+            else:
+                request_count += 1
+                if response.status_code != 200:
+                    logger.warning("API error: %s", response.status_code)
+                    break
+                payload = response.json()
 
-        page += 1
+            cards = []
+            if isinstance(payload, dict):
+                cards = payload.get("data") or []
+                total_count = int(payload.get("totalCount") or 0)
+            elif isinstance(payload, list):
+                cards = payload
+
+            if not cards:
+                break
+
+            for card in cards:
+                item = build_card_payload(card)
+                if not item:
+                    continue
+                if not item.get("name"):
+                    item["name"] = card.get("name") or ""
+                if not item.get("image_small") and item.get("image_large"):
+                    item["image_small"] = item.get("image_large")
+                results.append(item)
+
+            fetched_total += len(cards)
+            if limit and limit > 0 and len(results) >= limit:
+                break
+
+            if total_count:
+                if fetched_total >= total_count:
+                    break
+            elif len(cards) < page_size:
+                break
+
+            page += 1
 
     results.sort(key=_card_sort_key)
     if limit and limit > 0:
         results = results[:limit]
+    
+    logger.info("Set %s: fetched %d cards in %d requests", set_code, len(results), request_count)
     return results, request_count
 
 
@@ -1552,6 +1717,84 @@ def fetch_card_price_history(
             history = [item for item in candidates if isinstance(item, dict)]
     elif isinstance(payload, list):
         history = [item for item in payload if isinstance(item, dict)]
+
+    return history
+
+
+def fetch_product_price_history(
+    product_id: str,
+    *,
+    rapidapi_key: Optional[str] = None,
+    rapidapi_host: Optional[str] = None,
+    session: Optional[requests.sessions.Session] = None,
+    timeout: float = 10.0,
+    date_from: Any | None = None,
+    date_to: Any | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch market price history for a Pokémon product via RapidAPI."""
+
+    if not product_id:
+        return []
+
+    http = session or requests
+    headers: dict[str, str] = {}
+    _apply_default_user_agent(headers, session)
+    api_host_value, api_host_header = _normalize_host(rapidapi_host)
+    url = _build_cards_endpoint(api_host_value, "products", product_id, "history-prices")
+    if rapidapi_key:
+        headers["X-RapidAPI-Key"] = rapidapi_key
+    headers["X-RapidAPI-Host"] = api_host_header
+
+    params: dict[str, str] = {"id": product_id}
+    if date_from is not None:
+        if isinstance(date_from, dt.date):
+            params["date_from"] = date_from.strftime("%Y-%m-%d")
+        elif isinstance(date_from, str) and date_from.strip():
+            params["date_from"] = date_from.strip()
+    if date_to is not None:
+        if isinstance(date_to, dt.date):
+            params["date_to"] = date_to.strftime("%Y-%m-%d")
+        elif isinstance(date_to, str) and date_to.strip():
+            params["date_to"] = date_to.strip()
+
+    try:
+        response = http.get(url, params=params, headers=headers, timeout=timeout)
+    except requests.Timeout:
+        logger.warning("Timeout fetching product price history for %s", product_id)
+        return []
+    except requests.RequestException as exc:  # pragma: no cover
+        logger.warning("Fetching product price history for %s failed: %s", product_id, exc)
+        return []
+
+    if response.status_code != 200:
+        logger.warning(
+            "API error while fetching product price history for %s: %s",
+            product_id,
+            response.status_code,
+        )
+        return []
+
+    try:
+        payload = response.json()
+    except ValueError:
+        logger.warning("Failed to decode product price history payload for %s", product_id)
+        return []
+
+    history: list[dict[str, Any]] = []
+    if isinstance(payload, dict):
+        candidates = payload.get("data") or payload.get("history") or payload.get("prices")
+        if candidates is None and payload:
+            candidates = payload
+        if isinstance(candidates, dict):
+            candidates = [candidates]
+        if isinstance(candidates, list):
+            for item in candidates:
+                if isinstance(item, dict):
+                    history.append(item)
+    elif isinstance(payload, list):
+        for item in payload:
+            if isinstance(item, dict):
+                history.append(item)
 
     return history
 
@@ -1675,51 +1918,61 @@ def normalize_price_history(history: list[dict[str, Any]]) -> list[dict[str, Any
     normalized: list[dict[str, Any]] = []
     eur_rate: Optional[float] = None
 
-    for item in history:
-        if not isinstance(item, dict):
+    if not isinstance(history, list) or not history or not isinstance(history[0], dict):
+        return []
+
+    history_dict = history[0]
+
+    for date_str, price_obj in history_dict.items():
+        if not isinstance(price_obj, dict):
             continue
-        date_value = _extract_history_date(item)
+            
+        date_value = _parse_history_date(date_str)
         if not date_value:
             continue
-        price_value = _extract_nested_price(item, _PRICE_HISTORY_KEYS)
+        
+        logger.info(f"Processing date: {date_str}, price_obj: {price_obj}")
+
+        # Prioritize Cardmarket ('cm_low'), fallback to TCGPlayer
+        price_value = _normalize_price_value(
+            price_obj.get("cm_low") or price_obj.get("tcg_player_market")
+        )
+        logger.info(f"Extracted base price_value: {price_value}")
+        
         if price_value is None:
             continue
-        currency_code = _extract_history_currency(item) or "EUR"
-        currency_code = currency_code.upper()
+            
+        # Assume prices are in a foreign currency (EUR/USD) that needs conversion
+        if eur_rate is None:
+            eur_rate = get_eur_pln_rate()
+        logger.info(f"Using EUR->PLN rate: {eur_rate}")
 
-        if currency_code == "PLN":
-            final_price = round(price_value, 2)
-            final_currency = "PLN"
+        if eur_rate:
+            final_price = round(price_value * eur_rate, 2)
         else:
-            if currency_code in {"EUR", "EURO", "€"}:
-                if eur_rate is None:
-                    eur_rate = get_eur_pln_rate()
-                if eur_rate:
-                    final_price = round(price_value * eur_rate * 1.24, 2)
-                    final_currency = "PLN"
-                else:
-                    final_price = round(price_value, 2)
-                    final_currency = "EUR"
-            else:
-                final_price = round(price_value, 2)
-                final_currency = currency_code
+            # Fallback if EUR rate is unavailable, use original value but log it
+            final_price = round(price_value, 2)
+            logger.warning("EUR to PLN exchange rate not available. Using raw price value.")
+
+        logger.info(f"Final price for {date_str}: {final_price} PLN")
 
         normalized.append(
             {
                 "date": date_value.isoformat(),
                 "price": final_price,
-                "currency": final_currency,
+                "currency": "PLN" if eur_rate else "EUR", # Mark currency for clarity
             }
         )
 
     if not normalized:
         return []
 
+    # Sort by date and remove duplicates
     deduped: dict[str, dict[str, Any]] = {}
-    for entry in normalized:
+    for entry in sorted(normalized, key=lambda x: x["date"]):
         deduped[entry["date"]] = entry
 
-    return [deduped[key] for key in sorted(deduped.keys())]
+    return list(deduped.values())
 
 
 def slice_price_history(

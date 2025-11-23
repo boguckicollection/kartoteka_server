@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block title %}Moje Kolekcje - Kartoteka Web{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Moje Kolekcje</h1>
+  <button type="button" class="button primary" id="new-collection-btn">
+    + Nowa Kolekcja
+  </button>
+</div>
+
+<div class="collections-container">
+  <div class="collections-grid" id="collections-grid">
+    <!-- Collections will be loaded here via JavaScript -->
+  </div>
+  
+  <div class="empty-state" id="empty-state" hidden>
+    <div class="empty-icon">&#128451;</div>
+    <h3>Brak kolekcji</h3>
+    <p>Utwórz swoją pierwszą kolekcję, aby rozpocząć śledzenie kart Pokemon.</p>
+    <button type="button" class="button primary" id="empty-new-collection-btn">
+      + Utwórz kolekcję
+    </button>
+  </div>
+  
+  <div class="loading-state" id="loading-state">
+    <div class="spinner"></div>
+    <p>Ładowanie kolekcji...</p>
+  </div>
+</div>
+
+<!-- New Collection Modal -->
+<div class="modal-overlay" id="new-collection-modal" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Nowa Kolekcja</h2>
+      <button type="button" class="modal-close" data-close-modal>&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="new-collection-form">
+        <div class="form-group">
+          <label>Typ kolekcji</label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="collection_type" value="custom" checked />
+              <span class="radio-label">
+                <span class="radio-icon">&#9733;</span>
+                <span class="radio-text">
+                  <strong>Własna kolekcja</strong>
+                  <small>Dodawaj dowolne karty ręcznie</small>
+                </span>
+              </span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="collection_type" value="set" />
+              <span class="radio-label">
+                <span class="radio-icon">&#128230;</span>
+                <span class="radio-text">
+                  <strong>Cały set Pokemon</strong>
+                  <small>Zbieraj kompletny set kart</small>
+                </span>
+              </span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="collection_type" value="artist" />
+              <span class="radio-label">
+                <span class="radio-icon">&#127912;</span>
+                <span class="radio-text">
+                  <strong>Karty artysty</strong>
+                  <small>Zbieraj prace ulubionego artysty</small>
+                </span>
+              </span>
+            </label>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="collection-name">Nazwa kolekcji</label>
+          <input type="text" id="collection-name" name="name" required placeholder="np. Moja kolekcja SV" />
+        </div>
+        
+        <div class="form-group">
+          <label for="collection-description">Opis (opcjonalnie)</label>
+          <textarea id="collection-description" name="description" rows="2" placeholder="Krótki opis kolekcji..."></textarea>
+        </div>
+        
+        <!-- Set-specific fields -->
+        <div class="form-group set-fields" hidden>
+          <label for="set-select">Wybierz set</label>
+          <select id="set-select" name="set_code">
+            <option value="">-- Wybierz set --</option>
+          </select>
+        </div>
+        
+        <div class="form-group set-fields" hidden>
+          <label>Rodzaj setu</label>
+          <div class="radio-group horizontal">
+            <label class="radio-option">
+              <input type="radio" name="set_type" value="baseset" checked />
+              <span class="radio-label">
+                <strong>Baseset</strong>
+                <small>Tylko karty podstawowe</small>
+              </span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="set_type" value="masterset" />
+              <span class="radio-label">
+                <strong>Masterset</strong>
+                <small>Wszystkie karty + secret rare</small>
+              </span>
+            </label>
+          </div>
+        </div>
+        
+        <!-- Artist-specific fields -->
+        <div class="form-group artist-fields" hidden>
+          <label for="artist-select">Wybierz artystę</label>
+          <select id="artist-select" name="artist_name">
+            <option value="">-- Wybierz artystę --</option>
+          </select>
+        </div>
+        
+        <div class="form-actions">
+          <button type="button" class="button secondary" data-close-modal>Anuluj</button>
+          <button type="submit" class="button primary">Utwórz kolekcję</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts_extra %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const collectionsGrid = document.getElementById('collections-grid');
+  const emptyState = document.getElementById('empty-state');
+  const loadingState = document.getElementById('loading-state');
+  const modal = document.getElementById('new-collection-modal');
+  const form = document.getElementById('new-collection-form');
+  const setFields = document.querySelectorAll('.set-fields');
+  const artistFields = document.querySelectorAll('.artist-fields');
+  const collectionTypeInputs = document.querySelectorAll('input[name="collection_type"]');
+  
+  // Load collections
+  async function loadCollections() {
+    loadingState.hidden = false;
+    emptyState.hidden = true;
+    collectionsGrid.innerHTML = '';
+    
+    try {
+      const response = await fetch('/collections/', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to load collections');
+      
+      const collections = await response.json();
+      loadingState.hidden = true;
+      
+      if (collections.length === 0) {
+        emptyState.hidden = false;
+        return;
+      }
+      
+      collections.forEach(renderCollectionCard);
+    } catch (error) {
+      console.error('Error loading collections:', error);
+      loadingState.hidden = true;
+      emptyState.hidden = false;
+    }
+  }
+  
+  function renderCollectionCard(collection) {
+    const card = document.createElement('a');
+    card.href = `/my-collections/${collection.id}`;
+    card.className = 'collection-card';
+    
+    const typeIcon = {
+      'custom': '&#9733;',
+      'set': '&#128230;',
+      'artist': '&#127912;'
+    }[collection.collection_type] || '&#128451;';
+    
+    const typeLabel = {
+      'custom': 'Własna',
+      'set': collection.set_type === 'masterset' ? 'Masterset' : 'Baseset',
+      'artist': 'Artysta'
+    }[collection.collection_type] || 'Kolekcja';
+    
+    const subtitle = collection.set_name || collection.artist_name || '';
+    
+    card.innerHTML = `
+      <div class="collection-cover" style="${collection.cover_image ? `background-image: url('${collection.cover_image}')` : ''}">
+        ${!collection.cover_image ? `<span class="collection-icon">${typeIcon}</span>` : ''}
+      </div>
+      <div class="collection-info">
+        <span class="collection-type-badge">${typeLabel}</span>
+        <h3 class="collection-name">${collection.name}</h3>
+        ${subtitle ? `<p class="collection-subtitle">${subtitle}</p>` : ''}
+        <div class="collection-progress">
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: ${collection.progress_percent}%"></div>
+          </div>
+          <span class="progress-text">${collection.owned_cards}/${collection.total_cards} (${collection.progress_percent.toFixed(1)}%)</span>
+        </div>
+      </div>
+    `;
+    
+    collectionsGrid.appendChild(card);
+  }
+  
+  // Toggle fields based on collection type
+  collectionTypeInputs.forEach(input => {
+    input.addEventListener('change', function() {
+      const type = this.value;
+      
+      setFields.forEach(el => el.hidden = type !== 'set');
+      artistFields.forEach(el => el.hidden = type !== 'artist');
+      
+      // Load sets or artists if needed
+      if (type === 'set') {
+        loadSets();
+      } else if (type === 'artist') {
+        loadArtists();
+      }
+    });
+  });
+  
+  async function loadSets() {
+    const select = document.getElementById('set-select');
+    if (select.options.length > 1) return; // Already loaded
+    
+    try {
+      const response = await fetch('/collections/sets/list');
+      if (!response.ok) throw new Error('Failed to load sets');
+      
+      const sets = await response.json();
+      sets.forEach(set => {
+        const option = document.createElement('option');
+        option.value = set.code;
+        option.textContent = `${set.name} (${set.code}) - ${set.total_cards || '?'} kart`;
+        select.appendChild(option);
+      });
+    } catch (error) {
+      console.error('Error loading sets:', error);
+    }
+  }
+  
+  async function loadArtists() {
+    const select = document.getElementById('artist-select');
+    if (select.options.length > 1) return; // Already loaded
+    
+    try {
+      const response = await fetch('/collections/artists/list');
+      if (!response.ok) throw new Error('Failed to load artists');
+      
+      const artists = await response.json();
+      artists.forEach(artist => {
+        const option = document.createElement('option');
+        option.value = artist.name;
+        option.textContent = `${artist.name} (${artist.card_count} kart)`;
+        select.appendChild(option);
+      });
+    } catch (error) {
+      console.error('Error loading artists:', error);
+    }
+  }
+  
+  // Modal handlers
+  function openModal() {
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+  
+  function closeModal() {
+    modal.hidden = true;
+    document.body.style.overflow = '';
+    form.reset();
+    setFields.forEach(el => el.hidden = true);
+    artistFields.forEach(el => el.hidden = true);
+  }
+  
+  document.getElementById('new-collection-btn').addEventListener('click', openModal);
+  document.getElementById('empty-new-collection-btn').addEventListener('click', openModal);
+  
+  modal.querySelectorAll('[data-close-modal]').forEach(btn => {
+    btn.addEventListener('click', closeModal);
+  });
+  
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) closeModal();
+  });
+  
+  // Form submission
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(form);
+    const type = formData.get('collection_type');
+    
+    const payload = {
+      name: formData.get('name'),
+      description: formData.get('description') || null,
+      collection_type: type
+    };
+    
+    if (type === 'set') {
+      payload.set_code = formData.get('set_code');
+      payload.set_type = formData.get('set_type');
+      
+      if (!payload.set_code) {
+        alert('Wybierz set');
+        return;
+      }
+    } else if (type === 'artist') {
+      payload.artist_name = formData.get('artist_name');
+      
+      if (!payload.artist_name) {
+        alert('Wybierz artystę');
+        return;
+      }
+    }
+    
+    try {
+      const response = await fetch('/collections/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to create collection');
+      }
+      
+      closeModal();
+      loadCollections();
+    } catch (error) {
+      console.error('Error creating collection:', error);
+      alert('Błąd: ' + error.message);
+    }
+  });
+  
+  // Initial load
+  loadCollections();
+});
+</script>
+{% endblock %}

@@ -10,6 +10,12 @@ import pytest
 from kartoteka_web.services import tcg_api
 
 
+class MockDate(dt.date):
+    @classmethod
+    def today(cls):
+        return dt.date(2025, 11, 14)
+
+
 class _DummySession:
     def __init__(
         self,
@@ -599,3 +605,48 @@ def test_slice_price_history_returns_limited_range():
 
     assert len(sliced) == 3
     assert [entry["date"] for entry in sliced] == ["2024-01-08", "2024-01-09", "2024-01-10"]
+
+
+def test_get_latest_products_returns_current_month_and_future_products(monkeypatch):
+    """Test that get_latest_products returns products from the current month and future."""
+    today = dt.date(2025, 11, 14)
+    monkeypatch.setattr(tcg_api.dt, "date", MockDate)
+
+    products_payload = {
+        "data": [
+            {"name": "Future Product", "releaseDate": "2025-12-01"},
+            {"name": "Current Month Product", "releaseDate": "2025-11-15"},
+            {"name": "Past Product", "releaseDate": "2025-10-31"},
+        ]
+    }
+    session = _DummySession(response_data=products_payload)
+
+    latest_products = tcg_api.get_latest_products(session=session)
+
+    assert len(latest_products) == 2
+    product_names = {p["name"] for p in latest_products}
+    assert "Future Product" in product_names
+    assert "Current Month Product" in product_names
+    assert "Past Product" not in product_names
+    # Check sort order (descending)
+    assert latest_products[0]["name"] == "Future Product"
+    assert latest_products[1]["name"] == "Current Month Product"
+
+
+def test_get_latest_products_falls_back_to_latest_if_no_current_products(monkeypatch):
+    """Test that get_latest_products falls back to the latest products if none are for the current month."""
+    today = dt.date(2025, 11, 14)
+    monkeypatch.setattr(tcg_api.dt, "date", MockDate)
+
+    products_payload = {
+        "data": [
+            {"name": "Past Product 1", "releaseDate": "2025-10-31"},
+            {"name": "Past Product 2", "releaseDate": "2025-10-30"},
+        ]
+    }
+    session = _DummySession(response_data=products_payload)
+
+    latest_products = tcg_api.get_latest_products(session=session, limit=1)
+
+    assert len(latest_products) == 1
+    assert latest_products[0]["name"] == "Past Product 1"

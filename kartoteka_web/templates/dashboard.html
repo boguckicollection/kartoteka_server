@@ -4,59 +4,818 @@
 <section class="page-hero collection-hero">
   <div>
     <p class="eyebrow">Twoja kolekcja</p>
-    <h1>Witaj, {{ username or 'Trenerze' }}!</h1>
+    <h1>Witaj, {{ username }}!</h1>
     <p>
-      Poniżej znajdziesz prostą listę wszystkich kart dodanych do kolekcji. Aktualizuj ilości,
-      oznaczaj wersje reverse lub holo i usuwaj wpisy, gdy przestaną być potrzebne.
+      Zarządzaj swoją kolekcją kart - edytuj ilości, śledź wartość i dodawaj nowe karty.
     </p>
     <div class="hero-actions">
       <a class="button primary" href="/cards/add">Dodaj nową kartę</a>
-      <button class="button secondary" id="refresh-collection" type="button">Odśwież listę</button>
+      <button type="button" class="button secondary" id="new-collection-btn">+ Nowa kolekcja</button>
     </div>
   </div>
 </section>
 
-<section class="panel" id="collection-section">
+<!-- Statystyki kolekcji -->
+<section class="panel collection-stats">
   <div class="panel-header">
     <div>
-      <h2>Zapisane wpisy</h2>
-      <p>Zarządzaj podstawowymi metadanymi dla każdej karty z kolekcji.</p>
+      <h2>Statystyki kolekcji</h2>
+      <p>Aktualna wartość i podsumowanie kolekcji</p>
     </div>
   </div>
-  <div class="alert" id="collection-alert" hidden></div>
-  <div class="table-responsive">
-    <table class="collection-table">
-      <thead>
-        <tr>
-          <th scope="col">Karta</th>
-          <th scope="col">Set</th>
-          <th scope="col">Numer</th>
-          <th scope="col">Ilość</th>
-          <th scope="col">Reverse</th>
-          <th scope="col">Holo</th>
-          <th scope="col">Cena zakupu</th>
-          <th scope="col">Akcje</th>
-        </tr>
-      </thead>
-      <tbody id="collection-table"></tbody>
-    </table>
-    <p class="empty-state" id="collection-empty" hidden>Brak kart w kolekcji. Dodaj pierwszą kartę, aby rozpocząć.</p>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Liczba kart</div>
+      <div class="stat-value" id="stat-total-cards">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Unikalne karty</div>
+      <div class="stat-value" id="stat-unique-cards">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Wartość kolekcji</div>
+      <div class="stat-value" id="stat-total-value">0 PLN</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Wartość zakupu</div>
+      <div class="stat-value" id="stat-purchase-value">0 PLN</div>
+    </div>
   </div>
 </section>
 
+<!-- Wykres wartości -->
 <section class="panel">
   <div class="panel-header">
     <div>
-      <h2>Porządkuj zbiory krok po kroku</h2>
-      <p>Użyj widoku kart, aby skupić się na pojedynczych wpisach i dodać dodatkowe notatki.</p>
+      <h2>Wartość kolekcji w czasie</h2>
+      <p>Historia wartości Twojej kolekcji na przestrzeni ostatniego roku.</p>
+    </div>
+    <div class="panel-header-actions chart-controls">
+      <div class="form-control form-control--checkbox">
+        <input type="checkbox" id="toggle-purchase-cost" checked>
+        <label for="toggle-purchase-cost">Pokaż koszt zakupu</label>
+      </div>
+      <div class="button-group" id="chart-range-selector">
+        <button type="button" class="button secondary" data-range="90d">90D</button>
+        <button type="button" class="button secondary" data-range="60d">60D</button>
+        <button type="button" class="button secondary is-active" data-range="30d">30D</button>
+        <button type="button" class="button secondary" data-range="7d">7D</button>
+      </div>
     </div>
   </div>
-  <div class="collection-followup">
-    <p>
-      Widok kart prezentuje te same dane w formie kafelków. To dobre miejsce, aby planować wymiany
-      lub zaznaczać priorytetowe pozycje w kolekcji.
-    </p>
-    <a class="button secondary" href="/portfolio">Otwórz widok kart</a>
+  <div class="alert" id="chart-alert" hidden></div>
+  <div class="chart-container">
+    <canvas id="collection-value-chart"></canvas>
   </div>
 </section>
+
+<!-- Collection display -->
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Twoje karty</h2>
+      <p id="collection-mode-desc">Przeglądaj informacje o kartach w kolekcji</p>
+    </div>
+    <div class="panel-header-actions">
+      <div class="button-group">
+        <button type="button" class="button secondary is-active" data-view-mode="info" aria-pressed="true">
+          Widok kart
+        </button>
+        <button type="button" class="button secondary" data-view-mode="edit" aria-pressed="false">
+          Widok edycji
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="alert" id="collection-alert" hidden></div>
+  <div class="card-search-results card-search-results--grid" id="collection-cards" role="list" data-collection-mode="info"></div>
+  <p class="empty-state" id="collection-empty" hidden>Brak kart w kolekcji. Dodaj karty klikając "Dodaj nową kartę" powyżej.</p>
+</section>
+
+<!-- Moje Kolekcje -->
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Moje Kolekcje</h2>
+      <p>Śledź postęp kompletowania setów i kolekcji artystów</p>
+    </div>
+    <div class="panel-header-actions">
+      <a href="/my-collections" class="button secondary inline">Zobacz wszystkie</a>
+    </div>
+  </div>
+  <div class="collections-grid" id="user-collections-grid">
+    <!-- Collections will be loaded here via JavaScript -->
+  </div>
+  <div class="loading-state" id="collections-loading" hidden>
+    <div class="spinner"></div>
+  </div>
+  <p class="empty-state" id="collections-empty" hidden>
+    Brak kolekcji. Kliknij "Nowa kolekcja" aby utworzyć pierwszą.
+  </p>
+</section>
+
+<!-- Confirmation Modal -->
+<div id="confirm-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal modal--danger">
+    <div class="modal-header">
+      <h2 id="modal-title">Potwierdź usunięcie</h2>
+    </div>
+    <div class="modal-body" id="modal-message">
+      Czy na pewno chcesz usunąć tę kartę z kolekcji?
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="button secondary" id="modal-cancel">Anuluj</button>
+      <button type="button" class="button primary" id="modal-confirm" style="background: var(--color-danger); border-color: var(--color-danger);">Usuń</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Collection Modal - Multi-step wizard -->
+<div class="modal-overlay" id="new-collection-modal" hidden>
+  <div class="modal modal-wizard">
+    <div class="modal-header">
+      <h2 id="wizard-title">Nowa Kolekcja</h2>
+      <button type="button" class="modal-close" data-close-modal>&times;</button>
+    </div>
+    <div class="modal-body">
+      <!-- Step 1: Choose collection type -->
+      <div class="wizard-step" id="wizard-step-1">
+        <div class="form-group">
+          <label>Wybierz typ kolekcji</label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="collection_type" value="custom" checked />
+              <span class="radio-label">
+                <span class="radio-icon">&#9733;</span>
+                <span class="radio-text">
+                  <strong>Własna kolekcja</strong>
+                  <small>Dodawaj dowolne karty ręcznie</small>
+                </span>
+              </span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="collection_type" value="set" />
+              <span class="radio-label">
+                <span class="radio-icon">&#128230;</span>
+                <span class="radio-text">
+                  <strong>Cały set Pokemon</strong>
+                  <small>Zbieraj kompletny set kart</small>
+                </span>
+              </span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="collection_type" value="artist" />
+              <span class="radio-label">
+                <span class="radio-icon">&#127912;</span>
+                <span class="radio-text">
+                  <strong>Karty artysty</strong>
+                  <small>Zbieraj prace ulubionego artysty</small>
+                </span>
+              </span>
+            </label>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="button secondary" data-close-modal>Anuluj</button>
+          <button type="button" class="button primary" id="wizard-next-1">Dalej</button>
+        </div>
+      </div>
+      
+      <!-- Step 2a: Custom collection form -->
+      <div class="wizard-step" id="wizard-step-custom" hidden>
+        <form id="custom-collection-form">
+          <div class="form-group">
+            <label for="custom-collection-name">Nazwa kolekcji</label>
+            <input type="text" id="custom-collection-name" name="name" required placeholder="np. Moje ulubione karty" />
+          </div>
+          <div class="form-group">
+            <label for="custom-collection-description">Opis (opcjonalnie)</label>
+            <textarea id="custom-collection-description" name="description" rows="2" placeholder="Krótki opis kolekcji..."></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="button secondary" data-wizard-back="1">Wstecz</button>
+            <button type="submit" class="button primary">Utwórz kolekcję</button>
+          </div>
+        </form>
+      </div>
+      
+      <!-- Step 2b: Set selection by era -->
+      <div class="wizard-step" id="wizard-step-sets" hidden>
+        <div class="set-search-bar">
+          <input type="text" id="set-search-input" placeholder="Szukaj setu..." />
+        </div>
+        <div class="sets-by-era" id="sets-by-era">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Ładowanie setów...</p>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="button secondary" data-wizard-back="1">Wstecz</button>
+        </div>
+      </div>
+      
+      <!-- Step 3: Set preview with cards -->
+      <div class="wizard-step" id="wizard-step-set-preview" hidden>
+        <div class="set-preview-header">
+          <div class="set-preview-info">
+            <img id="preview-set-logo" src="" alt="" class="set-preview-logo" />
+            <div>
+              <h3 id="preview-set-name"></h3>
+              <p id="preview-set-details"></p>
+            </div>
+          </div>
+          <div class="set-type-selector">
+            <label class="radio-option compact">
+              <input type="radio" name="preview_set_type" value="baseset" checked />
+              <span class="radio-label">
+                <strong>Baseset</strong>
+                <small>Karty podstawowe</small>
+              </span>
+            </label>
+            <label class="radio-option compact">
+              <input type="radio" name="preview_set_type" value="masterset" />
+              <span class="radio-label">
+                <strong>Masterset</strong>
+                <small>+ secret rare</small>
+              </span>
+            </label>
+          </div>
+        </div>
+        <div class="set-preview-cards" id="set-preview-cards">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Ładowanie kart...</p>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="set-collection-name">Nazwa kolekcji</label>
+          <input type="text" id="set-collection-name" name="name" required placeholder="np. Mój Scarlet & Violet" />
+        </div>
+        <div class="form-actions">
+          <button type="button" class="button secondary" data-wizard-back="sets">Wstecz</button>
+          <button type="button" class="button primary" id="create-set-collection">Utwórz kolekcję</button>
+        </div>
+      </div>
+      
+      <!-- Step 2c: Artist selection -->
+      <div class="wizard-step" id="wizard-step-artists" hidden>
+        <div class="set-search-bar">
+          <input type="text" id="artist-search-input" placeholder="Szukaj artysty..." />
+        </div>
+        <div class="artists-list" id="artists-list">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Ładowanie artystów...</p>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="button secondary" data-wizard-back="1">Wstecz</button>
+        </div>
+      </div>
+      
+      <!-- Step 3c: Artist preview -->
+      <div class="wizard-step" id="wizard-step-artist-preview" hidden>
+        <div class="set-preview-header">
+          <div class="set-preview-info">
+            <span class="artist-icon-large">&#127912;</span>
+            <div>
+              <h3 id="preview-artist-name"></h3>
+              <p id="preview-artist-details"></p>
+            </div>
+          </div>
+        </div>
+        <div class="set-preview-cards" id="artist-preview-cards">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Ładowanie kart...</p>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="artist-collection-name">Nazwa kolekcji</label>
+          <input type="text" id="artist-collection-name" name="name" required placeholder="np. Kolekcja Mitsuhiro Arita" />
+        </div>
+        <div class="form-actions">
+          <button type="button" class="button secondary" data-wizard-back="artists">Wstecz</button>
+          <button type="button" class="button primary" id="create-artist-collection">Utwórz kolekcję</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
+
+{% block scripts_extra %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const collectionsGrid = document.getElementById('user-collections-grid');
+  const collectionsEmpty = document.getElementById('collections-empty');
+  const collectionsLoading = document.getElementById('collections-loading');
+  const modal = document.getElementById('new-collection-modal');
+  const wizardTitle = document.getElementById('wizard-title');
+  
+  // Wizard state
+  let setsData = [];
+  let artistsData = [];
+  let selectedSet = null;
+  let selectedArtist = null;
+  let userOwnedCardIds = new Set();
+  
+  // Load user collections (max 6 for dashboard)
+  async function loadCollections() {
+    collectionsLoading.hidden = false;
+    collectionsEmpty.hidden = true;
+    collectionsGrid.innerHTML = '';
+    
+    try {
+      const response = await fetch('/collections/', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to load collections');
+      
+      const collections = await response.json();
+      collectionsLoading.hidden = true;
+      
+      if (collections.length === 0) {
+        collectionsEmpty.hidden = false;
+        return;
+      }
+      
+      // Show max 6 collections on dashboard
+      collections.slice(0, 6).forEach(renderCollectionCard);
+    } catch (error) {
+      console.error('Error loading collections:', error);
+      collectionsLoading.hidden = true;
+      collectionsEmpty.hidden = false;
+    }
+  }
+  
+  function renderCollectionCard(collection) {
+    const card = document.createElement('a');
+    card.href = `/my-collections/${collection.id}`;
+    card.className = 'collection-card';
+    
+    const typeIcon = {
+      'custom': '&#9733;',
+      'set': '&#128230;',
+      'artist': '&#127912;'
+    }[collection.collection_type] || '&#128451;';
+    
+    const typeLabel = {
+      'custom': 'Własna',
+      'set': collection.set_type === 'masterset' ? 'Masterset' : 'Baseset',
+      'artist': 'Artysta'
+    }[collection.collection_type] || 'Kolekcja';
+    
+    const subtitle = collection.set_name || collection.artist_name || '';
+    
+    card.innerHTML = `
+      <div class="collection-cover" style="${collection.cover_image ? `background-image: url('${collection.cover_image}')` : ''}">
+        ${!collection.cover_image ? `<span class="collection-icon">${typeIcon}</span>` : ''}
+      </div>
+      <div class="collection-info">
+        <span class="collection-type-badge">${typeLabel}</span>
+        <h3 class="collection-name">${collection.name}</h3>
+        ${subtitle ? `<p class="collection-subtitle">${subtitle}</p>` : ''}
+        <div class="collection-progress">
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: ${collection.progress_percent}%"></div>
+          </div>
+          <span class="progress-text">${collection.owned_cards}/${collection.total_cards} (${collection.progress_percent.toFixed(1)}%)</span>
+        </div>
+      </div>
+    `;
+    
+    collectionsGrid.appendChild(card);
+  }
+  
+  // ========== WIZARD NAVIGATION ==========
+  
+  function showStep(stepId) {
+    document.querySelectorAll('.wizard-step').forEach(step => step.hidden = true);
+    document.getElementById(stepId).hidden = false;
+    
+    // Update title based on step
+    const titles = {
+      'wizard-step-1': 'Nowa Kolekcja',
+      'wizard-step-custom': 'Własna kolekcja',
+      'wizard-step-sets': 'Wybierz set',
+      'wizard-step-set-preview': selectedSet ? selectedSet.name : 'Podgląd setu',
+      'wizard-step-artists': 'Wybierz artystę',
+      'wizard-step-artist-preview': selectedArtist ? selectedArtist.name : 'Podgląd artysty'
+    };
+    wizardTitle.textContent = titles[stepId] || 'Nowa Kolekcja';
+  }
+  
+  // Step 1 -> Next
+  document.getElementById('wizard-next-1').addEventListener('click', async function() {
+    const type = document.querySelector('input[name="collection_type"]:checked').value;
+    
+    if (type === 'custom') {
+      showStep('wizard-step-custom');
+    } else if (type === 'set') {
+      showStep('wizard-step-sets');
+      await loadSetsGrid();
+    } else if (type === 'artist') {
+      showStep('wizard-step-artists');
+      await loadArtistsList();
+    }
+  });
+  
+  // Back buttons
+  document.querySelectorAll('[data-wizard-back]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const target = this.dataset.wizardBack;
+      if (target === '1') {
+        showStep('wizard-step-1');
+      } else if (target === 'sets') {
+        showStep('wizard-step-sets');
+      } else if (target === 'artists') {
+        showStep('wizard-step-artists');
+      }
+    });
+  });
+  
+  // ========== SETS BY ERA ==========
+  
+  async function loadSetsGrid() {
+    const container = document.getElementById('sets-by-era');
+    
+    if (setsData.length === 0) {
+      try {
+        const response = await fetch('/collections/sets/list');
+        if (!response.ok) throw new Error('Failed to load sets');
+        setsData = await response.json();
+      } catch (error) {
+        console.error('Error loading sets:', error);
+        container.innerHTML = '<p class="error-state">Nie udało się załadować setów</p>';
+        return;
+      }
+    }
+    
+    renderSetsByEra(setsData);
+  }
+  
+  function renderSetsByEra(sets) {
+    const container = document.getElementById('sets-by-era');
+    container.innerHTML = '';
+    
+    if (sets.length === 0) {
+      container.innerHTML = '<p class="empty-state">Brak setów do wyświetlenia</p>';
+      return;
+    }
+    
+    // Group sets by era (series)
+    const setsByEra = {};
+    const eraOrder = [];
+    
+    sets.forEach(set => {
+      const era = set.series || 'Inne';
+      if (!setsByEra[era]) {
+        setsByEra[era] = [];
+        eraOrder.push(era);
+      }
+      setsByEra[era].push(set);
+    });
+    
+    // Render each era section
+    eraOrder.forEach(era => {
+      const eraSets = setsByEra[era];
+      
+      const section = document.createElement('div');
+      section.className = 'era-section';
+      section.dataset.era = era;
+      
+      const header = document.createElement('div');
+      header.className = 'era-header';
+      header.innerHTML = `
+        <h3 class="era-title">${era}</h3>
+        <span class="era-count">${eraSets.length} setów</span>
+      `;
+      
+      const grid = document.createElement('div');
+      grid.className = 'sets-grid';
+      
+      eraSets.forEach(set => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'set-selection-card';
+        card.dataset.setCode = set.code;
+        
+        card.innerHTML = `
+          <div class="set-card-logo">
+            <img src="${set.logo_url}" alt="${set.name}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+            <span class="set-card-fallback" style="display:none;">
+              <img src="${set.symbol_url}" alt="" class="set-symbol-small" onerror="this.parentElement.innerHTML='&#128230;'" />
+            </span>
+          </div>
+          <div class="set-card-info">
+            <span class="set-card-name">${set.name}</span>
+            <span class="set-card-meta">${set.total_cards || '?'} kart</span>
+          </div>
+        `;
+        
+        card.addEventListener('click', () => selectSet(set));
+        grid.appendChild(card);
+      });
+      
+      section.appendChild(header);
+      section.appendChild(grid);
+      container.appendChild(section);
+    });
+  }
+  
+  // Set search - filters and shows matching sets
+  document.getElementById('set-search-input').addEventListener('input', function() {
+    const query = this.value.toLowerCase().trim();
+    
+    if (!query) {
+      renderSetsByEra(setsData);
+      return;
+    }
+    
+    const filtered = setsData.filter(set => 
+      set.name.toLowerCase().includes(query) ||
+      set.code.toLowerCase().includes(query) ||
+      (set.series && set.series.toLowerCase().includes(query))
+    );
+    renderSetsByEra(filtered);
+  });
+  
+  // ========== SET PREVIEW ==========
+  
+  async function selectSet(set) {
+    selectedSet = set;
+    showStep('wizard-step-set-preview');
+    
+    // Update header
+    document.getElementById('preview-set-logo').src = set.logo_url;
+    document.getElementById('preview-set-logo').alt = set.name;
+    document.getElementById('preview-set-name').textContent = set.name;
+    document.getElementById('preview-set-details').textContent = `${set.series || ''} • ${set.total_cards || '?'} kart • ${set.release_date || ''}`;
+    document.getElementById('set-collection-name').value = set.name;
+    
+    // Load cards preview
+    await loadSetPreviewCards(set.code, 'baseset');
+  }
+  
+  async function loadSetPreviewCards(setCode, setType) {
+    const container = document.getElementById('set-preview-cards');
+    container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Ładowanie kart...</p></div>';
+    
+    try {
+      const response = await fetch(`/collections/sets/${setCode}/print-data?set_type=${setType}`);
+      if (!response.ok) throw new Error('Failed to load cards');
+      
+      const data = await response.json();
+      renderPreviewCards(container, data.cards);
+    } catch (error) {
+      console.error('Error loading set cards:', error);
+      container.innerHTML = '<p class="error-state">Nie udało się załadować kart</p>';
+    }
+  }
+  
+  function renderPreviewCards(container, cards) {
+    container.innerHTML = '';
+    
+    cards.forEach(card => {
+      const isOwned = userOwnedCardIds.has(card.id);
+      const cardEl = document.createElement('div');
+      cardEl.className = `preview-card ${isOwned ? '' : 'preview-card--missing'}`;
+      cardEl.innerHTML = `
+        <img src="${card.image_small}" alt="${card.name}" loading="lazy" />
+        <span class="preview-card-number">${card.number_display || card.number}</span>
+      `;
+      container.appendChild(cardEl);
+    });
+  }
+  
+  // Set type change
+  document.querySelectorAll('input[name="preview_set_type"]').forEach(input => {
+    input.addEventListener('change', function() {
+      if (selectedSet) {
+        loadSetPreviewCards(selectedSet.code, this.value);
+      }
+    });
+  });
+  
+  // Create set collection
+  document.getElementById('create-set-collection').addEventListener('click', async function() {
+    const name = document.getElementById('set-collection-name').value.trim();
+    const setType = document.querySelector('input[name="preview_set_type"]:checked').value;
+    
+    if (!name) {
+      alert('Podaj nazwę kolekcji');
+      return;
+    }
+    
+    await createCollection({
+      name: name,
+      collection_type: 'set',
+      set_code: selectedSet.code,
+      set_type: setType
+    });
+  });
+  
+  // ========== ARTISTS LIST ==========
+  
+  async function loadArtistsList() {
+    const list = document.getElementById('artists-list');
+    
+    if (artistsData.length === 0) {
+      try {
+        const response = await fetch('/collections/artists/list?limit=200');
+        if (!response.ok) throw new Error('Failed to load artists');
+        artistsData = await response.json();
+      } catch (error) {
+        console.error('Error loading artists:', error);
+        list.innerHTML = '<p class="error-state">Nie udało się załadować artystów</p>';
+        return;
+      }
+    }
+    
+    renderArtistsList(artistsData);
+  }
+  
+  function renderArtistsList(artists) {
+    const list = document.getElementById('artists-list');
+    list.innerHTML = '';
+    
+    if (artists.length === 0) {
+      list.innerHTML = '<p class="empty-state">Brak artystów do wyświetlenia</p>';
+      return;
+    }
+    
+    artists.forEach(artist => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'artist-selection-item';
+      item.innerHTML = `
+        <span class="artist-icon">&#127912;</span>
+        <span class="artist-name">${artist.name}</span>
+        <span class="artist-count">${artist.card_count} kart</span>
+      `;
+      item.addEventListener('click', () => selectArtist(artist));
+      list.appendChild(item);
+    });
+  }
+  
+  // Artist search
+  document.getElementById('artist-search-input').addEventListener('input', function() {
+    const query = this.value.toLowerCase().trim();
+    if (!query) {
+      renderArtistsList(artistsData);
+      return;
+    }
+    
+    const filtered = artistsData.filter(artist => 
+      artist.name.toLowerCase().includes(query)
+    );
+    renderArtistsList(filtered);
+  });
+  
+  // ========== ARTIST PREVIEW ==========
+  
+  async function selectArtist(artist) {
+    selectedArtist = artist;
+    showStep('wizard-step-artist-preview');
+    
+    document.getElementById('preview-artist-name').textContent = artist.name;
+    document.getElementById('preview-artist-details').textContent = `${artist.card_count} kart`;
+    document.getElementById('artist-collection-name').value = `Kolekcja: ${artist.name}`;
+    
+    // Load artist cards preview
+    await loadArtistPreviewCards(artist.name);
+  }
+  
+  async function loadArtistPreviewCards(artistName) {
+    const container = document.getElementById('artist-preview-cards');
+    container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Ładowanie kart...</p></div>';
+    
+    try {
+      const response = await fetch(`/collections/artists/${encodeURIComponent(artistName)}/cards?limit=50`);
+      if (!response.ok) throw new Error('Failed to load cards');
+      
+      const cards = await response.json();
+      renderPreviewCards(container, cards);
+    } catch (error) {
+      console.error('Error loading artist cards:', error);
+      container.innerHTML = '<p class="error-state">Nie udało się załadować kart</p>';
+    }
+  }
+  
+  // Create artist collection
+  document.getElementById('create-artist-collection').addEventListener('click', async function() {
+    const name = document.getElementById('artist-collection-name').value.trim();
+    
+    if (!name) {
+      alert('Podaj nazwę kolekcji');
+      return;
+    }
+    
+    await createCollection({
+      name: name,
+      collection_type: 'artist',
+      artist_name: selectedArtist.name
+    });
+  });
+  
+  // ========== CUSTOM COLLECTION ==========
+  
+  document.getElementById('custom-collection-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    await createCollection({
+      name: formData.get('name'),
+      description: formData.get('description') || null,
+      collection_type: 'custom'
+    });
+  });
+  
+  // ========== CREATE COLLECTION ==========
+  
+  async function createCollection(payload) {
+    try {
+      const response = await fetch('/collections/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to create collection');
+      }
+      
+      const newCollection = await response.json();
+      closeModal();
+      window.location.href = `/my-collections/${newCollection.id}`;
+    } catch (error) {
+      console.error('Error creating collection:', error);
+      alert('Błąd: ' + error.message);
+    }
+  }
+  
+  // ========== MODAL HANDLERS ==========
+  
+  function openModal() {
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    showStep('wizard-step-1');
+    
+    // Reset state
+    selectedSet = null;
+    selectedArtist = null;
+    document.getElementById('set-search-input').value = '';
+    document.getElementById('artist-search-input').value = '';
+    document.querySelectorAll('input[name="collection_type"]')[0].checked = true;
+  }
+  
+  function closeModal() {
+    modal.hidden = true;
+    document.body.style.overflow = '';
+  }
+  
+  document.getElementById('new-collection-btn').addEventListener('click', openModal);
+  
+  modal.querySelectorAll('[data-close-modal]').forEach(btn => {
+    btn.addEventListener('click', closeModal);
+  });
+  
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) closeModal();
+  });
+  
+  // ========== LOAD USER OWNED CARDS ==========
+  
+  async function loadUserOwnedCards() {
+    try {
+      const response = await fetch('/user/collection?per_page=1000', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        userOwnedCardIds = new Set(data.items?.map(item => item.card_record_id) || []);
+      }
+    } catch (error) {
+      console.error('Error loading user cards:', error);
+    }
+  }
+  
+  // Initial load
+  loadCollections();
+  loadUserOwnedCards();
+});
+</script>
+{% endblock %}
+

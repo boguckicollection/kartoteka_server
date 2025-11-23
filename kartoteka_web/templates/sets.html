@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Sety Pokemon TCG - Kartoteka Web{% endblock %}
+
+{% block content %}
+<section class="page-hero">
+  <div>
+    <p class="eyebrow">Baza setow</p>
+    <h1>Sety Pokemon TCG</h1>
+    <p>
+      Przegladaj dostepne sety kart Pokemon TCG. Mozesz wydrukowac szablon do albumu bez tworzenia kolekcji.
+    </p>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Wszystkie sety</h2>
+      <p>Wybierz set, aby zobaczyc szczegoly lub wydrukowac szablon</p>
+    </div>
+    <div class="sets-search">
+      <input type="text" id="sets-search" class="sets-search-input" placeholder="Szukaj setu..." />
+    </div>
+  </div>
+  
+  <div class="sets-grid" id="sets-grid">
+    <!-- Sets will be loaded here via JavaScript -->
+  </div>
+  
+  <div class="loading-state" id="loading-state">
+    <div class="spinner"></div>
+    <p>Ladowanie setow...</p>
+  </div>
+  
+  <div class="empty-state" id="empty-state" hidden>
+    <p>Nie znaleziono zadnych setow.</p>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts_extra %}
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+  const setsGrid = document.getElementById('sets-grid');
+  const loadingState = document.getElementById('loading-state');
+  const emptyState = document.getElementById('empty-state');
+  const searchInput = document.getElementById('sets-search');
+  
+  let allSets = [];
+  
+  async function loadSets() {
+    loadingState.hidden = false;
+    setsGrid.innerHTML = '';
+    
+    try {
+      const response = await fetch('/collections/sets/list');
+      if (!response.ok) throw new Error('Failed to load sets');
+      
+      allSets = await response.json();
+      loadingState.hidden = true;
+      
+      if (allSets.length === 0) {
+        emptyState.hidden = false;
+        return;
+      }
+      
+      renderSets(allSets);
+    } catch (error) {
+      console.error('Error loading sets:', error);
+      loadingState.hidden = true;
+      emptyState.hidden = false;
+      emptyState.querySelector('p').textContent = 'Blad ladowania setow.';
+    }
+  }
+  
+  function renderSets(sets) {
+    setsGrid.innerHTML = '';
+    emptyState.hidden = sets.length > 0;
+    
+    sets.forEach(set => {
+      const card = document.createElement('div');
+      card.className = 'set-card';
+      
+      const releaseYear = set.release_date ? new Date(set.release_date).getFullYear() : '';
+      
+      card.innerHTML = `
+        <div class="set-card-header">
+          <h3 class="set-card-name">${set.name}</h3>
+          <span class="set-card-code">${set.code}</span>
+        </div>
+        <div class="set-card-meta">
+          ${set.series ? `<span class="set-card-series">${set.series}</span>` : ''}
+          ${releaseYear ? `<span class="set-card-year">${releaseYear}</span>` : ''}
+          ${set.total_cards ? `<span class="set-card-count">${set.total_cards} kart</span>` : ''}
+        </div>
+        <div class="set-card-actions">
+          <a href="/sets/${set.code}/print?type=baseset" class="button secondary inline">
+            Baseset
+          </a>
+          <a href="/sets/${set.code}/print?type=masterset" class="button secondary inline">
+            Masterset
+          </a>
+        </div>
+      `;
+      
+      setsGrid.appendChild(card);
+    });
+  }
+  
+  // Search functionality
+  searchInput.addEventListener('input', function() {
+    const query = this.value.toLowerCase().trim();
+    
+    if (!query) {
+      renderSets(allSets);
+      return;
+    }
+    
+    const filtered = allSets.filter(set => 
+      set.name.toLowerCase().includes(query) ||
+      set.code.toLowerCase().includes(query) ||
+      (set.series && set.series.toLowerCase().includes(query))
+    );
+    
+    renderSets(filtered);
+  });
+  
+  // Initial load
+  loadSets();
+});
+</script>
+{% endblock %}

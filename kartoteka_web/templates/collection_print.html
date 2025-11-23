@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Drukuj szablon - Kartoteka Web</title>
+  <style>
+    /* Reset and base */
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+    
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f5f6fb;
+      color: #1f2937;
+    }
+    
+    /* Screen-only controls */
+    .print-controls {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: #fff;
+      padding: 16px 24px;
+      border-bottom: 1px solid #d9deeb;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    
+    .print-controls h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+    
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .control-group label {
+      font-size: 0.9rem;
+      color: #5b6472;
+    }
+    
+    .control-group select,
+    .control-group input {
+      padding: 8px 12px;
+      border: 1px solid #d9deeb;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      background: #fff;
+    }
+    
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+    
+    .button.primary {
+      background: #2563eb;
+      color: #fff;
+      border-color: #2563eb;
+    }
+    
+    .button.primary:hover {
+      background: #1d4ed8;
+      border-color: #1d4ed8;
+    }
+    
+    .button.secondary {
+      background: #fff;
+      color: #1d4ed8;
+      border-color: #2563eb;
+    }
+    
+    .button.secondary:hover {
+      background: #e6edff;
+    }
+    
+    .spacer {
+      flex: 1;
+    }
+    
+    /* Preview area */
+    .preview-area {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+    
+    .page-preview {
+      background: #fff;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+      margin-bottom: 24px;
+    }
+    
+    /* Print page container */
+    .print-page {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 10mm;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .page-header-print {
+      text-align: center;
+      padding-bottom: 5mm;
+      border-bottom: 1px solid #ccc;
+      margin-bottom: 5mm;
+    }
+    
+    .page-header-print h2 {
+      margin: 0 0 2mm;
+      font-size: 14pt;
+    }
+    
+    .page-header-print p {
+      margin: 0;
+      font-size: 10pt;
+      color: #666;
+    }
+    
+    /* Card grid for print */
+    .cards-print-grid {
+      display: grid;
+      gap: 2mm;
+      flex: 1;
+    }
+    
+    .cards-print-grid.cols-3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .cards-print-grid.cols-4 {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    
+    /* Individual card template */
+    .card-print-item {
+      border: 1px dashed #999;
+      border-radius: 3mm;
+      padding: 2mm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      background: #fafafa;
+      aspect-ratio: 63 / 88;
+      overflow: hidden;
+    }
+    
+    .card-print-item.owned {
+      background: #f0fdf4;
+      border-color: #22c55e;
+    }
+    
+    .card-print-item.missing {
+      background: #fff;
+      border-style: dashed;
+    }
+    
+    .card-print-image {
+      flex: 1;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      margin-bottom: 1mm;
+    }
+    
+    .card-print-image img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    
+    .card-print-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #e5e7eb 0%, #f3f4f6 100%);
+      color: #9ca3af;
+      font-size: 24pt;
+      font-weight: 700;
+    }
+    
+    .card-print-info {
+      width: 100%;
+      padding-top: 1mm;
+      border-top: 1px solid #ddd;
+    }
+    
+    .card-print-number {
+      font-size: 12pt;
+      font-weight: 700;
+      color: #1f2937;
+    }
+    
+    .card-print-name {
+      font-size: 7pt;
+      color: #5b6472;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    
+    .card-print-rarity {
+      font-size: 6pt;
+      color: #9ca3af;
+      margin-top: 1mm;
+    }
+    
+    /* Page number */
+    .page-number {
+      text-align: center;
+      font-size: 9pt;
+      color: #666;
+      padding-top: 3mm;
+      margin-top: auto;
+    }
+    
+    /* Loading state */
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(255,255,255,0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    
+    .loading-overlay.hidden {
+      display: none;
+    }
+    
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #e5e7eb;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Print styles */
+    @media print {
+      .print-controls {
+        display: none !important;
+      }
+      
+      body {
+        background: #fff;
+      }
+      
+      .preview-area {
+        padding: 0;
+      }
+      
+      .page-preview {
+        box-shadow: none;
+        margin: 0;
+      }
+      
+      .print-page {
+        width: 100%;
+        min-height: auto;
+        padding: 5mm;
+        page-break-after: always;
+        page-break-inside: avoid;
+      }
+      
+      .print-page:last-child {
+        page-break-after: auto;
+      }
+      
+      .card-print-item {
+        break-inside: avoid;
+      }
+      
+      .loading-overlay {
+        display: none !important;
+      }
+    }
+    
+    @page {
+      size: A4 portrait;
+      margin: 5mm;
+    }
+  </style>
+</head>
+<body>
+  <div class="loading-overlay" id="loading">
+    <div class="spinner"></div>
+  </div>
+  
+  <div class="print-controls">
+    <h1>Drukuj szablon albumu</h1>
+    
+    <div class="control-group">
+      <label for="filter-select">Karty:</label>
+      <select id="filter-select">
+        <option value="all">Wszystkie</option>
+        <option value="missing">Tylko brakujące</option>
+        <option value="owned">Tylko posiadane</option>
+      </select>
+    </div>
+    
+    <div class="control-group">
+      <label for="cols-select">Kolumny:</label>
+      <select id="cols-select">
+        <option value="3" selected>3 (większe karty)</option>
+        <option value="4">4 (więcej na stronie)</option>
+      </select>
+    </div>
+    
+    <div class="control-group">
+      <label>
+        <input type="checkbox" id="show-images" checked />
+        Pokazuj obrazki
+      </label>
+    </div>
+    
+    <div class="control-group">
+      <label>
+        <input type="checkbox" id="show-rarity" />
+        Pokazuj rzadkość
+      </label>
+    </div>
+    
+    <div class="spacer"></div>
+    
+    <a href="/my-collections/{{ collection_id }}" class="button secondary">Wróć</a>
+    <button type="button" class="button primary" id="print-btn">Drukuj</button>
+  </div>
+  
+  <div class="preview-area" id="preview-area">
+    <!-- Pages will be generated here -->
+  </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+  const collectionId = {{ collection_id }};
+  const previewArea = document.getElementById('preview-area');
+  const loading = document.getElementById('loading');
+  const filterSelect = document.getElementById('filter-select');
+  const colsSelect = document.getElementById('cols-select');
+  const showImagesCheckbox = document.getElementById('show-images');
+  const showRarityCheckbox = document.getElementById('show-rarity');
+  
+  let printData = null;
+  
+  // Load data
+  async function loadPrintData() {
+    loading.classList.remove('hidden');
+    
+    const filter = filterSelect.value;
+    
+    try {
+      const response = await fetch(`/collections/${collectionId}/print-data?cards_filter=${filter}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          window.location.href = '/my-collections';
+          return;
+        }
+        throw new Error('Failed to load data');
+      }
+      
+      printData = await response.json();
+      renderPages();
+    } catch (error) {
+      console.error('Error:', error);
+      previewArea.innerHTML = '<p style="color: red;">Błąd ładowania danych</p>';
+    } finally {
+      loading.classList.add('hidden');
+    }
+  }
+  
+  function renderPages() {
+    if (!printData || !printData.cards.length) {
+      previewArea.innerHTML = '<p>Brak kart do wydruku</p>';
+      return;
+    }
+    
+    const cols = parseInt(colsSelect.value);
+    const rows = cols === 3 ? 3 : 4;
+    const cardsPerPage = cols * rows;
+    const showImages = showImagesCheckbox.checked;
+    const showRarity = showRarityCheckbox.checked;
+    
+    const totalPages = Math.ceil(printData.cards.length / cardsPerPage);
+    
+    previewArea.innerHTML = '';
+    
+    for (let pageNum = 0; pageNum < totalPages; pageNum++) {
+      const startIdx = pageNum * cardsPerPage;
+      const pageCards = printData.cards.slice(startIdx, startIdx + cardsPerPage);
+      
+      const pageEl = document.createElement('div');
+      pageEl.className = 'page-preview';
+      
+      const pageContent = document.createElement('div');
+      pageContent.className = 'print-page';
+      
+      // Page header
+      pageContent.innerHTML = `
+        <div class="page-header-print">
+          <h2>${printData.collection.name}</h2>
+          <p>${printData.collection.set_name || printData.collection.artist_name || 'Kolekcja własna'}</p>
+        </div>
+      `;
+      
+      // Cards grid
+      const grid = document.createElement('div');
+      grid.className = `cards-print-grid cols-${cols}`;
+      
+      pageCards.forEach(card => {
+        const cardEl = document.createElement('div');
+        cardEl.className = `card-print-item ${card.is_owned ? 'owned' : 'missing'}`;
+        
+        let imageHtml = '';
+        if (showImages && card.image_small) {
+          imageHtml = `<img src="${card.image_small}" alt="${card.name}" loading="lazy" />`;
+        } else {
+          imageHtml = `<div class="card-print-placeholder">${card.number_display || card.number}</div>`;
+        }
+        
+        cardEl.innerHTML = `
+          <div class="card-print-image">
+            ${imageHtml}
+          </div>
+          <div class="card-print-info">
+            <div class="card-print-number">#${card.number_display || card.number}</div>
+            <div class="card-print-name">${card.name}</div>
+            ${showRarity && card.rarity ? `<div class="card-print-rarity">${card.rarity}</div>` : ''}
+          </div>
+        `;
+        
+        grid.appendChild(cardEl);
+      });
+      
+      pageContent.appendChild(grid);
+      
+      // Page number
+      pageContent.innerHTML += `
+        <div class="page-number">Strona ${pageNum + 1} z ${totalPages}</div>
+      `;
+      
+      pageEl.appendChild(pageContent);
+      previewArea.appendChild(pageEl);
+    }
+  }
+  
+  // Event listeners
+  filterSelect.addEventListener('change', loadPrintData);
+  colsSelect.addEventListener('change', renderPages);
+  showImagesCheckbox.addEventListener('change', renderPages);
+  showRarityCheckbox.addEventListener('change', renderPages);
+  
+  document.getElementById('print-btn').addEventListener('click', function() {
+    window.print();
+  });
+  
+  // Initial load
+  loadPrintData();
+});
+</script>
+</body>
+</html>

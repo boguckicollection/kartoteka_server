@@ -1,0 +1,687 @@
+{
+  "PFL": {
+    "id": 231,
+    "name": "Phantasmal Flames",
+    "slug": "phantasmal-flames"
+  },
+  "MEG": {
+    "id": 230,
+    "name": "Mega Evolution",
+    "slug": "mega-evolution"
+  },
+  "BLK": {
+    "id": 223,
+    "name": "Black Bolt",
+    "slug": "black-bolt"
+  },
+  "WHT": {
+    "id": 224,
+    "name": "White Flare",
+    "slug": "white-flare"
+  },
+  "DRI": {
+    "id": 221,
+    "name": "Destined Rivals",
+    "slug": "destined-rivals"
+  },
+  "JTG": {
+    "id": 220,
+    "name": "Journey Together",
+    "slug": "journey-together"
+  },
+  "PRE": {
+    "id": 212,
+    "name": "Prismatic Evolutions",
+    "slug": "prismatic-evolutions"
+  },
+  "SSP": {
+    "id": 172,
+    "name": "Surging Sparks",
+    "slug": "surging-sparks"
+  },
+  "SCR": {
+    "id": 10,
+    "name": "Stellar Crown",
+    "slug": "stellar-crown"
+  },
+  "SFA": {
+    "id": 11,
+    "name": "Shrouded Fable",
+    "slug": "shrouded-fable"
+  },
+  "TWM": {
+    "id": 12,
+    "name": "Twilight Masquerade",
+    "slug": "twilight-masquerade"
+  },
+  "TEF": {
+    "id": 13,
+    "name": "Temporal Forces",
+    "slug": "temporal-forces"
+  },
+  "PAF": {
+    "id": 14,
+    "name": "Paldean Fates",
+    "slug": "paldean-fates"
+  },
+  "PAR": {
+    "id": 15,
+    "name": "Paradox Rift",
+    "slug": "paradox-rift"
+  },
+  "MEW": {
+    "id": 16,
+    "name": "151",
+    "slug": "151"
+  },
+  "OBF": {
+    "id": 17,
+    "name": "Obsidian Flames",
+    "slug": "obsidian-flames"
+  },
+  "PAL": {
+    "id": 18,
+    "name": "Paldea Evolved",
+    "slug": "paldea-evolved"
+  },
+  "SVI": {
+    "id": 19,
+    "name": "Scarlet & Violet",
+    "slug": "scarlet-violet"
+  },
+  "SVE": {
+    "id": 20,
+    "name": "Scarlet & Violet Energies",
+    "slug": "scarlet-violet-energies"
+  },
+  "CRZ": {
+    "id": 22,
+    "name": "Crown Zenith Galarian Gallery",
+    "slug": "crown-zenith-galarian-gallery"
+  },
+  "PR-SV": {
+    "id": 23,
+    "name": "SV Black Star Promos",
+    "slug": "sv-black-star-promos"
+  },
+  "SIT": {
+    "id": 25,
+    "name": "Silver Tempest Trainer Gallery",
+    "slug": "silver-tempest-trainer-gallery"
+  },
+  "LOR": {
+    "id": 27,
+    "name": "Lost Origin Trainer Gallery",
+    "slug": "lost-origin-trainer-gallery"
+  },
+  "PGO": {
+    "id": 29,
+    "name": "Pok\u00e9mon GO",
+    "slug": "pokemon-go"
+  },
+  "ASR": {
+    "id": 31,
+    "name": "Astral Radiance Trainer Gallery",
+    "slug": "astral-radiance-trainer-gallery"
+  },
+  "BRS": {
+    "id": 33,
+    "name": "Brilliant Stars Trainer Gallery",
+    "slug": "brilliant-stars-trainer-gallery"
+  },
+  "FST": {
+    "id": 34,
+    "name": "Fusion Strike",
+    "slug": "fusion-strike"
+  },
+  "CEL": {
+    "id": 36,
+    "name": "Celebrations: Classic Collection",
+    "slug": "celebrations-classic-collection"
+  },
+  "EVS": {
+    "id": 37,
+    "name": "Evolving Skies",
+    "slug": "evolving-skies"
+  },
+  "CRE": {
+    "id": 38,
+    "name": "Chilling Reign",
+    "slug": "chilling-reign"
+  },
+  "BST": {
+    "id": 39,
+    "name": "Battle Styles",
+    "slug": "battle-styles"
+  },
+  "SHF": {
+    "id": 41,
+    "name": "Shining Fates Shiny Vault",
+    "slug": "shining-fates-shiny-vault"
+  },
+  "VIV": {
+    "id": 43,
+    "name": "Vivid Voltage",
+    "slug": "vivid-voltage"
+  },
+  "CPA": {
+    "id": 44,
+    "name": "Champion's Path",
+    "slug": "champions-path"
+  },
+  "FUT20": {
+    "id": 45,
+    "name": "Pok\u00e9mon Futsal Collection",
+    "slug": "pokemon-futsal-collection"
+  },
+  "DAA": {
+    "id": 46,
+    "name": "Darkness Ablaze",
+    "slug": "darkness-ablaze"
+  },
+  "RCL": {
+    "id": 47,
+    "name": "Rebel Clash",
+    "slug": "rebel-clash"
+  },
+  "SSH": {
+    "id": 48,
+    "name": "Sword & Shield",
+    "slug": "sword-shield"
+  },
+  "PR-SW": {
+    "id": 49,
+    "name": "SWSH Black Star Promos",
+    "slug": "swsh-black-star-promos"
+  },
+  "CEC": {
+    "id": 50,
+    "name": "Cosmic Eclipse",
+    "slug": "cosmic-eclipse"
+  },
+  "HIF": {
+    "id": 52,
+    "name": "Hidden Fates",
+    "slug": "hidden-fates"
+  },
+  "UNM": {
+    "id": 54,
+    "name": "Unified Minds",
+    "slug": "unified-minds"
+  },
+  "UNB": {
+    "id": 55,
+    "name": "Unbroken Bonds",
+    "slug": "unbroken-bonds"
+  },
+  "DET": {
+    "id": 56,
+    "name": "Detective Pikachu",
+    "slug": "detective-pikachu"
+  },
+  "TEU": {
+    "id": 57,
+    "name": "Team Up",
+    "slug": "team-up"
+  },
+  "LOT": {
+    "id": 58,
+    "name": "Lost Thunder",
+    "slug": "lost-thunder"
+  },
+  "DRM": {
+    "id": 60,
+    "name": "Dragon Majesty",
+    "slug": "dragon-majesty"
+  },
+  "CES": {
+    "id": 61,
+    "name": "Celestial Storm",
+    "slug": "celestial-storm"
+  },
+  "FLI": {
+    "id": 62,
+    "name": "Forbidden Light",
+    "slug": "forbidden-light"
+  },
+  "UPR": {
+    "id": 63,
+    "name": "Ultra Prism",
+    "slug": "ultra-prism"
+  },
+  "CIN": {
+    "id": 65,
+    "name": "Crimson Invasion",
+    "slug": "crimson-invasion"
+  },
+  "SLG": {
+    "id": 66,
+    "name": "Shining Legends",
+    "slug": "shining-legends"
+  },
+  "BUS": {
+    "id": 67,
+    "name": "Burning Shadows",
+    "slug": "burning-shadows"
+  },
+  "GRI": {
+    "id": 68,
+    "name": "Guardians Rising",
+    "slug": "guardians-rising"
+  },
+  "SUM": {
+    "id": 69,
+    "name": "Sun & Moon",
+    "slug": "sun-moon"
+  },
+  "PR-SM": {
+    "id": 70,
+    "name": "SM Black Star Promos",
+    "slug": "sm-black-star-promos"
+  },
+  "EVO": {
+    "id": 71,
+    "name": "Evolutions",
+    "slug": "evolutions"
+  },
+  "STS": {
+    "id": 73,
+    "name": "Steam Siege",
+    "slug": "steam-siege"
+  },
+  "FCO": {
+    "id": 74,
+    "name": "Fates Collide",
+    "slug": "fates-collide"
+  },
+  "GEN": {
+    "id": 75,
+    "name": "Generations",
+    "slug": "generations"
+  },
+  "BKP": {
+    "id": 76,
+    "name": "BREAKpoint",
+    "slug": "breakpoint"
+  },
+  "BKT": {
+    "id": 78,
+    "name": "BREAKthrough",
+    "slug": "breakthrough"
+  },
+  "AOR": {
+    "id": 79,
+    "name": "Ancient Origins",
+    "slug": "ancient-origins"
+  },
+  "ROS": {
+    "id": 80,
+    "name": "Roaring Skies",
+    "slug": "roaring-skies"
+  },
+  "DCR": {
+    "id": 81,
+    "name": "Double Crisis",
+    "slug": "double-crisis"
+  },
+  "PRC": {
+    "id": 82,
+    "name": "Primal Clash",
+    "slug": "primal-clash"
+  },
+  "PHF": {
+    "id": 83,
+    "name": "Phantom Forces",
+    "slug": "phantom-forces"
+  },
+  "FFI": {
+    "id": 84,
+    "name": "Furious Fists",
+    "slug": "furious-fists"
+  },
+  "FLF": {
+    "id": 86,
+    "name": "Flashfire",
+    "slug": "flashfire"
+  },
+  "XY": {
+    "id": 87,
+    "name": "XY",
+    "slug": "xy"
+  },
+  "KSS": {
+    "id": 88,
+    "name": "Kalos Starter Set",
+    "slug": "kalos-starter-set"
+  },
+  "LTR": {
+    "id": 89,
+    "name": "Legendary Treasures",
+    "slug": "legendary-treasures"
+  },
+  "PR-XY": {
+    "id": 90,
+    "name": "XY Black Star Promos",
+    "slug": "xy-black-star-promos"
+  },
+  "PLB": {
+    "id": 91,
+    "name": "Plasma Blast",
+    "slug": "plasma-blast"
+  },
+  "PLF": {
+    "id": 92,
+    "name": "Plasma Freeze",
+    "slug": "plasma-freeze"
+  },
+  "PLS": {
+    "id": 93,
+    "name": "Plasma Storm",
+    "slug": "plasma-storm"
+  },
+  "BCR": {
+    "id": 94,
+    "name": "Boundaries Crossed",
+    "slug": "boundaries-crossed"
+  },
+  "DRV": {
+    "id": 95,
+    "name": "Dragon Vault",
+    "slug": "dragon-vault"
+  },
+  "DRX": {
+    "id": 96,
+    "name": "Dragons Exalted",
+    "slug": "dragons-exalted"
+  },
+  "DEX": {
+    "id": 98,
+    "name": "Dark Explorers",
+    "slug": "dark-explorers"
+  },
+  "NXD": {
+    "id": 99,
+    "name": "Next Destinies",
+    "slug": "next-destinies"
+  },
+  "NVI": {
+    "id": 100,
+    "name": "Noble Victories",
+    "slug": "noble-victories"
+  },
+  "EPO": {
+    "id": 101,
+    "name": "Emerging Powers",
+    "slug": "emerging-powers"
+  },
+  "BLW": {
+    "id": 103,
+    "name": "Black & White",
+    "slug": "black-white"
+  },
+  "PR-BLW": {
+    "id": 104,
+    "name": "BW Black Star Promos",
+    "slug": "bw-black-star-promos"
+  },
+  "CL": {
+    "id": 105,
+    "name": "Call of Legends",
+    "slug": "call-of-legends"
+  },
+  "TM": {
+    "id": 106,
+    "name": "HS\u2014Triumphant",
+    "slug": "hs-triumphant"
+  },
+  "UD": {
+    "id": 107,
+    "name": "HS\u2014Undaunted",
+    "slug": "hs-undaunted"
+  },
+  "UL": {
+    "id": 108,
+    "name": "HS\u2014Unleashed",
+    "slug": "hs-unleashed"
+  },
+  "HS": {
+    "id": 109,
+    "name": "HeartGold & SoulSilver",
+    "slug": "heartgold-soulsilver"
+  },
+  "PR-HS": {
+    "id": 110,
+    "name": "HGSS Black Star Promos",
+    "slug": "hgss-black-star-promos"
+  },
+  "AR": {
+    "id": 112,
+    "name": "Arceus",
+    "slug": "arceus"
+  },
+  "SV": {
+    "id": 113,
+    "name": "Supreme Victors",
+    "slug": "supreme-victors"
+  },
+  "RR": {
+    "id": 114,
+    "name": "Rising Rivals",
+    "slug": "rising-rivals"
+  },
+  "PL": {
+    "id": 116,
+    "name": "Platinum",
+    "slug": "platinum"
+  },
+  "SF": {
+    "id": 117,
+    "name": "Stormfront",
+    "slug": "stormfront"
+  },
+  "LA": {
+    "id": 119,
+    "name": "Legends Awakened",
+    "slug": "legends-awakened"
+  },
+  "MD": {
+    "id": 120,
+    "name": "Majestic Dawn",
+    "slug": "majestic-dawn"
+  },
+  "GE": {
+    "id": 122,
+    "name": "Great Encounters",
+    "slug": "great-encounters"
+  },
+  "SW": {
+    "id": 123,
+    "name": "Secret Wonders",
+    "slug": "secret-wonders"
+  },
+  "MT": {
+    "id": 125,
+    "name": "Mysterious Treasures",
+    "slug": "mysterious-treasures"
+  },
+  "DP": {
+    "id": 126,
+    "name": "Diamond & Pearl",
+    "slug": "diamond-pearl"
+  },
+  "PR-DPP": {
+    "id": 127,
+    "name": "DP Black Star Promos",
+    "slug": "dp-black-star-promos"
+  },
+  "PK": {
+    "id": 129,
+    "name": "Power Keepers",
+    "slug": "power-keepers"
+  },
+  "DF": {
+    "id": 130,
+    "name": "Dragon Frontiers",
+    "slug": "dragon-frontiers"
+  },
+  "CG": {
+    "id": 131,
+    "name": "Crystal Guardians",
+    "slug": "crystal-guardians"
+  },
+  "HP": {
+    "id": 133,
+    "name": "Holon Phantoms",
+    "slug": "holon-phantoms"
+  },
+  "LM": {
+    "id": 137,
+    "name": "Legend Maker",
+    "slug": "legend-maker"
+  },
+  "DS": {
+    "id": 138,
+    "name": "Delta Species",
+    "slug": "delta-species"
+  },
+  "UF": {
+    "id": 139,
+    "name": "Unseen Forces",
+    "slug": "unseen-forces"
+  },
+  "EM": {
+    "id": 141,
+    "name": "Emerald",
+    "slug": "emerald"
+  },
+  "DX": {
+    "id": 142,
+    "name": "Deoxys",
+    "slug": "deoxys"
+  },
+  "TRR": {
+    "id": 143,
+    "name": "Team Rocket Returns",
+    "slug": "team-rocket-returns"
+  },
+  "RG": {
+    "id": 144,
+    "name": "FireRed & LeafGreen",
+    "slug": "firered-leafgreen"
+  },
+  "HL": {
+    "id": 146,
+    "name": "Hidden Legends",
+    "slug": "hidden-legends"
+  },
+  "MA": {
+    "id": 149,
+    "name": "Team Magma vs Team Aqua",
+    "slug": "team-magma-vs-team-aqua"
+  },
+  "DR": {
+    "id": 150,
+    "name": "Dragon",
+    "slug": "dragon"
+  },
+  "PR-NP": {
+    "id": 151,
+    "name": "Nintendo Black Star Promos",
+    "slug": "nintendo-black-star-promos"
+  },
+  "SS": {
+    "id": 152,
+    "name": "Sandstorm",
+    "slug": "sandstorm"
+  },
+  "RS": {
+    "id": 153,
+    "name": "Ruby & Sapphire",
+    "slug": "ruby-sapphire"
+  },
+  "SK": {
+    "id": 154,
+    "name": "Skyridge",
+    "slug": "skyridge"
+  },
+  "AQ": {
+    "id": 155,
+    "name": "Aquapolis",
+    "slug": "aquapolis"
+  },
+  "BP": {
+    "id": 156,
+    "name": "Best of Game",
+    "slug": "best-of-game"
+  },
+  "EX": {
+    "id": 157,
+    "name": "Expedition Base Set",
+    "slug": "expedition-base-set"
+  },
+  "LC": {
+    "id": 158,
+    "name": "Legendary Collection",
+    "slug": "legendary-collection"
+  },
+  "N4": {
+    "id": 159,
+    "name": "Neo Destiny",
+    "slug": "neo-destiny"
+  },
+  "N3": {
+    "id": 160,
+    "name": "Neo Revelation",
+    "slug": "neo-revelation"
+  },
+  "N2": {
+    "id": 162,
+    "name": "Neo Discovery",
+    "slug": "neo-discovery"
+  },
+  "N1": {
+    "id": 163,
+    "name": "Neo Genesis",
+    "slug": "neo-genesis"
+  },
+  "G2": {
+    "id": 164,
+    "name": "Gym Challenge",
+    "slug": "gym-challenge"
+  },
+  "G1": {
+    "id": 165,
+    "name": "Gym Heroes",
+    "slug": "gym-heroes"
+  },
+  "TR": {
+    "id": 166,
+    "name": "Team Rocket",
+    "slug": "team-rocket"
+  },
+  "B2": {
+    "id": 167,
+    "name": "Base Set 2",
+    "slug": "base-set-2"
+  },
+  "FO": {
+    "id": 168,
+    "name": "Fossil",
+    "slug": "fossil"
+  },
+  "PR": {
+    "id": 169,
+    "name": "Wizards Black Star Promos",
+    "slug": "wizards-black-star-promos"
+  },
+  "JU": {
+    "id": 170,
+    "name": "Jungle",
+    "slug": "jungle"
+  },
+  "BS": {
+    "id": 171,
+    "name": "Base",
+    "slug": "base"
+  }
+}

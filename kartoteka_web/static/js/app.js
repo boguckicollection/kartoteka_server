@@ -396,6 +396,76 @@
     return result;
   };
 
+  /**
+   * Show a confirmation modal and return a promise that resolves to true/false
+   * @param {string} message - The confirmation message
+   * @param {string} title - Optional modal title
+   * @returns {Promise<boolean>}
+   */
+  const showConfirmModal = (message, title = "Potwierdź usunięcie") => {
+    return new Promise((resolve) => {
+      const modal = document.getElementById("confirm-modal");
+      const modalTitle = document.getElementById("modal-title");
+      const modalMessage = document.getElementById("modal-message");
+      const confirmBtn = document.getElementById("modal-confirm");
+      const cancelBtn = document.getElementById("modal-cancel");
+
+      if (!modal || !modalTitle || !modalMessage || !confirmBtn || !cancelBtn) {
+        // Fallback to native confirm if modal not available
+        resolve(confirm(message));
+        return;
+      }
+
+      // Set content
+      modalTitle.textContent = title;
+      modalMessage.textContent = message;
+
+      // Show modal
+      modal.classList.remove("hidden");
+
+      // Handle confirm
+      const handleConfirm = () => {
+        cleanup();
+        resolve(true);
+      };
+
+      // Handle cancel
+      const handleCancel = () => {
+        cleanup();
+        resolve(false);
+      };
+
+      // Handle ESC key
+      const handleKeyDown = (event) => {
+        if (event.key === "Escape") {
+          handleCancel();
+        }
+      };
+
+      // Handle click outside
+      const handleOverlayClick = (event) => {
+        if (event.target === modal) {
+          handleCancel();
+        }
+      };
+
+      // Cleanup function
+      const cleanup = () => {
+        modal.classList.add("hidden");
+        confirmBtn.removeEventListener("click", handleConfirm);
+        cancelBtn.removeEventListener("click", handleCancel);
+        document.removeEventListener("keydown", handleKeyDown);
+        modal.removeEventListener("click", handleOverlayClick);
+      };
+
+      // Add event listeners
+      confirmBtn.addEventListener("click", handleConfirm);
+      cancelBtn.addEventListener("click", handleCancel);
+      document.addEventListener("keydown", handleKeyDown);
+      modal.addEventListener("click", handleOverlayClick);
+    });
+  };
+
   const ALERT_AUTOHIDE_DELAY = 3600;
   const ALERT_TRANSITION_DURATION = 220;
   const alertTimers = new WeakMap();
@@ -634,17 +704,324 @@
   };
 
   const renderCollection = (entries) => {
-    const body = document.getElementById("collection-table");
+    const container = document.getElementById("collection-cards");
     const emptyMessage = document.getElementById("collection-empty");
-    if (!body) return;
-    body.innerHTML = "";
+    if (!container) return;
+    
+    // Update statistics with fresh data from server (if on portfolio page)
+    if (document.getElementById("stat-total-value")) {
+      updateCollectionStats();
+    }
+    
+    const viewMode = container.dataset.collectionMode || "info";
+    
+    container.innerHTML = "";
     if (!entries.length) {
       if (emptyMessage) emptyMessage.hidden = false;
       return;
     }
     if (emptyMessage) emptyMessage.hidden = true;
+    
+    // Render cards based on view mode
     for (const entry of entries) {
-      body.appendChild(buildCollectionRow(entry));
+      const card = entry.card || entry.product || {};
+      const article = document.createElement("article");
+      article.className = "card-search-item card-collection-item";
+      article.dataset.entryId = entry.id;
+      
+      const cardName = card.name || "Nieznana karta";
+      const setName = card.set_name || "Nieznany dodatek";
+      const hasThumbnail = Boolean(card.image_small);
+      const quantity = entry.quantity || 1;
+      const currentPrice = typeof card.price === "number"
+        ? `${card.price.toFixed(2)} PLN`
+        : "–";
+      
+      if (viewMode === "clean") {
+        // Clean mode - only thumbnails
+        article.innerHTML = `
+          <div class="card-search-media">
+            <div class="card-search-thumbnail">
+              ${hasThumbnail 
+                ? `<img src="${escapeHtml(card.image_small)}" alt="${escapeHtml(cardName)}" loading="lazy" />`
+                : `<div class="card-search-thumbnail-fallback">Brak miniatury</div>`
+              }
+              <div class="card-search-quantity-badge">${quantity}×</div>
+            </div>
+          </div>
+        `;
+      } else if (viewMode === "info") {
+        // Info mode - gradient overlay with information (exactly like search results)
+        const rarityRaw = (card.rarity || "").trim();
+        const rarityText = rarityRaw || "Brak danych";
+        const rarityIconFromMap = resolveRarityIconUrl(rarityRaw);
+        const rarityIconUrl = rarityIconFromMap;
+        const hasRarityVisual = Boolean(rarityIconUrl);
+        const rarityAlt = `Symbol rzadkości ${rarityText}`;
+        const rarityFallback = rarityRaw ? rarityRaw.charAt(0).toUpperCase() : "?";
+        
+        const { primary: setIconUrl, fallback: setIconFallbackUrl } = resolveSetIconUrl(card, { preferLocal: true });
+        const setCodeRaw = (card.set_code || "").trim();
+        const setCodeText = setCodeRaw || "—";
+        const setIconAltBase = setName && setName !== "Nieznany dodatek" ? setName : setCodeText;
+        const setIconAlt = setIconAltBase ? `Symbol dodatku ${setIconAltBase}` : "Symbol dodatku";
+        const hasSetIconVisual = Boolean(setIconUrl);
+        const setIconFallbackHiddenAttr = hasSetIconVisual ? " hidden" : "";
+        const setIconFallbackUrlAttr = setIconFallbackUrl && setIconFallbackUrl !== setIconUrl
+          ? ` data-card-set-icon-fallback-url="${escapeHtml(setIconFallbackUrl)}"`
+          : "";
+        const setIconImageMarkup = hasSetIconVisual
+          ? `<img class="card-search-set-icon" src="${escapeHtml(setIconUrl)}" alt="${escapeHtml(setIconAlt)}" loading="lazy" decoding="async" data-card-set-icon${setIconFallbackUrlAttr} />`
+          : "";
+        
+        const setIconMarkup = `
+          <div class="card-search-badge card-search-badge--set">
+            ${setIconImageMarkup}
+            <span class="card-search-set-code card-search-set-fallback"${setIconFallbackHiddenAttr} data-card-set-code data-card-set-icon-fallback>${escapeHtml(setCodeText)}</span>
+          </div>
+        `;
+        
+        const rarityIconMarkup = `
+          <div class="card-search-badge card-search-badge--rarity">
+            <div class="card-search-rarity-icon">
+              ${
+                rarityIconUrl
+                  ? `<img src="${escapeHtml(rarityIconUrl)}" alt="${escapeHtml(rarityAlt)}" loading="lazy" decoding="async" data-card-rarity-icon />`
+                  : ""
+              }
+              <span class="card-search-rarity-icon-fallback"${hasRarityVisual ? " hidden" : ""} data-card-rarity-icon-fallback aria-hidden="true">${escapeHtml(rarityFallback)}</span>
+            </div>
+          </div>
+        `;
+        
+        const setBadgesGridMarkup = `
+          <div class="card-search-set-badges">
+            ${setIconMarkup}
+            ${rarityIconMarkup}
+          </div>
+        `;
+        
+        // Build card detail link (same as in search results)
+        const cardLinkParams = new URLSearchParams();
+        if (card.name) cardLinkParams.set("name", card.name);
+        if (card.number) cardLinkParams.set("number", card.number);
+        if (card.set_name) cardLinkParams.set("set_name", card.set_name);
+        if (card.set_code) cardLinkParams.set("set_code", card.set_code);
+        const cardLinkQuery = cardLinkParams.toString();
+        const cardLinkSetSegment = encodeURIComponent(card.set_code || card.set_name || "");
+        const cardLinkNumberSegment = encodeURIComponent(card.number || "");
+        const cardLink = `/cards/${cardLinkSetSegment}/${cardLinkNumberSegment}${cardLinkQuery ? `?${cardLinkQuery}` : ""}`;
+        
+        article.innerHTML = `
+          <div class="card-search-media">
+            <div class="card-search-thumbnail">
+              <a class="card-search-thumbnail-link" href="${escapeHtml(cardLink)}" aria-label="${escapeHtml(cardName)}">
+                ${
+                  hasThumbnail
+                    ? `<img src="${escapeHtml(card.image_small)}" alt="${escapeHtml(cardName)}" loading="lazy" decoding="async" data-card-thumbnail />`
+                    : ""
+                }
+                <div class="card-search-thumbnail-fallback"${hasThumbnail ? " hidden" : ""} data-card-thumbnail-fallback>
+                  Brak miniatury
+                </div>
+              </a>
+              <div class="card-search-quantity-badge">${quantity}×</div>
+              <div class="card-search-overlay">
+                <div class="card-search-overlay-content">
+                  <div class="card-search-set">
+                    ${setBadgesGridMarkup}
+                  </div>
+                  <div class="card-search-info">
+                    <h3>
+                      <a class="card-search-title-link" href="${escapeHtml(cardLink)}">${escapeHtml(cardName)}</a>
+                    </h3>
+                    <p class="card-search-info-meta">
+                      <span class="card-search-set-name">${escapeHtml(setName)}</span>
+                      ${
+                        card.number
+                          ? `<span class="card-search-info-divider" aria-hidden="true">•</span>
+                             <span class="card-search-info-number">${escapeHtml(card.number)}</span>`
+                          : ""
+                      }
+                    </p>
+                    ${
+                      currentPrice !== "–"
+                        ? `<p class="card-search-price" data-card-price><span class="card-search-price-label">Cena:</span> <span class="card-search-price-value">${escapeHtml(currentPrice)}</span></p>`
+                        : ""
+                    }
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        // Edit mode - standard layout with controls
+        article.innerHTML = `
+          <div class="card-search-media">
+            <div class="card-search-thumbnail">
+              ${hasThumbnail 
+                ? `<img src="${escapeHtml(card.image_small)}" alt="${escapeHtml(cardName)}" loading="lazy" />`
+                : `<div class="card-search-thumbnail-fallback">Brak miniatury</div>`
+              }
+            </div>
+          </div>
+          <div class="card-search-info">
+            <h3><a class="card-search-title-link" href="/collection">${escapeHtml(cardName)}</a></h3>
+            <p class="card-search-info-meta">
+              <span>${escapeHtml(setName)}</span>
+              ${card.number ? ` • #${escapeHtml(card.number)}` : ''}
+            </p>
+            <div class="card-collection-price">
+              <span class="card-collection-price-label">Cena:</span>
+              <span class="card-collection-price-value">${currentPrice}</span>
+            </div>
+            ${entry.is_reverse || entry.is_holo ? `
+              <p class="card-search-variants">
+                ${entry.is_reverse ? '<span class="badge">Reverse</span>' : ''}
+                ${entry.is_holo ? '<span class="badge">Holo</span>' : ''}
+              </p>
+            ` : ''}
+          </div>
+                      <div class="collection-edit-controls">
+                        <div class="collection-edit-field">
+                          <label for="quantity-${entry.id}">Ilość</label>
+                          <div class="quantity-control">
+                            <button type="button" class="quantity-btn quantity-btn--minus" data-action="decrease" aria-label="Zmniejsz ilość">−</button>
+                            <input 
+                              type="number" 
+                              class="quantity-input" 
+                              id="quantity-${entry.id}"
+                              value="${quantity}" 
+                              min="0" 
+                              data-field="quantity"
+                              aria-label="Ilość"
+                            />
+                            <button type="button" class="quantity-btn quantity-btn--plus" data-action="increase" aria-label="Zwiększ ilość">+</button>
+                          </div>
+                        </div>
+                        <div class="collection-edit-field">
+                          <label for="purchase_price-${entry.id}">Cena zakupu (PLN)</label>
+                          <input
+                            type="number"
+                            class="add-card-form-control"
+                            min="0"
+                            step="0.01"
+                            inputmode="decimal"
+                            id="purchase_price-${entry.id}"
+                            placeholder="0.00"
+                            value="${typeof entry.purchase_price === 'number' ? entry.purchase_price.toFixed(2) : ''}"
+                            data-field="purchase_price"
+                          />
+                        </div>
+                        <div class="collection-edit-actions">
+                          <button 
+                            type="button" 
+                            class="button primary inline" 
+                            data-action="save" 
+                            data-entry-id="${entry.id}"
+                            aria-label="Zapisz zmiany"
+                          >
+                            Zapisz
+                          </button>
+                          <button 
+                            type="button" 
+                            class="button inline danger" 
+                            data-action="delete" 
+                            data-entry-id="${entry.id}"
+                            aria-label="Usuń z kolekcji"
+                            title="Usuń z kolekcji"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none;">
+                              <path d="M3.75 4.5H14.25M7.5 8.25V12.75M10.5 8.25V12.75M4.5 4.5L5.25 14.25C5.25 14.6478 5.40804 15.0294 5.68934 15.3107C5.97064 15.592 6.35218 15.75 6.75 15.75H11.25C11.6478 15.75 12.0294 15.592 12.3107 15.3107C12.592 15.0294 12.75 14.6478 12.75 14.25L13.5 4.5M6.75 4.5V3C6.75 2.80109 6.82902 2.61032 6.96967 2.46967C7.11032 2.32902 7.30109 2.25 7.5 2.25H10.5C10.6989 2.25 10.8897 2.32902 11.0303 2.46967C11.171 2.61032 11.25 2.80109 11.25 3V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </div>        `;
+      }
+      container.appendChild(article);
+      
+      // Add event handlers for icon fallback (must be after appendChild!)
+      if (viewMode === "info") {
+        const setIconElement = article.querySelector("[data-card-set-icon]");
+        const setIconFallbackElement = article.querySelector("[data-card-set-icon-fallback]");
+        if (setIconElement && setIconFallbackElement) {
+          const handleSetIconError = () => {
+            const fallbackUrl = setIconElement.dataset.cardSetIconFallbackUrl;
+            if (fallbackUrl && setIconElement.dataset.cardSetIconFallbackTried !== "true") {
+              setIconElement.dataset.cardSetIconFallbackTried = "true";
+              setIconElement.src = fallbackUrl;
+              return;
+            }
+            setIconElement.remove();
+            setIconFallbackElement.hidden = false;
+          };
+          setIconElement.addEventListener("error", handleSetIconError, { once: true });
+        } else if (setIconFallbackElement) {
+          setIconFallbackElement.hidden = false;
+        }
+        
+        const thumbnail = article.querySelector("[data-card-thumbnail]");
+        const thumbnailFallback = article.querySelector("[data-card-thumbnail-fallback]");
+        if (thumbnail && thumbnailFallback) {
+          const handleThumbnailError = () => {
+            thumbnail.remove();
+            thumbnailFallback.hidden = false;
+          };
+          thumbnail.addEventListener("error", handleThumbnailError, { once: true });
+        }
+        
+        const rarityIcon = article.querySelector("[data-card-rarity-icon]");
+        const rarityIconFallback = article.querySelector("[data-card-rarity-icon-fallback]");
+        if (rarityIcon && rarityIconFallback) {
+          const handleRarityIconError = () => {
+            rarityIcon.remove();
+            rarityIconFallback.hidden = false;
+          };
+          rarityIcon.addEventListener("error", handleRarityIconError, { once: true });
+        }
+      }
+    }
+  };
+
+  const updateCollectionStats = async (useHistory = false) => {
+    const totalCardsEl = document.getElementById("stat-total-cards");
+    const uniqueCardsEl = document.getElementById("stat-unique-cards");
+    const totalValueEl = document.getElementById("stat-total-value");
+    const purchaseValueEl = document.getElementById("stat-purchase-value");
+    
+    try {
+      const url = useHistory ? "/cards/stats?use_history=true" : "/cards/stats";
+      const stats = await apiFetch(url);
+      
+      currentStats = stats;
+      
+      // Update statistics
+      if (totalCardsEl) totalCardsEl.textContent = stats.total_cards?.toString() || "0";
+      if (uniqueCardsEl) uniqueCardsEl.textContent = stats.unique_cards?.toString() || "0";
+      if (totalValueEl) totalValueEl.textContent = `${(stats.total_value || 0).toFixed(2)} PLN`;
+      if (purchaseValueEl) purchaseValueEl.textContent = `${(stats.purchase_value || 0).toFixed(2)} PLN`;
+      
+      // Update chart with historical data
+      if (collectionValueChart && stats.value_history && stats.value_history.length > 0) {
+        fullValueHistory = stats.value_history;
+        renderChartWithRange("30d"); // Render with default range
+
+        const isFlat = stats.value_history.map(p => p.value).every((val, i, arr) => i === 0 || val === arr[i-1]);
+        return !isFlat;
+      } else {
+        fullValueHistory = [];
+        renderChartWithRange(); // Clear chart
+      }
+      return false; // No history data or empty
+    } catch (error) {
+      console.warn("Failed to fetch collection stats:", error);
+      // Fallback to 0 values
+      if (totalCardsEl) totalCardsEl.textContent = "0";
+      if (uniqueCardsEl) uniqueCardsEl.textContent = "0";
+      if (totalValueEl) totalValueEl.textContent = "0 PLN";
+      if (purchaseValueEl) purchaseValueEl.textContent = "0 PLN";
+      return false;
     }
   };
 
@@ -652,54 +1029,170 @@
     const container = document.getElementById("portfolio-cards");
     const emptyMessage = document.getElementById("portfolio-empty");
     if (!container) return;
+    
+    // Update statistics with fresh data from server
+    updateCollectionStats();
+    
     container.innerHTML = "";
     if (!entries.length) {
       if (emptyMessage) emptyMessage.hidden = false;
       return;
     }
     if (emptyMessage) emptyMessage.hidden = true;
+    
+    // Render cards and products in grid layout with overlay (like search results)
     for (const entry of entries) {
       const card = entry.card || {};
-      const item = document.createElement("article");
-      item.className = "portfolio-card";
-      const purchase =
-        typeof entry.purchase_price === "number"
-          ? `${entry.purchase_price.toFixed(2)} PLN`
-          : entry.purchase_price
-            ? `${entry.purchase_price} PLN`
-            : "–";
-      item.innerHTML = `
-        <header>
-          <h3>${escapeHtml(card.name || "Nieznana karta")}</h3>
-          <p>${escapeHtml(card.set_name || "")}</p>
-        </header>
-        <dl>
-          <div>
-            <dt>Numer</dt>
-            <dd>${escapeHtml(card.number || "–")}</dd>
-          </div>
-          <div>
-            <dt>Ilość</dt>
-            <dd>${entry.quantity}</dd>
-          </div>
-          <div>
-            <dt>Reverse</dt>
-            <dd>${entry.is_reverse ? "Tak" : "Nie"}</dd>
-          </div>
-          <div>
-            <dt>Holo</dt>
-            <dd>${entry.is_holo ? "Tak" : "Nie"}</dd>
-          </div>
-          <div>
-            <dt>Cena zakupu</dt>
-            <dd>${purchase}</dd>
-          </div>
-        </dl>
-        <footer>
-          <a class="button inline" href="/collection">Edytuj w tabeli</a>
-        </footer>
+      const product = entry.product || {};
+      const isProduct = Boolean(entry.product);
+      const item = isProduct ? product : card;
+      
+      // Skip entries without valid card/product
+      if (!entry.card && !entry.product) {
+        continue;
+      }
+      const article = document.createElement("article");
+      article.className = "card-search-item";
+      
+      const itemName = item.name || (isProduct ? "Nieznany produkt" : "Nieznana karta");
+      const setName = item.set_name || "Nieznany dodatek";
+      const hasThumbnail = Boolean(item.image_small);
+      const quantity = entry.quantity || 1;
+      const currentPrice = typeof item.price === "number"
+        ? `${item.price.toFixed(2)} PLN`
+        : "–";
+      
+      // Build set icon markup
+      const { primary: setIconUrl, fallback: setIconFallbackUrl } = resolveSetIconUrl(item, { preferLocal: true });
+      const setCodeRaw = (item.set_code || "").trim();
+      const setCodeText = setCodeRaw || "—";
+      const setIconAltBase = setName && setName !== "Nieznany dodatek" ? setName : setCodeText;
+      const setIconAlt = setIconAltBase ? `Symbol dodatku ${setIconAltBase}` : "Symbol dodatku";
+      const hasSetIconVisual = Boolean(setIconUrl);
+      const setIconFallbackHiddenAttr = hasSetIconVisual ? " hidden" : "";
+      const setIconFallbackUrlAttr = setIconFallbackUrl && setIconFallbackUrl !== setIconUrl
+        ? ` data-card-set-icon-fallback-url="${escapeHtml(setIconFallbackUrl)}"`
+        : "";
+      const setIconImageMarkup = hasSetIconVisual
+        ? `<img class="card-search-set-icon" src="${escapeHtml(setIconUrl)}" alt="${escapeHtml(setIconAlt)}" loading="lazy" decoding="async" data-card-set-icon${setIconFallbackUrlAttr} />`
+        : "";
+      
+      const setIconMarkup = `
+        <div class="card-search-badge card-search-badge--set">
+          ${setIconImageMarkup}
+          <span class="card-search-set-code card-search-set-fallback"${setIconFallbackHiddenAttr} data-card-set-code data-card-set-icon-fallback>${escapeHtml(setCodeText)}</span>
+        </div>
       `;
-      container.appendChild(item);
+      
+      // Build rarity icon markup (only for cards, not products)
+      let rarityIconMarkup = "";
+      if (!isProduct) {
+        const rarityRaw = (card.rarity || "").trim();
+        const rarityText = rarityRaw || "Brak danych";
+        const rarityIconUrl = resolveRarityIconUrl(rarityRaw);
+        const hasRarityVisual = Boolean(rarityIconUrl);
+        const rarityAlt = `Symbol rzadkości ${rarityText}`;
+        const rarityFallback = rarityRaw ? rarityRaw.charAt(0).toUpperCase() : "?";
+        
+        rarityIconMarkup = `
+          <div class="card-search-badge card-search-badge--rarity">
+            <div class="card-search-rarity-icon">
+              ${
+                rarityIconUrl
+                  ? `<img src="${escapeHtml(rarityIconUrl)}" alt="${escapeHtml(rarityAlt)}" loading="lazy" decoding="async" data-card-rarity-icon />`
+                  : ""
+              }
+              <span class="card-search-rarity-icon-fallback"${hasRarityVisual ? " hidden" : ""} data-card-rarity-icon-fallback aria-hidden="true">${escapeHtml(rarityFallback)}</span>
+            </div>
+          </div>
+        `;
+      }
+      
+      const setBadgesGridMarkup = `
+        <div class="card-search-set-badges">
+          ${setIconMarkup}
+          ${rarityIconMarkup}
+        </div>
+      `;
+      
+      const numberDisplay = !isProduct && card.number ? card.number : "";
+      
+      // Build card detail link (only for cards, not products)
+      let itemLink = "/collection";
+      if (!isProduct && card.name) {
+        const cardLinkParams = new URLSearchParams();
+        if (card.name) cardLinkParams.set("name", card.name);
+        if (card.number) cardLinkParams.set("number", card.number);
+        if (card.set_name) cardLinkParams.set("set_name", card.set_name);
+        if (card.set_code) cardLinkParams.set("set_code", card.set_code);
+        const cardLinkQuery = cardLinkParams.toString();
+        const cardLinkSetSegment = encodeURIComponent(card.set_code || card.set_name || "");
+        const cardLinkNumberSegment = encodeURIComponent(card.number || "");
+        itemLink = `/cards/${cardLinkSetSegment}/${cardLinkNumberSegment}${cardLinkQuery ? `?${cardLinkQuery}` : ""}`;
+      }
+      
+      article.innerHTML = `
+        <div class="card-search-media">
+          <div class="card-search-thumbnail">
+            <a class="card-search-thumbnail-link" href="${escapeHtml(itemLink)}" aria-label="${escapeHtml(itemName)}">
+              ${
+                hasThumbnail
+                  ? `<img src="${escapeHtml(item.image_small)}" alt="${escapeHtml(itemName)}" loading="lazy" decoding="async" data-card-thumbnail />`
+                  : ""
+              }
+              <div class="card-search-thumbnail-fallback"${hasThumbnail ? " hidden" : ""} data-card-thumbnail-fallback>
+                Brak miniatury
+              </div>
+            </a>
+            <div class="card-search-quantity-badge">${quantity}×</div>
+            <div class="card-search-overlay">
+              <div class="card-search-overlay-content">
+                <div class="card-search-set">
+                  ${setBadgesGridMarkup}
+                </div>
+                <div class="card-search-info">
+                  <h3>
+                    <a class="card-search-title-link" href="${escapeHtml(itemLink)}">${escapeHtml(itemName)}</a>
+                  </h3>
+                  <p class="card-search-info-meta">
+                    <span class="card-search-set-name">${escapeHtml(setName)}</span>
+                    ${
+                      numberDisplay
+                        ? `<span class="card-search-info-divider" aria-hidden="true">•</span>
+                           <span class="card-search-info-number">${escapeHtml(numberDisplay)}</span>`
+                        : ""
+                    }
+                  </p>
+                  ${
+                    currentPrice !== "–"
+                      ? `<p class="card-search-price" data-card-price><span class="card-search-price-label">Cena:</span> <span class="card-search-price-value">${escapeHtml(currentPrice)}</span></p>`
+                      : ""
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Handle set icon fallback
+      const setIconElement = article.querySelector("[data-card-set-icon]");
+      const setIconFallbackElement = article.querySelector("[data-card-set-icon-fallback]");
+      if (setIconElement && setIconFallbackElement) {
+        const handleSetIconError = () => {
+          const fallbackUrl = setIconElement.dataset.cardSetIconFallbackUrl;
+          if (fallbackUrl && setIconElement.dataset.cardSetIconFallbackTried !== "true") {
+            setIconElement.dataset.cardSetIconFallbackTried = "true";
+            setIconElement.src = fallbackUrl;
+            return;
+          }
+          setIconElement.remove();
+          setIconFallbackElement.hidden = false;
+        };
+        setIconElement.addEventListener("error", handleSetIconError);
+      }
+      
+      container.appendChild(article);
     }
   };
 
@@ -707,13 +1200,20 @@
     const alertElement = options.alert || null;
     const token = getToken();
     if (!token) {
+      console.warn("loadCollection: No token found");
       return;
     }
     try {
       const entries = await apiFetch("/cards/");
       collectionCache = Array.isArray(entries) ? entries : [];
-      renderCollection(collectionCache);
-      renderPortfolio(collectionCache);
+      
+      // Only render the view that exists on current page
+      if (document.getElementById("collection-cards")) {
+        renderCollection(collectionCache);
+      }
+      if (document.getElementById("portfolio-cards")) {
+        renderPortfolio(collectionCache);
+      }
       if (alertElement && options.message) {
         showAlert(alertElement, options.message, "success");
       }
@@ -782,33 +1282,339 @@
     }
   };
 
+  const handleSaveCollectionEntry = async (id, payload, alertBox) => {
+    try {
+      const updated = await apiFetch(`/cards/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      collectionCache = collectionCache.map((entry) =>
+        entry.id === updated.id ? updated : entry,
+      );
+      // No need to re-render, values are already in the inputs
+      showAlert(alertBox, "Wpis zaktualizowany.", "success");
+    } catch (error) {
+      showAlert(alertBox, error.message || "Nie udało się zapisać zmian.", "error");
+    }
+  };
+
+  const handleUpdateQuantity = async (id, quantity, alertBox) => {
+    try {
+      const updated = await apiFetch(`/cards/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ quantity }),
+      });
+      collectionCache = collectionCache.map((entry) =>
+        entry.id === updated.id ? updated : entry,
+      );
+      renderCollection(collectionCache);
+      renderPortfolio(collectionCache);
+      if (alertBox) {
+        showAlert(alertBox, "Ilość zaktualizowana.", "success");
+      }
+    } catch (error) {
+      if (alertBox) {
+        showAlert(alertBox, error.message || "Nie udało się zaktualizować ilości.", "error");
+      }
+    }
+  };
+
   const setupCollectionPage = () => {
-    const table = document.getElementById("collection-table");
-    if (table) {
-      table.addEventListener("click", (event) => {
+    const container = document.getElementById("collection-cards");
+    if (container) {
+      // Handle quantity changes and delete
+      container.addEventListener("click", async (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
+        
         const action = target.dataset.action;
-        const id = target.dataset.id;
-        if (!action || !id) return;
-        const row = target.closest("tr");
-        if (!row) return;
+        const button = target.closest("button");
+        if (!button) return;
+        
+        const item = button.closest(".card-collection-item");
+        if (!item) return;
+        
+        const entryId = item.dataset.entryId;
+        if (!entryId) return;
+        
+        const quantityInput = item.querySelector(".quantity-input");
+        if (!quantityInput) return;
+        
+        const alertBox = document.getElementById("collection-alert");
+        
         if (action === "save") {
-          handleSaveEntry(id, row);
+          const quantityInput = item.querySelector('[data-field="quantity"]');
+          const priceInput = item.querySelector('[data-field="purchase_price"]');
+          const quantity = quantityInput ? parseInt(quantityInput.value, 10) : 1;
+          const purchaseRaw = priceInput ? priceInput.value.trim() : "";
+          const purchasePrice = purchaseRaw ? parseFloat(purchaseRaw.replace(",", ".")) : null;
+
+          const payload = {
+            quantity: Number.isFinite(quantity) && quantity >= 0 ? quantity : 0,
+            purchase_price:
+              purchaseRaw && Number.isFinite(purchasePrice) && purchasePrice >= 0 ? Number(purchasePrice.toFixed(2)) : null,
+          };
+          await handleSaveCollectionEntry(entryId, payload, alertBox);
+        } else if (action === "delete") {
+          const confirmed = await showConfirmModal("Czy na pewno chcesz usunąć tę kartę z kolekcji?");
+          if (!confirmed) return;
+          await handleDeleteEntry(entryId);
+        } else if (action === "increase") {
+          const newQuantity = parseInt(quantityInput.value, 10) + 1;
+          quantityInput.value = newQuantity;
+          await handleUpdateQuantity(entryId, newQuantity, alertBox);
+        } else if (action === "decrease") {
+          const currentQuantity = parseInt(quantityInput.value, 10);
+          if (currentQuantity > 0) {
+            const newQuantity = currentQuantity - 1;
+            quantityInput.value = newQuantity;
+            await handleUpdateQuantity(entryId, newQuantity, alertBox);
+          }
         }
-        if (action === "delete") {
-          handleDeleteEntry(id);
+      });
+      
+      // Handle direct input changes
+      container.addEventListener("change", async (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLInputElement)) return;
+        if (!target.classList.contains("quantity-input")) return;
+        
+        const entryId = target.dataset.entryId;
+        if (!entryId) return;
+        
+        const newQuantity = parseInt(target.value, 10);
+        if (isNaN(newQuantity) || newQuantity < 0) {
+          target.value = "0";
+          return;
         }
+        
+        const alertBox = document.getElementById("collection-alert");
+        await handleUpdateQuantity(entryId, newQuantity, alertBox);
       });
     }
 
-    const refreshButton = document.getElementById("refresh-collection");
-    if (refreshButton) {
-      refreshButton.addEventListener("click", () => {
-        const alertBox = document.getElementById("collection-alert");
-        showAlert(alertBox, "Ładuję dane…");
-        loadCollection({ alert: alertBox, message: "Lista została odświeżona." });
+    // Handle view mode toggle
+    const viewModeButtons = document.querySelectorAll("[data-view-mode]");
+    const modeDescription = document.getElementById("collection-mode-desc");
+    viewModeButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const mode = button.dataset.viewMode;
+        if (!mode) return;
+        
+        // Update active state
+        viewModeButtons.forEach((btn) => {
+          btn.classList.remove("is-active");
+          btn.setAttribute("aria-pressed", "false");
+        });
+        button.classList.add("is-active");
+        button.setAttribute("aria-pressed", "true");
+        
+        // Update container mode
+        if (container) {
+          container.dataset.collectionMode = mode;
+        }
+        
+        // Update description
+        if (modeDescription) {
+          if (mode === "edit") {
+            modeDescription.textContent = "Edytuj ilości i usuń niepotrzebne karty";
+          } else if (mode === "info") {
+            modeDescription.textContent = "Przeglądaj informacje o kartach w kolekcji";
+          } else if (mode === "clean") {
+            modeDescription.textContent = "Widok galerii - same miniatury kart";
+          }
+        }
+        
+        // Re-render collection with new mode
+        renderCollection(collectionCache);
       });
+    });
+    
+    // Initialize chart when page loads
+    initCollectionValueChart();
+    // Fetch historical data by default
+    updateCollectionStats(true);
+  };
+
+  let collectionValueChart = null;
+  let fullValueHistory = [];
+  let currentStats = {};
+
+  const renderChartWithRange = (range = "30d") => {
+    if (!collectionValueChart || !fullValueHistory.length) {
+      if(collectionValueChart) {
+        collectionValueChart.data.labels = [];
+        collectionValueChart.data.datasets[0].data = [];
+        collectionValueChart.data.datasets[1].data = [];
+        collectionValueChart.update();
+      }
+      return;
+    }
+
+    const now = new Date();
+    let startDate = new Date();
+    let unit = 'day';
+
+    // Reset time to start of the day for consistent comparisons
+    now.setHours(0, 0, 0, 0);
+    startDate.setHours(0, 0, 0, 0);
+
+    switch (range) {
+        case "90d":
+            startDate.setDate(now.getDate() - 90);
+            unit = 'week';
+            break;
+        case "60d":
+            startDate.setDate(now.getDate() - 60);
+            unit = 'week';
+            break;
+        case "7d":
+            startDate.setDate(now.getDate() - 7);
+            unit = 'day';
+            break;
+        case "30d":
+        default:
+            startDate.setDate(now.getDate() - 30);
+            unit = 'day';
+            break;
+    }
+
+    const filteredHistory = fullValueHistory.filter(point => new Date(point.date) >= startDate);
+    
+    if (filteredHistory.length === 0) {
+        // Handle case with no data in range
+        collectionValueChart.data.labels = [];
+        collectionValueChart.data.datasets[0].data = [];
+        collectionValueChart.data.datasets[1].data = [];
+        collectionValueChart.update();
+        return;
+    }
+
+    const labels = filteredHistory.map(point => new Date(point.date));
+    const values = filteredHistory.map(point => point.value || 0);
+    const purchaseValues = Array(labels.length).fill(currentStats.purchase_value || 0);
+
+    collectionValueChart.data.labels = labels;
+    collectionValueChart.data.datasets[0].data = values;
+    collectionValueChart.data.datasets[1].data = purchaseValues;
+    
+    collectionValueChart.options.scales.x.time.unit = unit;
+
+    collectionValueChart.update();
+  };
+
+  const initCollectionValueChart = () => {
+    const canvas = document.getElementById("collection-value-chart");
+    if (!canvas || typeof Chart === "undefined") return;
+    
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    
+    if (collectionValueChart) {
+      collectionValueChart.destroy();
+    }
+    
+    collectionValueChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: [],
+        datasets: [{
+          label: "Wartość kolekcji (PLN)",
+          data: [],
+          borderColor: "rgb(37, 99, 235)",
+          backgroundColor: "rgba(37, 99, 235, 0.1)",
+          tension: 0.4,
+          fill: true,
+          pointRadius: 0,
+          pointHitRadius: 10,
+        }, {
+          label: "Koszt zakupu (PLN)",
+          data: [],
+          borderColor: "rgb(255, 99, 132)",
+          backgroundColor: "rgba(255, 99, 132, 0.1)",
+          tension: 0,
+          fill: false,
+          pointRadius: 0,
+          borderDash: [5, 5],
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: "top",
+          },
+          tooltip: {
+            mode: "index",
+            intersect: false,
+            callbacks: {
+              label: function(context) {
+                let label = context.dataset.label || '';
+                if (label) {
+                  label += ': ';
+                }
+                if (context.parsed.y !== null) {
+                  label += new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(context.parsed.y);
+                }
+                return label;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: {
+                unit: 'day',
+                tooltipFormat: 'dd.MM.yyyy',
+                displayFormats: {
+                    day: 'dd.MM'
+                }
+            },
+            ticks: {
+                autoSkip: true,
+                maxRotation: 0,
+            }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: function(value) {
+                return value.toFixed(0) + " PLN";
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const togglePurchaseCost = document.getElementById("toggle-purchase-cost");
+    if (togglePurchaseCost) {
+        collectionValueChart.data.datasets[1].hidden = !togglePurchaseCost.checked;
+        togglePurchaseCost.addEventListener("change", () => {
+            if (!collectionValueChart) return;
+            collectionValueChart.data.datasets[1].hidden = !togglePurchaseCost.checked;
+            collectionValueChart.update();
+        });
+    }
+
+    const rangeSelector = document.getElementById("chart-range-selector");
+    if (rangeSelector) {
+        rangeSelector.addEventListener("click", (event) => {
+            const button = event.target.closest("button");
+            if (!button) return;
+            
+            const range = button.dataset.range;
+            if (!range) return;
+
+            // Update active button
+            rangeSelector.querySelectorAll("button").forEach(btn => btn.classList.remove("is-active"));
+            button.classList.add("is-active");
+
+            renderChartWithRange(range);
+        });
     }
   };
 
@@ -821,6 +1627,9 @@
         loadCollection({ alert: alertBox, message: "Dane zostały odświeżone." });
       });
     }
+    
+    // Initialize chart when page loads
+    initCollectionValueChart();
   };
 
   const buildCardPayload = (form) => ({
@@ -938,6 +1747,49 @@
     return { primary: null, fallback: null };
   };
 
+  const checkInCollection = (item, searchType) => {
+    if (!collectionCache || !collectionCache.length) {
+      return { inCollection: false, quantity: 0 };
+    }
+
+    if (searchType === "product") {
+      // For products, match by name and set
+      const productName = (item.name || "").trim().toLowerCase();
+      const productSet = (item.set_code || item.set_name || "").trim().toLowerCase();
+      const found = collectionCache.find(entry => {
+        if (!entry.product) return false;
+        const entryName = (entry.product.name || "").trim().toLowerCase();
+        const entrySet = (entry.product.set_code || entry.product.set_name || "").trim().toLowerCase();
+        return entryName === productName && entrySet === productSet;
+      });
+      
+      if (found) {
+        return { inCollection: true, quantity: found.quantity || 0 };
+      }
+    } else {
+      // For cards, match by name + set + number for accuracy
+      const cardName = (item.name || "").trim().toLowerCase();
+      const cardSet = (item.set_code || item.set_name || "").trim().toLowerCase();
+      const cardNumber = (item.number || "").trim().toLowerCase();
+      
+      const found = collectionCache.find(entry => {
+        const entryName = (entry.card?.name || "").trim().toLowerCase();
+        const entrySet = (entry.card?.set_code || entry.card?.set_name || "").trim().toLowerCase();
+        const entryNumber = (entry.card?.number || "").trim().toLowerCase();
+        
+        return entryName === cardName && 
+               entrySet === cardSet && 
+               (cardNumber === entryNumber || !cardNumber || !entryNumber);
+      });
+      
+      if (found) {
+        return { inCollection: true, quantity: found.quantity || 0 };
+      }
+    }
+
+    return { inCollection: false, quantity: 0 };
+  };
+
   const renderSearchResults = (
     items = [],
     summaryElement,
@@ -950,6 +1802,8 @@
     const container = document.getElementById("card-search-results");
     if (!container) return;
     container.innerHTML = "";
+    const searchType = document.getElementById("search-type")?.value || "card";
+
     if (!items.length) {
       if (summaryElement) {
         summaryElement.hidden = true;
@@ -957,7 +1811,7 @@
       }
       if (emptyMessage) {
         emptyMessage.hidden = false;
-        emptyMessage.textContent = "Nie znaleziono kart spełniających kryteria.";
+        emptyMessage.textContent = "Nie znaleziono wyników spełniających kryteria.";
       }
       return;
     }
@@ -977,6 +1831,225 @@
       summaryElement.textContent = `Znaleziono ${effectiveTotal} wyników. Wyświetlam ${safeStart}–${safeEnd}. Strona ${normalizedPage} z ${totalPages}.`;
     }
     const isListView = viewMode === "list";
+
+    if (searchType === "product") {
+      for (const item of items) {
+        const article = document.createElement("article");
+        article.className = "card-search-item";
+        const productName = (item.name || "").trim() || "Bez nazwy";
+        const setName = (item.set_name || "").trim() || "Nieznany dodatek";
+        const hasThumbnail = Boolean(item.image_small);
+        const productAlt = `Miniatura produktu ${productName}`;
+        const quickAddLabel = `Dodaj produkt ${productName} do kolekcji`;
+        const priceValue = getCardPriceValue(item);
+        const priceText = priceValue === null ? "" : formatCardPrice(priceValue);
+        const collectionStatus = checkInCollection(item, "product");
+        const setCodeRaw = (item.set_code || "").trim();
+        const setCodeText = setCodeRaw || "—";
+        const { primary: setIconUrl, fallback: setIconFallbackUrl } = resolveSetIconUrl(item, { preferLocal: true });
+        const setIconAltBase = setName && setName !== "Nieznany dodatek" ? setName : setCodeText;
+        const setIconAlt = setIconAltBase ? `Symbol dodatku ${setIconAltBase}` : "Symbol dodatku";
+        const hasSetIconVisual = Boolean(setIconUrl);
+        const setIconFallbackHiddenAttr = hasSetIconVisual ? " hidden" : "";
+        const setIconFallbackUrlAttr = setIconFallbackUrl && setIconFallbackUrl !== setIconUrl
+          ? ` data-card-set-icon-fallback-url="${escapeHtml(setIconFallbackUrl)}"`
+          : "";
+        const setIconImageMarkup = hasSetIconVisual
+          ? `<img class="card-search-set-icon" src="${escapeHtml(setIconUrl)}" alt="${escapeHtml(setIconAlt)}" loading="lazy" decoding="async" data-card-set-icon${setIconFallbackUrlAttr} />`
+          : "";
+        const setIconMarkup = `
+          <div class="card-search-badge card-search-badge--set">
+            ${setIconImageMarkup}
+            <span class="card-search-set-code card-search-set-fallback"${setIconFallbackHiddenAttr} data-card-set-code data-card-set-icon-fallback>${escapeHtml(setCodeText)}</span>
+          </div>
+        `;
+        const setBadgesGridMarkup = `
+          <div class="card-search-set-badges">
+            ${setIconMarkup}
+          </div>
+        `;
+
+        if (isListView) {
+          article.innerHTML = `
+            <div class="card-search-media">
+              <div class="card-search-thumbnail">
+                <a class="card-search-thumbnail-link" href="#" aria-label="${escapeHtml(productName)}">
+                  ${
+                    hasThumbnail
+                      ? `<img src="${escapeHtml(item.image_small)}" alt="${escapeHtml(productAlt)}" loading="lazy" decoding="async" data-card-thumbnail />`
+                      : ""
+                  }
+                  <div class="card-search-thumbnail-fallback"${hasThumbnail ? " hidden" : ""} data-card-thumbnail-fallback>
+                    Brak miniatury
+                  </div>
+                </a>
+              </div>
+            </div>
+            <div class="card-search-info">
+              <h3>
+                <a class="card-search-title-link" href="#">${escapeHtml(productName)}</a>
+              </h3>
+              <p class="card-search-info-meta">
+                <span class="card-search-set-name">${escapeHtml(setName)}</span>
+              </p>
+              ${
+                priceText
+                  ? `<p class="card-search-price" data-card-price>Cena: ${escapeHtml(priceText)}</p>`
+                  : ""
+              }
+            </div>
+            ${
+              collectionStatus.inCollection
+                ? `<div class="card-collection-badge" title="W kolekcji: ${collectionStatus.quantity} szt.">
+                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                       <path d="M13.5 4L6 11.5L2.5 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                     </svg>
+                     <span>${collectionStatus.quantity}</span>
+                   </div>`
+                : ""
+            }
+            <button
+              type="button"
+              class="card-quick-add"
+              data-card-quick-add
+              aria-label="${escapeHtml(quickAddLabel)}"
+              title="Dodaj do kolekcji"
+            >
+              <span aria-hidden="true">+</span>
+            </button>
+            <form class="card-search-form" data-card-form>
+              <input type="hidden" name="product_name" value="${escapeHtml(item.name)}" />
+              <input type="hidden" name="product_set_name" value="${escapeHtml(item.set_name)}" />
+              <input type="hidden" name="product_set_code" value="${escapeHtml(item.set_code || "")}" />
+              <input type="hidden" name="product_image_small" value="${escapeHtml(item.image_small || "")}" />
+              <input type="hidden" name="product_image_large" value="${escapeHtml(item.image_large || "")}" />
+              <input type="hidden" name="product_release_date" value="${escapeHtml(item.release_date || "")}" />
+              <input type="hidden" name="product_price" value="${escapeHtml(item.price || "")}" />
+              <input type="hidden" name="product_price_7d_average" value="${escapeHtml(item.price_7d_average || "")}" />
+              <label>
+                Ilość
+                <input type="number" name="quantity" min="0" step="1" value="1" />
+              </label>
+              <label>
+                Cena zakupu
+                <input type="number" name="purchase_price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" />
+              </label>
+              <div class="form-footer">
+                <button type="submit" class="button primary">Dodaj do kolekcji</button>
+              </div>
+            </form>
+          `;
+        } else {
+          article.innerHTML = `
+            <div class="card-search-media">
+              <div class="card-search-thumbnail">
+                <a class="card-search-thumbnail-link" href="#" aria-label="${escapeHtml(productName)}">
+                  ${
+                    hasThumbnail
+                      ? `<img src="${escapeHtml(item.image_small)}" alt="${escapeHtml(productAlt)}" loading="lazy" decoding="async" data-card-thumbnail />`
+                      : ""
+                  }
+                  <div class="card-search-thumbnail-fallback"${hasThumbnail ? " hidden" : ""} data-card-thumbnail-fallback>
+                    Brak miniatury
+                  </div>
+                </a>
+                <div class="card-search-overlay">
+                  <div class="card-search-overlay-content">
+                    <div class="card-search-set">
+                      ${setBadgesGridMarkup}
+                    </div>
+                    <div class="card-search-info">
+                      <h3>
+                        <a class="card-search-title-link" href="#">${escapeHtml(productName)}</a>
+                      </h3>
+                      <p class="card-search-info-meta">
+                        <span class="card-search-set-name">${escapeHtml(setName)}</span>
+                      </p>
+                      ${
+                        priceText
+                          ? `<p class="card-search-price" data-card-price><span class="card-search-price-label">Cena:</span> <span class="card-search-price-value">${escapeHtml(priceText)}</span></p>`
+                          : ""
+                      }
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            ${
+              collectionStatus.inCollection
+                ? `<div class="card-collection-badge" title="W kolekcji: ${collectionStatus.quantity} szt.">
+                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                       <path d="M13.5 4L6 11.5L2.5 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                     </svg>
+                     <span>${collectionStatus.quantity}</span>
+                   </div>`
+                : ""
+            }
+            <button
+              type="button"
+              class="card-quick-add"
+              data-card-quick-add
+              aria-label="${escapeHtml(quickAddLabel)}"
+              title="Dodaj do kolekcji"
+            >
+              <span aria-hidden="true">+</span>
+            </button>
+            <form class="card-search-form" data-card-form>
+              <input type="hidden" name="product_name" value="${escapeHtml(item.name)}" />
+              <input type="hidden" name="product_set_name" value="${escapeHtml(item.set_name)}" />
+              <input type="hidden" name="product_set_code" value="${escapeHtml(item.set_code || "")}" />
+              <input type="hidden" name="product_image_small" value="${escapeHtml(item.image_small || "")}" />
+              <input type="hidden" name="product_image_large" value="${escapeHtml(item.image_large || "")}" />
+              <input type="hidden" name="product_release_date" value="${escapeHtml(item.release_date || "")}" />
+              <input type="hidden" name="product_price" value="${escapeHtml(item.price || "")}" />
+              <input type="hidden" name="product_price_7d_average" value="${escapeHtml(item.price_7d_average || "")}" />
+              <label>
+                Ilość
+                <input type="number" name="quantity" min="0" step="1" value="1" />
+              </label>
+              <label>
+                Cena zakupu
+                <input type="number" name="purchase_price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" />
+              </label>
+              <div class="form-footer">
+                <button type="submit" class="button primary">Dodaj do kolekcji</button>
+              </div>
+            </form>
+          `;
+        }
+        const setIconElement = article.querySelector("[data-card-set-icon]");
+        const setIconFallbackElement = article.querySelector("[data-card-set-icon-fallback]");
+        if (setIconElement && setIconFallbackElement) {
+          const handleSetIconError = () => {
+            const fallbackUrl = setIconElement.dataset.cardSetIconFallbackUrl;
+            if (fallbackUrl && setIconElement.dataset.cardSetIconFallbackTried !== "true") {
+              setIconElement.dataset.cardSetIconFallbackTried = "true";
+              setIconElement.src = fallbackUrl;
+              return;
+            }
+            setIconElement.remove();
+            setIconFallbackElement.hidden = false;
+          };
+          setIconElement.addEventListener("error", handleSetIconError);
+        } else if (setIconFallbackElement) {
+          setIconFallbackElement.hidden = false;
+        }
+        if (!isListView) {
+          const thumbnail = article.querySelector("[data-card-thumbnail]");
+          const thumbnailFallback = article.querySelector("[data-card-thumbnail-fallback]");
+          if (thumbnail && thumbnailFallback) {
+            const handleThumbnailError = () => {
+              thumbnail.remove();
+              thumbnailFallback.hidden = false;
+            };
+            thumbnail.addEventListener("error", handleThumbnailError, { once: true });
+          }
+        }
+        container.appendChild(article);
+      }
+      return;
+    }
+
     for (const item of items) {
       const article = document.createElement("article");
       article.className = "card-search-item";
@@ -988,6 +2061,7 @@
       const quickAddLabel = `Dodaj kartę ${cardName} do kolekcji`;
       const priceValue = getCardPriceValue(item);
       const priceText = priceValue === null ? "" : formatCardPrice(priceValue);
+      const collectionStatus = checkInCollection(item, "card");
       const rarityRaw = (item.rarity || "").trim();
       const rarityText = rarityRaw || "Brak danych";
       const raritySymbol = (item.rarity_symbol || "").trim();
@@ -1131,30 +2205,44 @@
                   Brak miniatury
                 </div>
               </a>
+              <div class="card-search-overlay">
+                <div class="card-search-overlay-content">
+                  <div class="card-search-set">
+                    ${setBadgesGridMarkup}
+                  </div>
+                  <div class="card-search-info">
+                    <h3>
+                      <a class="card-search-title-link" href="${escapeHtml(cardLink)}">${escapeHtml(cardName)}</a>
+                    </h3>
+                    <p class="card-search-info-meta">
+                      <span class="card-search-set-name">${escapeHtml(setName)}</span>
+                      ${
+                        numberLabel
+                          ? `<span class="card-search-info-divider" aria-hidden="true">•</span>
+                             <span class="card-search-info-number">${escapeHtml(numberLabel)}</span>`
+                          : ""
+                      }
+                    </p>
+                    ${
+                      priceText
+                        ? `<p class="card-search-price" data-card-price><span class="card-search-price-label">Cena:</span> <span class="card-search-price-value">${escapeHtml(priceText)}</span></p>`
+                        : ""
+                    }
+                  </div>
+                </div>
+              </div>
             </div>
-          <div class="card-search-set">
-            ${setBadgesGridMarkup}
           </div>
-        </div>
-        <div class="card-search-info">
-          <h3>
-            <a class="card-search-title-link" href="${escapeHtml(cardLink)}">${escapeHtml(cardName)}</a>
-          </h3>
-            <p class="card-search-info-meta">
-              <span class="card-search-set-name">${escapeHtml(setName)}</span>
-              ${
-                numberLabel
-                  ? `<span class="card-search-info-divider" aria-hidden="true">—</span>
-                     <span class="card-search-info-number">${escapeHtml(numberLabel)}</span>`
-                  : ""
-              }
-            </p>
-            ${
-              priceText
-                ? `<p class="card-search-price" data-card-price>Cena: ${escapeHtml(priceText)}</p>`
-                : ""
-            }
-          </div>
+          ${
+            collectionStatus.inCollection
+              ? `<div class="card-collection-badge" title="W kolekcji: ${collectionStatus.quantity} szt.">
+                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                     <path d="M13.5 4L6 11.5L2.5 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                   </svg>
+                   <span>${collectionStatus.quantity}</span>
+                 </div>`
+              : ""
+          }
           <button
             type="button"
             class="card-quick-add"
@@ -1421,8 +2509,9 @@
         return;
       }
       const targetPage = page && page > 0 ? page : 1;
+      const searchType = form.querySelector("#search-type")?.value || "card";
       const params = new URLSearchParams({
-        query: queryValue,
+        query: queryValue,  // Changed from 'q' to 'query' to match endpoint parameter
         page: String(targetPage),
         per_page: String(latestPerPage),
       });
@@ -1442,8 +2531,10 @@
       isFetching = true;
 
       try {
-        const data = await apiFetch(`/cards/search?${params.toString()}`);
+        const endpoint = searchType === "product" ? "/products/search" : "/cards/search";
+        const data = await apiFetch(`${endpoint}?${params.toString()}`);
         latestQuery = queryValue;
+        // API returns 'items' not 'results'
         latestItems = Array.isArray(data?.items) ? [...data.items] : [];
         const totalCountValue = toPositiveInteger(
           data?.total_count,
@@ -1508,6 +2599,58 @@
 
     const handleCardFormSubmission = async (target, trigger) => {
       const alertTarget = document.getElementById("add-card-alert");
+      const searchType = document.getElementById("search-type")?.value || "card";
+
+      if (searchType === "product") {
+        const quantity = Number.parseInt(target.elements.quantity?.value || "1", 10);
+        const priceRaw = target.elements.purchase_price?.value?.trim() || "";
+        const price = priceRaw ? Number.parseFloat(priceRaw.replace(",", ".")) : null;
+        const productPriceRaw = target.elements.product_price?.value?.trim() || "";
+        const productPrice = productPriceRaw ? Number.parseFloat(productPriceRaw) : null;
+        const product7dAvgRaw = target.elements.product_price_7d_average?.value?.trim() || "";
+        const product7dAvg = product7dAvgRaw ? Number.parseFloat(product7dAvgRaw) : null;
+        const payload = {
+          quantity: Number.isFinite(quantity) && quantity >= 0 ? quantity : 0,
+          purchase_price:
+            priceRaw && Number.isFinite(price) && price >= 0 ? Number(price.toFixed(2)) : null,
+          product: {
+            name: target.elements.product_name?.value?.trim() || "",
+            set_name: target.elements.product_set_name?.value?.trim() || "",
+            set_code: target.elements.product_set_code?.value?.trim() || null,
+            image_small: target.elements.product_image_small?.value?.trim() || null,
+            image_large: target.elements.product_image_large?.value?.trim() || null,
+            release_date: target.elements.product_release_date?.value?.trim() || null,
+            price: Number.isFinite(productPrice) && productPrice >= 0 ? productPrice : null,
+            price_7d_average: Number.isFinite(product7dAvg) && product7dAvg >= 0 ? product7dAvg : null,
+          },
+        };
+        if (!payload.product.name || !payload.product.set_name) {
+          showAlert(alertTarget, "Brakuje danych produktu.", "error");
+          return;
+        }
+        showAlert(alertTarget, "Dodaję produkt do kolekcji…");
+        try {
+          await apiFetch("/products/", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+          showAlert(alertTarget, "Produkt został dodany do kolekcji.", "success");
+          target.reset();
+          if (trigger && typeof trigger.focus === "function") {
+            trigger.focus();
+          } else {
+            target.querySelector('button[type="submit"]')?.focus();
+          }
+          loadCollection();
+        } catch (error) {
+          showAlert(alertTarget, error.message || "Nie udało się dodać produktu.", "error");
+          if (trigger && typeof trigger.focus === "function") {
+            trigger.focus();
+          }
+        }
+        return;
+      }
+
       const quantity = Number.parseInt(target.elements.quantity?.value || "1", 10);
       const priceRaw = target.elements.purchase_price?.value?.trim() || "";
       const price = priceRaw ? Number.parseFloat(priceRaw.replace(",", ".")) : null;
@@ -2114,8 +3257,88 @@
     };
   };
 
+  const getCardEffectRarity = (card) => {
+    if (!card) return 'common';
+
+    let rarity = (card.rarity || 'common').toLowerCase();
+    const subtypes = Array.isArray(card.subtypes) ? card.subtypes.join(' ').toLowerCase() : (card.subtypes || '').toLowerCase();
+    const number = (card.number || '').toLowerCase();
+    const set = (card.set_code || '').toLowerCase();
+    
+    const isReverse = card.is_reverse || rarity.includes('reverse');
+    if (isReverse && !rarity.includes('reverse holo')) {
+        rarity = rarity + ' reverse holo';
+    }
+
+    const isShiny = number.startsWith('sv');
+    if (isShiny) {
+        if (rarity.includes('rare holo v')) rarity = "rare shiny v";
+        if (rarity.includes('rare holo vmax')) rarity = "rare shiny vmax";
+        return rarity;
+    }
+    
+    const isGallery = number.match(/^[tg]g/i);
+    if(isGallery) {
+        if (rarity.startsWith('trainer gallery')) {
+            rarity = rarity.replace(/trainer gallery\s*/, '');
+        }
+        if (rarity.includes('rare holo v') && subtypes.includes('vmax')) {
+            rarity = 'rare holo vmax';
+        }
+        if (rarity.includes('rare holo v') && subtypes.includes('vstar')) {
+            rarity = 'rare holo vstar';
+        }
+        return rarity;
+    }
+
+    if (set === 'swshp') {
+        if (card.id === "swshp-SWSH076" || card.id === "swshp-SWSH077") return "rare secret";
+        if (subtypes.includes('v')) return "rare holo v";
+        if (subtypes.includes('v-union')) return "rare holo vunion";
+        if (subtypes.includes('vmax')) return "rare holo vmax";
+        if (subtypes.includes('vstar')) return "rare holo vstar";
+        if (subtypes.includes('radiant')) return "radiant rare";
+    }
+
+    return rarity;
+  };
+
   const renderCardDetail = (card, options = {}) => {
-    if (!card) return;
+    if (!card) {
+      console.warn("renderCardDetail called with no card data");
+      return;
+    }
+
+    const cardElement = document.getElementById('pokemon-card');
+    if (cardElement) {
+        const effectRarity = getCardEffectRarity(card);
+        cardElement.setAttribute('data-rarity', effectRarity);
+        
+        // Also apply card type for some effects
+        const POKEMON_TYPES = ['water', 'fire', 'grass', 'lightning', 'psychic', 'fighting', 'darkness', 'metal', 'dragon', 'fairy', 'colorless'];
+        const types = Array.isArray(card.types) ? card.types.join(' ').toLowerCase() : (card.types || '').toLowerCase();
+        
+        // Reset previous types
+        POKEMON_TYPES.forEach(type => cardElement.classList.remove(type));
+
+        if(types) {
+            // reset previous types
+            POKEMON_TYPES.forEach(type => cardElement.classList.remove(type));
+            types.split(' ').forEach(t => {
+                if (POKEMON_TYPES.includes(t)) {
+                    cardElement.classList.add(t)
+                }
+            });
+        }
+
+        // Set foil and mask images if available
+        const foilUrl = card.images?.foil ? `/static${card.images.foil}` : '';
+        const maskUrl = card.images?.mask ? `/static${card.images.mask}` : '';
+
+        cardElement.style.setProperty('--foil', foilUrl ? `url("${foilUrl}")` : 'none');
+        cardElement.style.setProperty('--mask', maskUrl ? `url("${maskUrl}")` : 'none');
+    }
+
     const { priceHistoryModule, priceHistoryRange } = options;
 
     const sanitizeText = (value) => (typeof value === "string" ? value.trim() : value);
@@ -2712,9 +3935,10 @@
 
     await fetchCurrentUser();
 
-    const needsCollection = Boolean(document.getElementById("collection-table"));
+    const needsCollection = Boolean(document.getElementById("collection-cards"));
     const needsPortfolio = Boolean(document.getElementById("portfolio-cards"));
-    if (needsCollection || needsPortfolio) {
+    const needsSearch = Boolean(document.getElementById("card-search-results"));
+    if (needsCollection || needsPortfolio || needsSearch) {
       await loadCollection();
     }
 

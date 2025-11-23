@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#ffffff" data-theme-color />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>{% block title %}Kartoteka Web{% endblock %}</title>
@@ -11,6 +12,9 @@
   <link rel="apple-touch-icon" href="{{ url_for('static', path='/icons/icon-192.png') }}" />
   <link rel="manifest" href="{{ url_for('static', path='/manifest.json') }}" />
   <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/pokemon-cards.css') }}" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
   <script defer src="{{ url_for('static', path='/js/app.js') }}"></script>
   {% block head_extra %}{% endblock %}
 </head>
@@ -37,7 +41,7 @@
       <a href="/" class="{{ 'active' if current_path == '/' else '' }}">Strona główna</a>
       <a
         href="/collection"
-        class="{{ 'active' if current_path.startswith('/collection') or current_path.startswith('/dashboard') else '' }}"
+        class="{{ 'active' if current_path.startswith('/collection') or current_path.startswith('/dashboard') or current_path.startswith('/my-collections') else '' }}"
       >Kolekcja</a>
       <a
         href="/cards/add"
@@ -64,6 +68,7 @@
   <main>
     {% block content %}{% endblock %}
   </main>
+  {% block scripts_extra %}{% endblock %}
   <footer class="app-footer">
     <p>&copy; Kartoteka – zarządzaj swoją kolekcją Pokemon TCG gdziekolwiek jesteś.</p>
     <nav class="footer-links" aria-label="Informacje prawne">

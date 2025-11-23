@@ -1,0 +1,2306 @@
+{
+  "MEG": {
+    "api_id": 230,
+    "api_name": "Mega Evolution",
+    "api_slug": "mega-evolution",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/24026/logof.png"
+  },
+  "meg": {
+    "api_id": 230,
+    "api_name": "Mega Evolution",
+    "api_slug": "mega-evolution",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/24026/logof.png"
+  },
+  "PFL": {
+    "api_id": 231,
+    "api_name": "Phantasmal Flames",
+    "api_slug": "phantasmal-flames",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/23782/Pokemon_TCG_Mega_Evolution\u2014Phantasmal_Flames_Logo.png"
+  },
+  "pfl": {
+    "api_id": 231,
+    "api_name": "Phantasmal Flames",
+    "api_slug": "phantasmal-flames",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/23782/Pokemon_TCG_Mega_Evolution\u2014Phantasmal_Flames_Logo.png"
+  },
+  "sv01": {
+    "api_id": 19,
+    "api_name": "Scarlet & Violet",
+    "api_slug": "scarlet-violet",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/3214/scarlet-violet-logo.png"
+  },
+  "SV01": {
+    "api_id": 19,
+    "api_name": "Scarlet & Violet",
+    "api_slug": "scarlet-violet",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/3214/scarlet-violet-logo.png"
+  },
+  "SVI": {
+    "api_id": 19,
+    "api_name": "Scarlet & Violet",
+    "api_slug": "scarlet-violet",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/3214/scarlet-violet-logo.png"
+  },
+  "svi": {
+    "api_id": 19,
+    "api_name": "Scarlet & Violet",
+    "api_slug": "scarlet-violet",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/3214/scarlet-violet-logo.png"
+  },
+  "svp": {
+    "api_id": 23,
+    "api_name": "SV Black Star Promos",
+    "api_slug": "sv-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/3875/scarlet-violet-black-star-promos-logo.png"
+  },
+  "SVP": {
+    "api_id": 23,
+    "api_name": "SV Black Star Promos",
+    "api_slug": "sv-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/3875/scarlet-violet-black-star-promos-logo.png"
+  },
+  "PR-SV": {
+    "api_id": 23,
+    "api_name": "SV Black Star Promos",
+    "api_slug": "sv-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/3875/scarlet-violet-black-star-promos-logo.png"
+  },
+  "pr-sv": {
+    "api_id": 23,
+    "api_name": "SV Black Star Promos",
+    "api_slug": "sv-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/3875/scarlet-violet-black-star-promos-logo.png"
+  },
+  "sv02": {
+    "api_id": 18,
+    "api_name": "Paldea Evolved",
+    "api_slug": "paldea-evolved",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/2935/paldea-evolved-logo.png"
+  },
+  "SV02": {
+    "api_id": 18,
+    "api_name": "Paldea Evolved",
+    "api_slug": "paldea-evolved",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/2935/paldea-evolved-logo.png"
+  },
+  "PAL": {
+    "api_id": 18,
+    "api_name": "Paldea Evolved",
+    "api_slug": "paldea-evolved",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/2935/paldea-evolved-logo.png"
+  },
+  "pal": {
+    "api_id": 18,
+    "api_name": "Paldea Evolved",
+    "api_slug": "paldea-evolved",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/2935/paldea-evolved-logo.png"
+  },
+  "sv03": {
+    "api_id": 17,
+    "api_name": "Obsidian Flames",
+    "api_slug": "obsidian-flames",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/2703/obsidian-flames-logo.png"
+  },
+  "SV03": {
+    "api_id": 17,
+    "api_name": "Obsidian Flames",
+    "api_slug": "obsidian-flames",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/2703/obsidian-flames-logo.png"
+  },
+  "OBF": {
+    "api_id": 17,
+    "api_name": "Obsidian Flames",
+    "api_slug": "obsidian-flames",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/2703/obsidian-flames-logo.png"
+  },
+  "obf": {
+    "api_id": 17,
+    "api_name": "Obsidian Flames",
+    "api_slug": "obsidian-flames",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/2703/obsidian-flames-logo.png"
+  },
+  "sv3pt5": {
+    "api_id": 16,
+    "api_name": "151",
+    "api_slug": "151",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/2496/151-logo.png"
+  },
+  "SV3PT5": {
+    "api_id": 16,
+    "api_name": "151",
+    "api_slug": "151",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/2496/151-logo.png"
+  },
+  "MEW": {
+    "api_id": 16,
+    "api_name": "151",
+    "api_slug": "151",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/2496/151-logo.png"
+  },
+  "mew": {
+    "api_id": 16,
+    "api_name": "151",
+    "api_slug": "151",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/2496/151-logo.png"
+  },
+  "sv04": {
+    "api_id": 15,
+    "api_name": "Paradox Rift",
+    "api_slug": "paradox-rift",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/2228/paradox-rift-logo.png"
+  },
+  "SV04": {
+    "api_id": 15,
+    "api_name": "Paradox Rift",
+    "api_slug": "paradox-rift",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/2228/paradox-rift-logo.png"
+  },
+  "PAR": {
+    "api_id": 15,
+    "api_name": "Paradox Rift",
+    "api_slug": "paradox-rift",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/2228/paradox-rift-logo.png"
+  },
+  "par": {
+    "api_id": 15,
+    "api_name": "Paradox Rift",
+    "api_slug": "paradox-rift",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/2228/paradox-rift-logo.png"
+  },
+  "sv4pt5": {
+    "api_id": 14,
+    "api_name": "Paldean Fates",
+    "api_slug": "paldean-fates",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1981/paldean-fates-logo.png"
+  },
+  "SV4PT5": {
+    "api_id": 14,
+    "api_name": "Paldean Fates",
+    "api_slug": "paldean-fates",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1981/paldean-fates-logo.png"
+  },
+  "PAF": {
+    "api_id": 14,
+    "api_name": "Paldean Fates",
+    "api_slug": "paldean-fates",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1981/paldean-fates-logo.png"
+  },
+  "paf": {
+    "api_id": 14,
+    "api_name": "Paldean Fates",
+    "api_slug": "paldean-fates",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1981/paldean-fates-logo.png"
+  },
+  "sv05": {
+    "api_id": 13,
+    "api_name": "Temporal Forces",
+    "api_slug": "temporal-forces",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1763/temporal-forces-logo.png"
+  },
+  "SV05": {
+    "api_id": 13,
+    "api_name": "Temporal Forces",
+    "api_slug": "temporal-forces",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1763/temporal-forces-logo.png"
+  },
+  "TEF": {
+    "api_id": 13,
+    "api_name": "Temporal Forces",
+    "api_slug": "temporal-forces",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1763/temporal-forces-logo.png"
+  },
+  "tef": {
+    "api_id": 13,
+    "api_name": "Temporal Forces",
+    "api_slug": "temporal-forces",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1763/temporal-forces-logo.png"
+  },
+  "sv06": {
+    "api_id": 12,
+    "api_name": "Twilight Masquerade",
+    "api_slug": "twilight-masquerade",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1535/twilight-masquerade-logo.png"
+  },
+  "SV06": {
+    "api_id": 12,
+    "api_name": "Twilight Masquerade",
+    "api_slug": "twilight-masquerade",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1535/twilight-masquerade-logo.png"
+  },
+  "TWM": {
+    "api_id": 12,
+    "api_name": "Twilight Masquerade",
+    "api_slug": "twilight-masquerade",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1535/twilight-masquerade-logo.png"
+  },
+  "twm": {
+    "api_id": 12,
+    "api_name": "Twilight Masquerade",
+    "api_slug": "twilight-masquerade",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1535/twilight-masquerade-logo.png"
+  },
+  "sv6pt5": {
+    "api_id": 11,
+    "api_name": "Shrouded Fable",
+    "api_slug": "shrouded-fable",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1434/shrouded-fable-logo.png"
+  },
+  "SV6PT5": {
+    "api_id": 11,
+    "api_name": "Shrouded Fable",
+    "api_slug": "shrouded-fable",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1434/shrouded-fable-logo.png"
+  },
+  "SFA": {
+    "api_id": 11,
+    "api_name": "Shrouded Fable",
+    "api_slug": "shrouded-fable",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1434/shrouded-fable-logo.png"
+  },
+  "sfa": {
+    "api_id": 11,
+    "api_name": "Shrouded Fable",
+    "api_slug": "shrouded-fable",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1434/shrouded-fable-logo.png"
+  },
+  "sv07": {
+    "api_id": 10,
+    "api_name": "Stellar Crown",
+    "api_slug": "stellar-crown",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1257/stellar-crown-logo.png"
+  },
+  "SV07": {
+    "api_id": 10,
+    "api_name": "Stellar Crown",
+    "api_slug": "stellar-crown",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1257/stellar-crown-logo.png"
+  },
+  "SCR": {
+    "api_id": 10,
+    "api_name": "Stellar Crown",
+    "api_slug": "stellar-crown",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1257/stellar-crown-logo.png"
+  },
+  "scr": {
+    "api_id": 10,
+    "api_name": "Stellar Crown",
+    "api_slug": "stellar-crown",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/1257/stellar-crown-logo.png"
+  },
+  "sv8": {
+    "api_id": 172,
+    "api_name": "Surging Sparks",
+    "api_slug": "surging-sparks",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/20954/surging-sparks-logo.png"
+  },
+  "SV8": {
+    "api_id": 172,
+    "api_name": "Surging Sparks",
+    "api_slug": "surging-sparks",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/20954/surging-sparks-logo.png"
+  },
+  "SSP": {
+    "api_id": 172,
+    "api_name": "Surging Sparks",
+    "api_slug": "surging-sparks",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/20954/surging-sparks-logo.png"
+  },
+  "ssp": {
+    "api_id": 172,
+    "api_name": "Surging Sparks",
+    "api_slug": "surging-sparks",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/20954/surging-sparks-logo.png"
+  },
+  "sv8pt5": {
+    "api_id": 212,
+    "api_name": "Prismatic Evolutions",
+    "api_slug": "prismatic-evolutions",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/21414/prismatic-evolutions-logo.png"
+  },
+  "SV8PT5": {
+    "api_id": 212,
+    "api_name": "Prismatic Evolutions",
+    "api_slug": "prismatic-evolutions",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/21414/prismatic-evolutions-logo.png"
+  },
+  "PRE": {
+    "api_id": 212,
+    "api_name": "Prismatic Evolutions",
+    "api_slug": "prismatic-evolutions",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/21414/prismatic-evolutions-logo.png"
+  },
+  "pre": {
+    "api_id": 212,
+    "api_name": "Prismatic Evolutions",
+    "api_slug": "prismatic-evolutions",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/21414/prismatic-evolutions-logo.png"
+  },
+  "sv9": {
+    "api_id": 220,
+    "api_name": "Journey Together",
+    "api_slug": "journey-together",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/21901/journey-together-logo.png"
+  },
+  "SV9": {
+    "api_id": 220,
+    "api_name": "Journey Together",
+    "api_slug": "journey-together",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/21901/journey-together-logo.png"
+  },
+  "JTG": {
+    "api_id": 220,
+    "api_name": "Journey Together",
+    "api_slug": "journey-together",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/21901/journey-together-logo.png"
+  },
+  "jtg": {
+    "api_id": 220,
+    "api_name": "Journey Together",
+    "api_slug": "journey-together",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/21901/journey-together-logo.png"
+  },
+  "sv10": {
+    "api_id": 221,
+    "api_name": "Destined Rivals",
+    "api_slug": "destined-rivals",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/22104/destined-rivals-logo.png"
+  },
+  "SV10": {
+    "api_id": 221,
+    "api_name": "Destined Rivals",
+    "api_slug": "destined-rivals",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/22104/destined-rivals-logo.png"
+  },
+  "DRI": {
+    "api_id": 221,
+    "api_name": "Destined Rivals",
+    "api_slug": "destined-rivals",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/22104/destined-rivals-logo.png"
+  },
+  "dri": {
+    "api_id": 221,
+    "api_name": "Destined Rivals",
+    "api_slug": "destined-rivals",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/22104/destined-rivals-logo.png"
+  },
+  "zsv10pt5": {
+    "api_id": 223,
+    "api_name": "Black Bolt",
+    "api_slug": "black-bolt",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/23035/black-bolt-logo.png"
+  },
+  "ZSV10PT5": {
+    "api_id": 223,
+    "api_name": "Black Bolt",
+    "api_slug": "black-bolt",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/23035/black-bolt-logo.png"
+  },
+  "BLK": {
+    "api_id": 223,
+    "api_name": "Black Bolt",
+    "api_slug": "black-bolt",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/23035/black-bolt-logo.png"
+  },
+  "blk": {
+    "api_id": 223,
+    "api_name": "Black Bolt",
+    "api_slug": "black-bolt",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/23035/black-bolt-logo.png"
+  },
+  "rsv10pt5": {
+    "api_id": 224,
+    "api_name": "White Flare",
+    "api_slug": "white-flare",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/23037/white-flare-logo.png"
+  },
+  "RSV10PT5": {
+    "api_id": 224,
+    "api_name": "White Flare",
+    "api_slug": "white-flare",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/23037/white-flare-logo.png"
+  },
+  "WHT": {
+    "api_id": 224,
+    "api_name": "White Flare",
+    "api_slug": "white-flare",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/23037/white-flare-logo.png"
+  },
+  "wht": {
+    "api_id": 224,
+    "api_name": "White Flare",
+    "api_slug": "white-flare",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/23037/white-flare-logo.png"
+  },
+  "swshp": {
+    "api_id": 49,
+    "api_name": "SWSH Black Star Promos",
+    "api_slug": "swsh-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7097/swsh-black-star-promos-logo.png"
+  },
+  "SWSHP": {
+    "api_id": 49,
+    "api_name": "SWSH Black Star Promos",
+    "api_slug": "swsh-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7097/swsh-black-star-promos-logo.png"
+  },
+  "PR-SW": {
+    "api_id": 49,
+    "api_name": "SWSH Black Star Promos",
+    "api_slug": "swsh-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7097/swsh-black-star-promos-logo.png"
+  },
+  "pr-sw": {
+    "api_id": 49,
+    "api_name": "SWSH Black Star Promos",
+    "api_slug": "swsh-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7097/swsh-black-star-promos-logo.png"
+  },
+  "swsh1": {
+    "api_id": 48,
+    "api_name": "Sword & Shield",
+    "api_slug": "sword-shield",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6880/sword-shield-logo.png"
+  },
+  "SWSH1": {
+    "api_id": 48,
+    "api_name": "Sword & Shield",
+    "api_slug": "sword-shield",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6880/sword-shield-logo.png"
+  },
+  "SSH": {
+    "api_id": 48,
+    "api_name": "Sword & Shield",
+    "api_slug": "sword-shield",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6880/sword-shield-logo.png"
+  },
+  "ssh": {
+    "api_id": 48,
+    "api_name": "Sword & Shield",
+    "api_slug": "sword-shield",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6880/sword-shield-logo.png"
+  },
+  "swsh2": {
+    "api_id": 47,
+    "api_name": "Rebel Clash",
+    "api_slug": "rebel-clash",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6669/rebel-clash-logo.png"
+  },
+  "SWSH2": {
+    "api_id": 47,
+    "api_name": "Rebel Clash",
+    "api_slug": "rebel-clash",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6669/rebel-clash-logo.png"
+  },
+  "RCL": {
+    "api_id": 47,
+    "api_name": "Rebel Clash",
+    "api_slug": "rebel-clash",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6669/rebel-clash-logo.png"
+  },
+  "rcl": {
+    "api_id": 47,
+    "api_name": "Rebel Clash",
+    "api_slug": "rebel-clash",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6669/rebel-clash-logo.png"
+  },
+  "swsh3": {
+    "api_id": 46,
+    "api_name": "Darkness Ablaze",
+    "api_slug": "darkness-ablaze",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6466/darkness-ablaze-logo.png"
+  },
+  "SWSH3": {
+    "api_id": 46,
+    "api_name": "Darkness Ablaze",
+    "api_slug": "darkness-ablaze",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6466/darkness-ablaze-logo.png"
+  },
+  "DAA": {
+    "api_id": 46,
+    "api_name": "Darkness Ablaze",
+    "api_slug": "darkness-ablaze",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6466/darkness-ablaze-logo.png"
+  },
+  "daa": {
+    "api_id": 46,
+    "api_name": "Darkness Ablaze",
+    "api_slug": "darkness-ablaze",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6466/darkness-ablaze-logo.png"
+  },
+  "swsh3pt5": {
+    "api_id": 44,
+    "api_name": "Champion's Path",
+    "api_slug": "champions-path",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6377/champions-path-logo.png"
+  },
+  "SWSH3PT5": {
+    "api_id": 44,
+    "api_name": "Champion's Path",
+    "api_slug": "champions-path",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6377/champions-path-logo.png"
+  },
+  "CPA": {
+    "api_id": 44,
+    "api_name": "Champion's Path",
+    "api_slug": "champions-path",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6377/champions-path-logo.png"
+  },
+  "cpa": {
+    "api_id": 44,
+    "api_name": "Champion's Path",
+    "api_slug": "champions-path",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6377/champions-path-logo.png"
+  },
+  "swsh4": {
+    "api_id": 43,
+    "api_name": "Vivid Voltage",
+    "api_slug": "vivid-voltage",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6173/vivid-voltage-logo.png"
+  },
+  "SWSH4": {
+    "api_id": 43,
+    "api_name": "Vivid Voltage",
+    "api_slug": "vivid-voltage",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6173/vivid-voltage-logo.png"
+  },
+  "VIV": {
+    "api_id": 43,
+    "api_name": "Vivid Voltage",
+    "api_slug": "vivid-voltage",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6173/vivid-voltage-logo.png"
+  },
+  "viv": {
+    "api_id": 43,
+    "api_name": "Vivid Voltage",
+    "api_slug": "vivid-voltage",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6173/vivid-voltage-logo.png"
+  },
+  "swsh4pt5": {
+    "api_id": 41,
+    "api_name": "Shining Fates Shiny Vault",
+    "api_slug": "shining-fates-shiny-vault",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6143/shining-fates-shiny-vault-logo.png"
+  },
+  "SWSH4PT5": {
+    "api_id": 41,
+    "api_name": "Shining Fates Shiny Vault",
+    "api_slug": "shining-fates-shiny-vault",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6143/shining-fates-shiny-vault-logo.png"
+  },
+  "SHF": {
+    "api_id": 41,
+    "api_name": "Shining Fates Shiny Vault",
+    "api_slug": "shining-fates-shiny-vault",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6143/shining-fates-shiny-vault-logo.png"
+  },
+  "shf": {
+    "api_id": 41,
+    "api_name": "Shining Fates Shiny Vault",
+    "api_slug": "shining-fates-shiny-vault",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6143/shining-fates-shiny-vault-logo.png"
+  },
+  "swsh5": {
+    "api_id": 39,
+    "api_name": "Battle Styles",
+    "api_slug": "battle-styles",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/5761/battle-styles-logo.png"
+  },
+  "SWSH5": {
+    "api_id": 39,
+    "api_name": "Battle Styles",
+    "api_slug": "battle-styles",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/5761/battle-styles-logo.png"
+  },
+  "BST": {
+    "api_id": 39,
+    "api_name": "Battle Styles",
+    "api_slug": "battle-styles",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/5761/battle-styles-logo.png"
+  },
+  "bst": {
+    "api_id": 39,
+    "api_name": "Battle Styles",
+    "api_slug": "battle-styles",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/5761/battle-styles-logo.png"
+  },
+  "swsh6": {
+    "api_id": 38,
+    "api_name": "Chilling Reign",
+    "api_slug": "chilling-reign",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/5527/chilling-reign-logo.png"
+  },
+  "SWSH6": {
+    "api_id": 38,
+    "api_name": "Chilling Reign",
+    "api_slug": "chilling-reign",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/5527/chilling-reign-logo.png"
+  },
+  "CRE": {
+    "api_id": 38,
+    "api_name": "Chilling Reign",
+    "api_slug": "chilling-reign",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/5527/chilling-reign-logo.png"
+  },
+  "cre": {
+    "api_id": 38,
+    "api_name": "Chilling Reign",
+    "api_slug": "chilling-reign",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/5527/chilling-reign-logo.png"
+  },
+  "swsh7": {
+    "api_id": 37,
+    "api_name": "Evolving Skies",
+    "api_slug": "evolving-skies",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/5288/evolving-skies-logo.png"
+  },
+  "SWSH7": {
+    "api_id": 37,
+    "api_name": "Evolving Skies",
+    "api_slug": "evolving-skies",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/5288/evolving-skies-logo.png"
+  },
+  "EVS": {
+    "api_id": 37,
+    "api_name": "Evolving Skies",
+    "api_slug": "evolving-skies",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/5288/evolving-skies-logo.png"
+  },
+  "evs": {
+    "api_id": 37,
+    "api_name": "Evolving Skies",
+    "api_slug": "evolving-skies",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/5288/evolving-skies-logo.png"
+  },
+  "cel25": {
+    "api_id": 36,
+    "api_name": "Celebrations: Classic Collection",
+    "api_slug": "celebrations-classic-collection",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/5285/celebrations-classic-collection-logo.png"
+  },
+  "CEL25": {
+    "api_id": 36,
+    "api_name": "Celebrations: Classic Collection",
+    "api_slug": "celebrations-classic-collection",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/5285/celebrations-classic-collection-logo.png"
+  },
+  "CEL": {
+    "api_id": 36,
+    "api_name": "Celebrations: Classic Collection",
+    "api_slug": "celebrations-classic-collection",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/5285/celebrations-classic-collection-logo.png"
+  },
+  "cel": {
+    "api_id": 36,
+    "api_name": "Celebrations: Classic Collection",
+    "api_slug": "celebrations-classic-collection",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/5285/celebrations-classic-collection-logo.png"
+  },
+  "swsh8": {
+    "api_id": 34,
+    "api_name": "Fusion Strike",
+    "api_slug": "fusion-strike",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4948/fusion-strike-logo.png"
+  },
+  "SWSH8": {
+    "api_id": 34,
+    "api_name": "Fusion Strike",
+    "api_slug": "fusion-strike",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4948/fusion-strike-logo.png"
+  },
+  "FST": {
+    "api_id": 34,
+    "api_name": "Fusion Strike",
+    "api_slug": "fusion-strike",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4948/fusion-strike-logo.png"
+  },
+  "fst": {
+    "api_id": 34,
+    "api_name": "Fusion Strike",
+    "api_slug": "fusion-strike",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4948/fusion-strike-logo.png"
+  },
+  "swsh9": {
+    "api_id": 33,
+    "api_name": "Brilliant Stars Trainer Gallery",
+    "api_slug": "brilliant-stars-trainer-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4946/brilliant-stars-trainer-gallery-logo.png"
+  },
+  "SWSH9": {
+    "api_id": 33,
+    "api_name": "Brilliant Stars Trainer Gallery",
+    "api_slug": "brilliant-stars-trainer-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4946/brilliant-stars-trainer-gallery-logo.png"
+  },
+  "BRS": {
+    "api_id": 33,
+    "api_name": "Brilliant Stars Trainer Gallery",
+    "api_slug": "brilliant-stars-trainer-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4946/brilliant-stars-trainer-gallery-logo.png"
+  },
+  "brs": {
+    "api_id": 33,
+    "api_name": "Brilliant Stars Trainer Gallery",
+    "api_slug": "brilliant-stars-trainer-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4946/brilliant-stars-trainer-gallery-logo.png"
+  },
+  "swsh10": {
+    "api_id": 31,
+    "api_name": "Astral Radiance Trainer Gallery",
+    "api_slug": "astral-radiance-trainer-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4726/astral-radiance-trainer-gallery-logo.png"
+  },
+  "SWSH10": {
+    "api_id": 31,
+    "api_name": "Astral Radiance Trainer Gallery",
+    "api_slug": "astral-radiance-trainer-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4726/astral-radiance-trainer-gallery-logo.png"
+  },
+  "ASR": {
+    "api_id": 31,
+    "api_name": "Astral Radiance Trainer Gallery",
+    "api_slug": "astral-radiance-trainer-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4726/astral-radiance-trainer-gallery-logo.png"
+  },
+  "asr": {
+    "api_id": 31,
+    "api_name": "Astral Radiance Trainer Gallery",
+    "api_slug": "astral-radiance-trainer-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4726/astral-radiance-trainer-gallery-logo.png"
+  },
+  "swsh10pt5": {
+    "api_id": 29,
+    "api_name": "Pok\u00e9mon GO",
+    "api_slug": "pokemon-go",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4390/pokemon-go-logo.png"
+  },
+  "SWSH10PT5": {
+    "api_id": 29,
+    "api_name": "Pok\u00e9mon GO",
+    "api_slug": "pokemon-go",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4390/pokemon-go-logo.png"
+  },
+  "PGO": {
+    "api_id": 29,
+    "api_name": "Pok\u00e9mon GO",
+    "api_slug": "pokemon-go",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4390/pokemon-go-logo.png"
+  },
+  "pgo": {
+    "api_id": 29,
+    "api_name": "Pok\u00e9mon GO",
+    "api_slug": "pokemon-go",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4390/pokemon-go-logo.png"
+  },
+  "swsh11": {
+    "api_id": 27,
+    "api_name": "Lost Origin Trainer Gallery",
+    "api_slug": "lost-origin-trainer-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4371/lost-origin-trainer-gallery-logo.png"
+  },
+  "SWSH11": {
+    "api_id": 27,
+    "api_name": "Lost Origin Trainer Gallery",
+    "api_slug": "lost-origin-trainer-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4371/lost-origin-trainer-gallery-logo.png"
+  },
+  "LOR": {
+    "api_id": 27,
+    "api_name": "Lost Origin Trainer Gallery",
+    "api_slug": "lost-origin-trainer-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4371/lost-origin-trainer-gallery-logo.png"
+  },
+  "lor": {
+    "api_id": 27,
+    "api_name": "Lost Origin Trainer Gallery",
+    "api_slug": "lost-origin-trainer-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4371/lost-origin-trainer-gallery-logo.png"
+  },
+  "swsh12": {
+    "api_id": 25,
+    "api_name": "Silver Tempest Trainer Gallery",
+    "api_slug": "silver-tempest-trainer-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4122/silver-tempest-trainer-gallery-logo.png"
+  },
+  "SWSH12": {
+    "api_id": 25,
+    "api_name": "Silver Tempest Trainer Gallery",
+    "api_slug": "silver-tempest-trainer-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4122/silver-tempest-trainer-gallery-logo.png"
+  },
+  "SIT": {
+    "api_id": 25,
+    "api_name": "Silver Tempest Trainer Gallery",
+    "api_slug": "silver-tempest-trainer-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4122/silver-tempest-trainer-gallery-logo.png"
+  },
+  "sit": {
+    "api_id": 25,
+    "api_name": "Silver Tempest Trainer Gallery",
+    "api_slug": "silver-tempest-trainer-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/4122/silver-tempest-trainer-gallery-logo.png"
+  },
+  "swsh12pt5": {
+    "api_id": 22,
+    "api_name": "Crown Zenith Galarian Gallery",
+    "api_slug": "crown-zenith-galarian-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/3873/crown-zenith-galarian-gallery-logo.png"
+  },
+  "SWSH12PT5": {
+    "api_id": 22,
+    "api_name": "Crown Zenith Galarian Gallery",
+    "api_slug": "crown-zenith-galarian-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/3873/crown-zenith-galarian-gallery-logo.png"
+  },
+  "CRZ": {
+    "api_id": 22,
+    "api_name": "Crown Zenith Galarian Gallery",
+    "api_slug": "crown-zenith-galarian-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/3873/crown-zenith-galarian-gallery-logo.png"
+  },
+  "crz": {
+    "api_id": 22,
+    "api_name": "Crown Zenith Galarian Gallery",
+    "api_slug": "crown-zenith-galarian-gallery",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/3873/crown-zenith-galarian-gallery-logo.png"
+  },
+  "sm1": {
+    "api_id": 69,
+    "api_name": "Sun & Moon",
+    "api_slug": "sun-moon",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9996/sun-moon-logo.png"
+  },
+  "SM1": {
+    "api_id": 69,
+    "api_name": "Sun & Moon",
+    "api_slug": "sun-moon",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9996/sun-moon-logo.png"
+  },
+  "SUM": {
+    "api_id": 69,
+    "api_name": "Sun & Moon",
+    "api_slug": "sun-moon",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9996/sun-moon-logo.png"
+  },
+  "sum": {
+    "api_id": 69,
+    "api_name": "Sun & Moon",
+    "api_slug": "sun-moon",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9996/sun-moon-logo.png"
+  },
+  "smp": {
+    "api_id": 70,
+    "api_name": "SM Black Star Promos",
+    "api_slug": "sm-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10171/sm-black-star-promos-logo.png"
+  },
+  "SMP": {
+    "api_id": 70,
+    "api_name": "SM Black Star Promos",
+    "api_slug": "sm-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10171/sm-black-star-promos-logo.png"
+  },
+  "PR-SM": {
+    "api_id": 70,
+    "api_name": "SM Black Star Promos",
+    "api_slug": "sm-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10171/sm-black-star-promos-logo.png"
+  },
+  "pr-sm": {
+    "api_id": 70,
+    "api_name": "SM Black Star Promos",
+    "api_slug": "sm-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10171/sm-black-star-promos-logo.png"
+  },
+  "sm2": {
+    "api_id": 68,
+    "api_name": "Guardians Rising",
+    "api_slug": "guardians-rising",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9815/guardians-rising-logo.png"
+  },
+  "SM2": {
+    "api_id": 68,
+    "api_name": "Guardians Rising",
+    "api_slug": "guardians-rising",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9815/guardians-rising-logo.png"
+  },
+  "GRI": {
+    "api_id": 68,
+    "api_name": "Guardians Rising",
+    "api_slug": "guardians-rising",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9815/guardians-rising-logo.png"
+  },
+  "gri": {
+    "api_id": 68,
+    "api_name": "Guardians Rising",
+    "api_slug": "guardians-rising",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9815/guardians-rising-logo.png"
+  },
+  "sm3": {
+    "api_id": 67,
+    "api_name": "Burning Shadows",
+    "api_slug": "burning-shadows",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9636/burning-shadows-logo.png"
+  },
+  "SM3": {
+    "api_id": 67,
+    "api_name": "Burning Shadows",
+    "api_slug": "burning-shadows",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9636/burning-shadows-logo.png"
+  },
+  "BUS": {
+    "api_id": 67,
+    "api_name": "Burning Shadows",
+    "api_slug": "burning-shadows",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9636/burning-shadows-logo.png"
+  },
+  "bus": {
+    "api_id": 67,
+    "api_name": "Burning Shadows",
+    "api_slug": "burning-shadows",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9636/burning-shadows-logo.png"
+  },
+  "sm3pt5": {
+    "api_id": 66,
+    "api_name": "Shining Legends",
+    "api_slug": "shining-legends",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9553/shining-legends-logo.png"
+  },
+  "SM3PT5": {
+    "api_id": 66,
+    "api_name": "Shining Legends",
+    "api_slug": "shining-legends",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9553/shining-legends-logo.png"
+  },
+  "SLG": {
+    "api_id": 66,
+    "api_name": "Shining Legends",
+    "api_slug": "shining-legends",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9553/shining-legends-logo.png"
+  },
+  "slg": {
+    "api_id": 66,
+    "api_name": "Shining Legends",
+    "api_slug": "shining-legends",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9553/shining-legends-logo.png"
+  },
+  "sm4": {
+    "api_id": 65,
+    "api_name": "Crimson Invasion",
+    "api_slug": "crimson-invasion",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9425/crimson-invasion-logo.png"
+  },
+  "SM4": {
+    "api_id": 65,
+    "api_name": "Crimson Invasion",
+    "api_slug": "crimson-invasion",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9425/crimson-invasion-logo.png"
+  },
+  "CIN": {
+    "api_id": 65,
+    "api_name": "Crimson Invasion",
+    "api_slug": "crimson-invasion",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9425/crimson-invasion-logo.png"
+  },
+  "cin": {
+    "api_id": 65,
+    "api_name": "Crimson Invasion",
+    "api_slug": "crimson-invasion",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9425/crimson-invasion-logo.png"
+  },
+  "sm5": {
+    "api_id": 63,
+    "api_name": "Ultra Prism",
+    "api_slug": "ultra-prism",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9243/ultra-prism-logo.png"
+  },
+  "SM5": {
+    "api_id": 63,
+    "api_name": "Ultra Prism",
+    "api_slug": "ultra-prism",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9243/ultra-prism-logo.png"
+  },
+  "UPR": {
+    "api_id": 63,
+    "api_name": "Ultra Prism",
+    "api_slug": "ultra-prism",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9243/ultra-prism-logo.png"
+  },
+  "upr": {
+    "api_id": 63,
+    "api_name": "Ultra Prism",
+    "api_slug": "ultra-prism",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9243/ultra-prism-logo.png"
+  },
+  "sm6": {
+    "api_id": 62,
+    "api_name": "Forbidden Light",
+    "api_slug": "forbidden-light",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9091/forbidden-light-logo.png"
+  },
+  "SM6": {
+    "api_id": 62,
+    "api_name": "Forbidden Light",
+    "api_slug": "forbidden-light",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9091/forbidden-light-logo.png"
+  },
+  "FLI": {
+    "api_id": 62,
+    "api_name": "Forbidden Light",
+    "api_slug": "forbidden-light",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9091/forbidden-light-logo.png"
+  },
+  "fli": {
+    "api_id": 62,
+    "api_name": "Forbidden Light",
+    "api_slug": "forbidden-light",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/9091/forbidden-light-logo.png"
+  },
+  "sm7": {
+    "api_id": 61,
+    "api_name": "Celestial Storm",
+    "api_slug": "celestial-storm",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8904/celestial-storm-logo.png"
+  },
+  "SM7": {
+    "api_id": 61,
+    "api_name": "Celestial Storm",
+    "api_slug": "celestial-storm",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8904/celestial-storm-logo.png"
+  },
+  "CES": {
+    "api_id": 61,
+    "api_name": "Celestial Storm",
+    "api_slug": "celestial-storm",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8904/celestial-storm-logo.png"
+  },
+  "ces": {
+    "api_id": 61,
+    "api_name": "Celestial Storm",
+    "api_slug": "celestial-storm",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8904/celestial-storm-logo.png"
+  },
+  "sm7pt5": {
+    "api_id": 60,
+    "api_name": "Dragon Majesty",
+    "api_slug": "dragon-majesty",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8822/dragon-majesty-logo.png"
+  },
+  "SM7PT5": {
+    "api_id": 60,
+    "api_name": "Dragon Majesty",
+    "api_slug": "dragon-majesty",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8822/dragon-majesty-logo.png"
+  },
+  "DRM": {
+    "api_id": 60,
+    "api_name": "Dragon Majesty",
+    "api_slug": "dragon-majesty",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8822/dragon-majesty-logo.png"
+  },
+  "drm": {
+    "api_id": 60,
+    "api_name": "Dragon Majesty",
+    "api_slug": "dragon-majesty",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8822/dragon-majesty-logo.png"
+  },
+  "sm8": {
+    "api_id": 58,
+    "api_name": "Lost Thunder",
+    "api_slug": "lost-thunder",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8578/lost-thunder-logo.png"
+  },
+  "SM8": {
+    "api_id": 58,
+    "api_name": "Lost Thunder",
+    "api_slug": "lost-thunder",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8578/lost-thunder-logo.png"
+  },
+  "LOT": {
+    "api_id": 58,
+    "api_name": "Lost Thunder",
+    "api_slug": "lost-thunder",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8578/lost-thunder-logo.png"
+  },
+  "lot": {
+    "api_id": 58,
+    "api_name": "Lost Thunder",
+    "api_slug": "lost-thunder",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8578/lost-thunder-logo.png"
+  },
+  "sm9": {
+    "api_id": 57,
+    "api_name": "Team Up",
+    "api_slug": "team-up",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8379/team-up-logo.png"
+  },
+  "SM9": {
+    "api_id": 57,
+    "api_name": "Team Up",
+    "api_slug": "team-up",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8379/team-up-logo.png"
+  },
+  "TEU": {
+    "api_id": 57,
+    "api_name": "Team Up",
+    "api_slug": "team-up",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8379/team-up-logo.png"
+  },
+  "teu": {
+    "api_id": 57,
+    "api_name": "Team Up",
+    "api_slug": "team-up",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8379/team-up-logo.png"
+  },
+  "det1": {
+    "api_id": 56,
+    "api_name": "Detective Pikachu",
+    "api_slug": "detective-pikachu",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8359/detective-pikachu-logo.png"
+  },
+  "DET1": {
+    "api_id": 56,
+    "api_name": "Detective Pikachu",
+    "api_slug": "detective-pikachu",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8359/detective-pikachu-logo.png"
+  },
+  "DET": {
+    "api_id": 56,
+    "api_name": "Detective Pikachu",
+    "api_slug": "detective-pikachu",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8359/detective-pikachu-logo.png"
+  },
+  "det": {
+    "api_id": 56,
+    "api_name": "Detective Pikachu",
+    "api_slug": "detective-pikachu",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8359/detective-pikachu-logo.png"
+  },
+  "sm10": {
+    "api_id": 55,
+    "api_name": "Unbroken Bonds",
+    "api_slug": "unbroken-bonds",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8120/unbroken-bonds-logo.png"
+  },
+  "SM10": {
+    "api_id": 55,
+    "api_name": "Unbroken Bonds",
+    "api_slug": "unbroken-bonds",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8120/unbroken-bonds-logo.png"
+  },
+  "UNB": {
+    "api_id": 55,
+    "api_name": "Unbroken Bonds",
+    "api_slug": "unbroken-bonds",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8120/unbroken-bonds-logo.png"
+  },
+  "unb": {
+    "api_id": 55,
+    "api_name": "Unbroken Bonds",
+    "api_slug": "unbroken-bonds",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8120/unbroken-bonds-logo.png"
+  },
+  "sm11": {
+    "api_id": 54,
+    "api_name": "Unified Minds",
+    "api_slug": "unified-minds",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7857/unified-minds-logo.png"
+  },
+  "SM11": {
+    "api_id": 54,
+    "api_name": "Unified Minds",
+    "api_slug": "unified-minds",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7857/unified-minds-logo.png"
+  },
+  "UNM": {
+    "api_id": 54,
+    "api_name": "Unified Minds",
+    "api_slug": "unified-minds",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7857/unified-minds-logo.png"
+  },
+  "unm": {
+    "api_id": 54,
+    "api_name": "Unified Minds",
+    "api_slug": "unified-minds",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7857/unified-minds-logo.png"
+  },
+  "sm115": {
+    "api_id": 52,
+    "api_name": "Hidden Fates",
+    "api_slug": "hidden-fates",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7690/hidden-fates-logo.png"
+  },
+  "SM115": {
+    "api_id": 52,
+    "api_name": "Hidden Fates",
+    "api_slug": "hidden-fates",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7690/hidden-fates-logo.png"
+  },
+  "HIF": {
+    "api_id": 52,
+    "api_name": "Hidden Fates",
+    "api_slug": "hidden-fates",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7690/hidden-fates-logo.png"
+  },
+  "hif": {
+    "api_id": 52,
+    "api_name": "Hidden Fates",
+    "api_slug": "hidden-fates",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7690/hidden-fates-logo.png"
+  },
+  "sma": {
+    "api_id": 52,
+    "api_name": "Hidden Fates",
+    "api_slug": "hidden-fates",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7690/hidden-fates-logo.png"
+  },
+  "SMA": {
+    "api_id": 52,
+    "api_name": "Hidden Fates",
+    "api_slug": "hidden-fates",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7690/hidden-fates-logo.png"
+  },
+  "sm12": {
+    "api_id": 50,
+    "api_name": "Cosmic Eclipse",
+    "api_slug": "cosmic-eclipse",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7403/cosmic-eclipse-logo.png"
+  },
+  "SM12": {
+    "api_id": 50,
+    "api_name": "Cosmic Eclipse",
+    "api_slug": "cosmic-eclipse",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7403/cosmic-eclipse-logo.png"
+  },
+  "CEC": {
+    "api_id": 50,
+    "api_name": "Cosmic Eclipse",
+    "api_slug": "cosmic-eclipse",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7403/cosmic-eclipse-logo.png"
+  },
+  "cec": {
+    "api_id": 50,
+    "api_name": "Cosmic Eclipse",
+    "api_slug": "cosmic-eclipse",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/7403/cosmic-eclipse-logo.png"
+  },
+  "xyp": {
+    "api_id": 90,
+    "api_name": "XY Black Star Promos",
+    "api_slug": "xy-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12538/xy-black-star-promos-logo.png"
+  },
+  "XYP": {
+    "api_id": 90,
+    "api_name": "XY Black Star Promos",
+    "api_slug": "xy-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12538/xy-black-star-promos-logo.png"
+  },
+  "PR-XY": {
+    "api_id": 90,
+    "api_name": "XY Black Star Promos",
+    "api_slug": "xy-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12538/xy-black-star-promos-logo.png"
+  },
+  "pr-xy": {
+    "api_id": 90,
+    "api_name": "XY Black Star Promos",
+    "api_slug": "xy-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12538/xy-black-star-promos-logo.png"
+  },
+  "xy0": {
+    "api_id": 88,
+    "api_name": "Kalos Starter Set",
+    "api_slug": "kalos-starter-set",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12355/kalos-starter-set-logo.png"
+  },
+  "XY0": {
+    "api_id": 88,
+    "api_name": "Kalos Starter Set",
+    "api_slug": "kalos-starter-set",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12355/kalos-starter-set-logo.png"
+  },
+  "KSS": {
+    "api_id": 88,
+    "api_name": "Kalos Starter Set",
+    "api_slug": "kalos-starter-set",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12355/kalos-starter-set-logo.png"
+  },
+  "kss": {
+    "api_id": 88,
+    "api_name": "Kalos Starter Set",
+    "api_slug": "kalos-starter-set",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12355/kalos-starter-set-logo.png"
+  },
+  "xy2": {
+    "api_id": 86,
+    "api_name": "Flashfire",
+    "api_slug": "flashfire",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11882/flashfire-logo.png"
+  },
+  "XY2": {
+    "api_id": 86,
+    "api_name": "Flashfire",
+    "api_slug": "flashfire",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11882/flashfire-logo.png"
+  },
+  "FLF": {
+    "api_id": 86,
+    "api_name": "Flashfire",
+    "api_slug": "flashfire",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11882/flashfire-logo.png"
+  },
+  "flf": {
+    "api_id": 86,
+    "api_name": "Flashfire",
+    "api_slug": "flashfire",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11882/flashfire-logo.png"
+  },
+  "xy3": {
+    "api_id": 84,
+    "api_name": "Furious Fists",
+    "api_slug": "furious-fists",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11763/furious-fists-logo.png"
+  },
+  "XY3": {
+    "api_id": 84,
+    "api_name": "Furious Fists",
+    "api_slug": "furious-fists",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11763/furious-fists-logo.png"
+  },
+  "FFI": {
+    "api_id": 84,
+    "api_name": "Furious Fists",
+    "api_slug": "furious-fists",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11763/furious-fists-logo.png"
+  },
+  "ffi": {
+    "api_id": 84,
+    "api_name": "Furious Fists",
+    "api_slug": "furious-fists",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11763/furious-fists-logo.png"
+  },
+  "xy4": {
+    "api_id": 83,
+    "api_name": "Phantom Forces",
+    "api_slug": "phantom-forces",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11638/phantom-forces-logo.png"
+  },
+  "XY4": {
+    "api_id": 83,
+    "api_name": "Phantom Forces",
+    "api_slug": "phantom-forces",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11638/phantom-forces-logo.png"
+  },
+  "PHF": {
+    "api_id": 83,
+    "api_name": "Phantom Forces",
+    "api_slug": "phantom-forces",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11638/phantom-forces-logo.png"
+  },
+  "phf": {
+    "api_id": 83,
+    "api_name": "Phantom Forces",
+    "api_slug": "phantom-forces",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11638/phantom-forces-logo.png"
+  },
+  "xy5": {
+    "api_id": 82,
+    "api_name": "Primal Clash",
+    "api_slug": "primal-clash",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11472/primal-clash-logo.png"
+  },
+  "XY5": {
+    "api_id": 82,
+    "api_name": "Primal Clash",
+    "api_slug": "primal-clash",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11472/primal-clash-logo.png"
+  },
+  "PRC": {
+    "api_id": 82,
+    "api_name": "Primal Clash",
+    "api_slug": "primal-clash",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11472/primal-clash-logo.png"
+  },
+  "prc": {
+    "api_id": 82,
+    "api_name": "Primal Clash",
+    "api_slug": "primal-clash",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11472/primal-clash-logo.png"
+  },
+  "dc1": {
+    "api_id": 81,
+    "api_name": "Double Crisis",
+    "api_slug": "double-crisis",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11436/double-crisis-logo.png"
+  },
+  "DC1": {
+    "api_id": 81,
+    "api_name": "Double Crisis",
+    "api_slug": "double-crisis",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11436/double-crisis-logo.png"
+  },
+  "DCR": {
+    "api_id": 81,
+    "api_name": "Double Crisis",
+    "api_slug": "double-crisis",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11436/double-crisis-logo.png"
+  },
+  "dcr": {
+    "api_id": 81,
+    "api_name": "Double Crisis",
+    "api_slug": "double-crisis",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11436/double-crisis-logo.png"
+  },
+  "xy6": {
+    "api_id": 80,
+    "api_name": "Roaring Skies",
+    "api_slug": "roaring-skies",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11322/roaring-skies-logo.png"
+  },
+  "XY6": {
+    "api_id": 80,
+    "api_name": "Roaring Skies",
+    "api_slug": "roaring-skies",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11322/roaring-skies-logo.png"
+  },
+  "ROS": {
+    "api_id": 80,
+    "api_name": "Roaring Skies",
+    "api_slug": "roaring-skies",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11322/roaring-skies-logo.png"
+  },
+  "ros": {
+    "api_id": 80,
+    "api_name": "Roaring Skies",
+    "api_slug": "roaring-skies",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11322/roaring-skies-logo.png"
+  },
+  "xy7": {
+    "api_id": 79,
+    "api_name": "Ancient Origins",
+    "api_slug": "ancient-origins",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11219/ancient-origins-logo.png"
+  },
+  "XY7": {
+    "api_id": 79,
+    "api_name": "Ancient Origins",
+    "api_slug": "ancient-origins",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11219/ancient-origins-logo.png"
+  },
+  "AOR": {
+    "api_id": 79,
+    "api_name": "Ancient Origins",
+    "api_slug": "ancient-origins",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11219/ancient-origins-logo.png"
+  },
+  "aor": {
+    "api_id": 79,
+    "api_name": "Ancient Origins",
+    "api_slug": "ancient-origins",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11219/ancient-origins-logo.png"
+  },
+  "xy8": {
+    "api_id": 78,
+    "api_name": "BREAKthrough",
+    "api_slug": "breakthrough",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11052/breakthrough-logo.png"
+  },
+  "XY8": {
+    "api_id": 78,
+    "api_name": "BREAKthrough",
+    "api_slug": "breakthrough",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11052/breakthrough-logo.png"
+  },
+  "BKT": {
+    "api_id": 78,
+    "api_name": "BREAKthrough",
+    "api_slug": "breakthrough",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11052/breakthrough-logo.png"
+  },
+  "bkt": {
+    "api_id": 78,
+    "api_name": "BREAKthrough",
+    "api_slug": "breakthrough",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/11052/breakthrough-logo.png"
+  },
+  "xy9": {
+    "api_id": 76,
+    "api_name": "BREAKpoint",
+    "api_slug": "breakpoint",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10923/breakpoint-logo.png"
+  },
+  "XY9": {
+    "api_id": 76,
+    "api_name": "BREAKpoint",
+    "api_slug": "breakpoint",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10923/breakpoint-logo.png"
+  },
+  "BKP": {
+    "api_id": 76,
+    "api_name": "BREAKpoint",
+    "api_slug": "breakpoint",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10923/breakpoint-logo.png"
+  },
+  "bkp": {
+    "api_id": 76,
+    "api_name": "BREAKpoint",
+    "api_slug": "breakpoint",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10923/breakpoint-logo.png"
+  },
+  "g1": {
+    "api_id": 75,
+    "api_name": "Generations",
+    "api_slug": "generations",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10803/generations-logo.png"
+  },
+  "G1": {
+    "api_id": 75,
+    "api_name": "Generations",
+    "api_slug": "generations",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10803/generations-logo.png"
+  },
+  "GEN": {
+    "api_id": 75,
+    "api_name": "Generations",
+    "api_slug": "generations",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10803/generations-logo.png"
+  },
+  "gen": {
+    "api_id": 75,
+    "api_name": "Generations",
+    "api_slug": "generations",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10803/generations-logo.png"
+  },
+  "xy10": {
+    "api_id": 74,
+    "api_name": "Fates Collide",
+    "api_slug": "fates-collide",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10672/fates-collide-logo.png"
+  },
+  "XY10": {
+    "api_id": 74,
+    "api_name": "Fates Collide",
+    "api_slug": "fates-collide",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10672/fates-collide-logo.png"
+  },
+  "FCO": {
+    "api_id": 74,
+    "api_name": "Fates Collide",
+    "api_slug": "fates-collide",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10672/fates-collide-logo.png"
+  },
+  "fco": {
+    "api_id": 74,
+    "api_name": "Fates Collide",
+    "api_slug": "fates-collide",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10672/fates-collide-logo.png"
+  },
+  "xy11": {
+    "api_id": 73,
+    "api_name": "Steam Siege",
+    "api_slug": "steam-siege",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10554/steam-siege-logo.png"
+  },
+  "XY11": {
+    "api_id": 73,
+    "api_name": "Steam Siege",
+    "api_slug": "steam-siege",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10554/steam-siege-logo.png"
+  },
+  "STS": {
+    "api_id": 73,
+    "api_name": "Steam Siege",
+    "api_slug": "steam-siege",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10554/steam-siege-logo.png"
+  },
+  "sts": {
+    "api_id": 73,
+    "api_name": "Steam Siege",
+    "api_slug": "steam-siege",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10554/steam-siege-logo.png"
+  },
+  "xy12": {
+    "api_id": 71,
+    "api_name": "Evolutions",
+    "api_slug": "evolutions",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10425/evolutions-logo.png"
+  },
+  "XY12": {
+    "api_id": 71,
+    "api_name": "Evolutions",
+    "api_slug": "evolutions",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10425/evolutions-logo.png"
+  },
+  "EVO": {
+    "api_id": 71,
+    "api_name": "Evolutions",
+    "api_slug": "evolutions",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10425/evolutions-logo.png"
+  },
+  "evo": {
+    "api_id": 71,
+    "api_name": "Evolutions",
+    "api_slug": "evolutions",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/10425/evolutions-logo.png"
+  },
+  "bw1": {
+    "api_id": 103,
+    "api_name": "Black & White",
+    "api_slug": "black-white",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13667/black-white-logo.png"
+  },
+  "BW1": {
+    "api_id": 103,
+    "api_name": "Black & White",
+    "api_slug": "black-white",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13667/black-white-logo.png"
+  },
+  "BLW": {
+    "api_id": 103,
+    "api_name": "Black & White",
+    "api_slug": "black-white",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13667/black-white-logo.png"
+  },
+  "blw": {
+    "api_id": 103,
+    "api_name": "Black & White",
+    "api_slug": "black-white",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13667/black-white-logo.png"
+  },
+  "bwp": {
+    "api_id": 104,
+    "api_name": "BW Black Star Promos",
+    "api_slug": "bw-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13785/bw-black-star-promos-logo.png"
+  },
+  "BWP": {
+    "api_id": 104,
+    "api_name": "BW Black Star Promos",
+    "api_slug": "bw-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13785/bw-black-star-promos-logo.png"
+  },
+  "PR-BLW": {
+    "api_id": 104,
+    "api_name": "BW Black Star Promos",
+    "api_slug": "bw-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13785/bw-black-star-promos-logo.png"
+  },
+  "pr-blw": {
+    "api_id": 104,
+    "api_name": "BW Black Star Promos",
+    "api_slug": "bw-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13785/bw-black-star-promos-logo.png"
+  },
+  "bw2": {
+    "api_id": 101,
+    "api_name": "Emerging Powers",
+    "api_slug": "emerging-powers",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13554/emerging-powers-logo.png"
+  },
+  "BW2": {
+    "api_id": 101,
+    "api_name": "Emerging Powers",
+    "api_slug": "emerging-powers",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13554/emerging-powers-logo.png"
+  },
+  "EPO": {
+    "api_id": 101,
+    "api_name": "Emerging Powers",
+    "api_slug": "emerging-powers",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13554/emerging-powers-logo.png"
+  },
+  "epo": {
+    "api_id": 101,
+    "api_name": "Emerging Powers",
+    "api_slug": "emerging-powers",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13554/emerging-powers-logo.png"
+  },
+  "bw3": {
+    "api_id": 100,
+    "api_name": "Noble Victories",
+    "api_slug": "noble-victories",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13450/noble-victories-logo.png"
+  },
+  "BW3": {
+    "api_id": 100,
+    "api_name": "Noble Victories",
+    "api_slug": "noble-victories",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13450/noble-victories-logo.png"
+  },
+  "NVI": {
+    "api_id": 100,
+    "api_name": "Noble Victories",
+    "api_slug": "noble-victories",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13450/noble-victories-logo.png"
+  },
+  "nvi": {
+    "api_id": 100,
+    "api_name": "Noble Victories",
+    "api_slug": "noble-victories",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13450/noble-victories-logo.png"
+  },
+  "bw4": {
+    "api_id": 99,
+    "api_name": "Next Destinies",
+    "api_slug": "next-destinies",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13345/next-destinies-logo.png"
+  },
+  "BW4": {
+    "api_id": 99,
+    "api_name": "Next Destinies",
+    "api_slug": "next-destinies",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13345/next-destinies-logo.png"
+  },
+  "NXD": {
+    "api_id": 99,
+    "api_name": "Next Destinies",
+    "api_slug": "next-destinies",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13345/next-destinies-logo.png"
+  },
+  "nxd": {
+    "api_id": 99,
+    "api_name": "Next Destinies",
+    "api_slug": "next-destinies",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13345/next-destinies-logo.png"
+  },
+  "bw5": {
+    "api_id": 98,
+    "api_name": "Dark Explorers",
+    "api_slug": "dark-explorers",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13233/dark-explorers-logo.png"
+  },
+  "BW5": {
+    "api_id": 98,
+    "api_name": "Dark Explorers",
+    "api_slug": "dark-explorers",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13233/dark-explorers-logo.png"
+  },
+  "DEX": {
+    "api_id": 98,
+    "api_name": "Dark Explorers",
+    "api_slug": "dark-explorers",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13233/dark-explorers-logo.png"
+  },
+  "dex": {
+    "api_id": 98,
+    "api_name": "Dark Explorers",
+    "api_slug": "dark-explorers",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13233/dark-explorers-logo.png"
+  },
+  "bw6": {
+    "api_id": 96,
+    "api_name": "Dragons Exalted",
+    "api_slug": "dragons-exalted",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13089/dragons-exalted-logo.png"
+  },
+  "BW6": {
+    "api_id": 96,
+    "api_name": "Dragons Exalted",
+    "api_slug": "dragons-exalted",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13089/dragons-exalted-logo.png"
+  },
+  "DRX": {
+    "api_id": 96,
+    "api_name": "Dragons Exalted",
+    "api_slug": "dragons-exalted",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13089/dragons-exalted-logo.png"
+  },
+  "drx": {
+    "api_id": 96,
+    "api_name": "Dragons Exalted",
+    "api_slug": "dragons-exalted",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13089/dragons-exalted-logo.png"
+  },
+  "dv1": {
+    "api_id": 95,
+    "api_name": "Dragon Vault",
+    "api_slug": "dragon-vault",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13066/dragon-vault-logo.png"
+  },
+  "DV1": {
+    "api_id": 95,
+    "api_name": "Dragon Vault",
+    "api_slug": "dragon-vault",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13066/dragon-vault-logo.png"
+  },
+  "DRV": {
+    "api_id": 95,
+    "api_name": "Dragon Vault",
+    "api_slug": "dragon-vault",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13066/dragon-vault-logo.png"
+  },
+  "drv": {
+    "api_id": 95,
+    "api_name": "Dragon Vault",
+    "api_slug": "dragon-vault",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13066/dragon-vault-logo.png"
+  },
+  "bw7": {
+    "api_id": 94,
+    "api_name": "Boundaries Crossed",
+    "api_slug": "boundaries-crossed",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12912/boundaries-crossed-logo.png"
+  },
+  "BW7": {
+    "api_id": 94,
+    "api_name": "Boundaries Crossed",
+    "api_slug": "boundaries-crossed",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12912/boundaries-crossed-logo.png"
+  },
+  "BCR": {
+    "api_id": 94,
+    "api_name": "Boundaries Crossed",
+    "api_slug": "boundaries-crossed",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12912/boundaries-crossed-logo.png"
+  },
+  "bcr": {
+    "api_id": 94,
+    "api_name": "Boundaries Crossed",
+    "api_slug": "boundaries-crossed",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12912/boundaries-crossed-logo.png"
+  },
+  "bw8": {
+    "api_id": 93,
+    "api_name": "Plasma Storm",
+    "api_slug": "plasma-storm",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12771/plasma-storm-logo.png"
+  },
+  "BW8": {
+    "api_id": 93,
+    "api_name": "Plasma Storm",
+    "api_slug": "plasma-storm",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12771/plasma-storm-logo.png"
+  },
+  "PLS": {
+    "api_id": 93,
+    "api_name": "Plasma Storm",
+    "api_slug": "plasma-storm",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12771/plasma-storm-logo.png"
+  },
+  "pls": {
+    "api_id": 93,
+    "api_name": "Plasma Storm",
+    "api_slug": "plasma-storm",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12771/plasma-storm-logo.png"
+  },
+  "bw9": {
+    "api_id": 92,
+    "api_name": "Plasma Freeze",
+    "api_slug": "plasma-freeze",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12647/plasma-freeze-logo.png"
+  },
+  "BW9": {
+    "api_id": 92,
+    "api_name": "Plasma Freeze",
+    "api_slug": "plasma-freeze",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12647/plasma-freeze-logo.png"
+  },
+  "PLF": {
+    "api_id": 92,
+    "api_name": "Plasma Freeze",
+    "api_slug": "plasma-freeze",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12647/plasma-freeze-logo.png"
+  },
+  "plf": {
+    "api_id": 92,
+    "api_name": "Plasma Freeze",
+    "api_slug": "plasma-freeze",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12647/plasma-freeze-logo.png"
+  },
+  "bw10": {
+    "api_id": 91,
+    "api_name": "Plasma Blast",
+    "api_slug": "plasma-blast",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12540/plasma-blast-logo.png"
+  },
+  "BW10": {
+    "api_id": 91,
+    "api_name": "Plasma Blast",
+    "api_slug": "plasma-blast",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12540/plasma-blast-logo.png"
+  },
+  "PLB": {
+    "api_id": 91,
+    "api_name": "Plasma Blast",
+    "api_slug": "plasma-blast",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12540/plasma-blast-logo.png"
+  },
+  "plb": {
+    "api_id": 91,
+    "api_name": "Plasma Blast",
+    "api_slug": "plasma-blast",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12540/plasma-blast-logo.png"
+  },
+  "bw11": {
+    "api_id": 89,
+    "api_name": "Legendary Treasures",
+    "api_slug": "legendary-treasures",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12396/legendary-treasures-logo.png"
+  },
+  "BW11": {
+    "api_id": 89,
+    "api_name": "Legendary Treasures",
+    "api_slug": "legendary-treasures",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12396/legendary-treasures-logo.png"
+  },
+  "LTR": {
+    "api_id": 89,
+    "api_name": "Legendary Treasures",
+    "api_slug": "legendary-treasures",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12396/legendary-treasures-logo.png"
+  },
+  "ltr": {
+    "api_id": 89,
+    "api_name": "Legendary Treasures",
+    "api_slug": "legendary-treasures",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/12396/legendary-treasures-logo.png"
+  },
+  "hgssp": {
+    "api_id": 110,
+    "api_name": "HGSS Black Star Promos",
+    "api_slug": "hgss-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/14415/hgss-black-star-promos-logo.png"
+  },
+  "HGSSP": {
+    "api_id": 110,
+    "api_name": "HGSS Black Star Promos",
+    "api_slug": "hgss-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/14415/hgss-black-star-promos-logo.png"
+  },
+  "PR-HS": {
+    "api_id": 110,
+    "api_name": "HGSS Black Star Promos",
+    "api_slug": "hgss-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/14415/hgss-black-star-promos-logo.png"
+  },
+  "pr-hs": {
+    "api_id": 110,
+    "api_name": "HGSS Black Star Promos",
+    "api_slug": "hgss-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/14415/hgss-black-star-promos-logo.png"
+  },
+  "dpp": {
+    "api_id": 127,
+    "api_name": "DP Black Star Promos",
+    "api_slug": "dp-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/15917/dp-black-star-promos-logo.png"
+  },
+  "DPP": {
+    "api_id": 127,
+    "api_name": "DP Black Star Promos",
+    "api_slug": "dp-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/15917/dp-black-star-promos-logo.png"
+  },
+  "PR-DPP": {
+    "api_id": 127,
+    "api_name": "DP Black Star Promos",
+    "api_slug": "dp-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/15917/dp-black-star-promos-logo.png"
+  },
+  "pr-dpp": {
+    "api_id": 127,
+    "api_name": "DP Black Star Promos",
+    "api_slug": "dp-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/15917/dp-black-star-promos-logo.png"
+  },
+  "np": {
+    "api_id": 151,
+    "api_name": "Nintendo Black Star Promos",
+    "api_slug": "nintendo-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/17659/nintendo-black-star-promos-logo.png"
+  },
+  "NP": {
+    "api_id": 151,
+    "api_name": "Nintendo Black Star Promos",
+    "api_slug": "nintendo-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/17659/nintendo-black-star-promos-logo.png"
+  },
+  "PR-NP": {
+    "api_id": 151,
+    "api_name": "Nintendo Black Star Promos",
+    "api_slug": "nintendo-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/17659/nintendo-black-star-promos-logo.png"
+  },
+  "pr-np": {
+    "api_id": 151,
+    "api_name": "Nintendo Black Star Promos",
+    "api_slug": "nintendo-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/17659/nintendo-black-star-promos-logo.png"
+  },
+  "ex7": {
+    "api_id": 143,
+    "api_name": "Team Rocket Returns",
+    "api_slug": "team-rocket-returns",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/17080/team-rocket-returns-logo.png"
+  },
+  "EX7": {
+    "api_id": 143,
+    "api_name": "Team Rocket Returns",
+    "api_slug": "team-rocket-returns",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/17080/team-rocket-returns-logo.png"
+  },
+  "TRR": {
+    "api_id": 143,
+    "api_name": "Team Rocket Returns",
+    "api_slug": "team-rocket-returns",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/17080/team-rocket-returns-logo.png"
+  },
+  "trr": {
+    "api_id": 143,
+    "api_name": "Team Rocket Returns",
+    "api_slug": "team-rocket-returns",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/17080/team-rocket-returns-logo.png"
+  },
+  "lc": {
+    "api_id": 158,
+    "api_name": "Legendary Collection",
+    "api_slug": "legendary-collection",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/18459/legendary-collection-logo.png"
+  },
+  "LC": {
+    "api_id": 158,
+    "api_name": "Legendary Collection",
+    "api_slug": "legendary-collection",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/18459/legendary-collection-logo.png"
+  },
+  "AR": {
+    "api_id": 112,
+    "api_name": "Arceus",
+    "api_slug": "arceus",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/14459/arceus-logo.png"
+  },
+  "ar": {
+    "api_id": 112,
+    "api_name": "Arceus",
+    "api_slug": "arceus",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/14459/arceus-logo.png"
+  },
+  "CG": {
+    "api_id": 131,
+    "api_name": "Crystal Guardians",
+    "api_slug": "crystal-guardians",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/16204/crystal-guardians-logo.png"
+  },
+  "cg": {
+    "api_id": 131,
+    "api_name": "Crystal Guardians",
+    "api_slug": "crystal-guardians",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/16204/crystal-guardians-logo.png"
+  },
+  "DF": {
+    "api_id": 130,
+    "api_name": "Dragon Frontiers",
+    "api_slug": "dragon-frontiers",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/16102/dragon-frontiers-logo.png"
+  },
+  "df": {
+    "api_id": 130,
+    "api_name": "Dragon Frontiers",
+    "api_slug": "dragon-frontiers",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/16102/dragon-frontiers-logo.png"
+  },
+  "DR": {
+    "api_id": 60,
+    "api_name": "Dragon Majesty",
+    "api_slug": "dragon-majesty",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8822/dragon-majesty-logo.png"
+  },
+  "dr": {
+    "api_id": 60,
+    "api_name": "Dragon Majesty",
+    "api_slug": "dragon-majesty",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/8822/dragon-majesty-logo.png"
+  },
+  "DS": {
+    "api_id": 138,
+    "api_name": "Delta Species",
+    "api_slug": "delta-species",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/16580/delta-species-logo.png"
+  },
+  "ds": {
+    "api_id": 138,
+    "api_name": "Delta Species",
+    "api_slug": "delta-species",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/16580/delta-species-logo.png"
+  },
+  "EX": {
+    "api_id": 157,
+    "api_name": "Expedition Base Set",
+    "api_slug": "expedition-base-set",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/18293/expedition-base-set-logo.png"
+  },
+  "ex": {
+    "api_id": 157,
+    "api_name": "Expedition Base Set",
+    "api_slug": "expedition-base-set",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/18293/expedition-base-set-logo.png"
+  },
+  "FO": {
+    "api_id": 168,
+    "api_name": "Fossil",
+    "api_slug": "fossil",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/19449/fossil-logo.png"
+  },
+  "fo": {
+    "api_id": 168,
+    "api_name": "Fossil",
+    "api_slug": "fossil",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/19449/fossil-logo.png"
+  },
+  "FUT20": {
+    "api_id": 45,
+    "api_name": "Pok\u00e9mon Futsal Collection",
+    "api_slug": "pokemon-futsal-collection",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6458/pokemon-futsal-collection-logo.png"
+  },
+  "fut20": {
+    "api_id": 45,
+    "api_name": "Pok\u00e9mon Futsal Collection",
+    "api_slug": "pokemon-futsal-collection",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/6458/pokemon-futsal-collection-logo.png"
+  },
+  "G2": {
+    "api_id": 164,
+    "api_name": "Gym Challenge",
+    "api_slug": "gym-challenge",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/18964/gym-challenge-logo.png"
+  },
+  "g2": {
+    "api_id": 164,
+    "api_name": "Gym Challenge",
+    "api_slug": "gym-challenge",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/18964/gym-challenge-logo.png"
+  },
+  "LA": {
+    "api_id": 119,
+    "api_name": "Legends Awakened",
+    "api_slug": "legends-awakened",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/15130/legends-awakened-logo.png"
+  },
+  "la": {
+    "api_id": 119,
+    "api_name": "Legends Awakened",
+    "api_slug": "legends-awakened",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/15130/legends-awakened-logo.png"
+  },
+  "N4": {
+    "api_id": 159,
+    "api_name": "Neo Destiny",
+    "api_slug": "neo-destiny",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/18573/neo-destiny-logo.png"
+  },
+  "n4": {
+    "api_id": 159,
+    "api_name": "Neo Destiny",
+    "api_slug": "neo-destiny",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/18573/neo-destiny-logo.png"
+  },
+  "PK": {
+    "api_id": 129,
+    "api_name": "Power Keepers",
+    "api_slug": "power-keepers",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/15993/power-keepers-logo.png"
+  },
+  "pk": {
+    "api_id": 129,
+    "api_name": "Power Keepers",
+    "api_slug": "power-keepers",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/15993/power-keepers-logo.png"
+  },
+  "PR": {
+    "api_id": 23,
+    "api_name": "SV Black Star Promos",
+    "api_slug": "sv-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/3875/scarlet-violet-black-star-promos-logo.png"
+  },
+  "pr": {
+    "api_id": 23,
+    "api_name": "SV Black Star Promos",
+    "api_slug": "sv-black-star-promos",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/3875/scarlet-violet-black-star-promos-logo.png"
+  },
+  "RG": {
+    "api_id": 144,
+    "api_name": "FireRed & LeafGreen",
+    "api_slug": "firered-leafgreen",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/17193/firered-leafgreen-logo.png"
+  },
+  "rg": {
+    "api_id": 144,
+    "api_name": "FireRed & LeafGreen",
+    "api_slug": "firered-leafgreen",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/17193/firered-leafgreen-logo.png"
+  },
+  "SF": {
+    "api_id": 117,
+    "api_name": "Stormfront",
+    "api_slug": "stormfront",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/15003/stormfront-logo.png"
+  },
+  "sf": {
+    "api_id": 117,
+    "api_name": "Stormfront",
+    "api_slug": "stormfront",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/15003/stormfront-logo.png"
+  },
+  "SK": {
+    "api_id": 154,
+    "api_name": "Skyridge",
+    "api_slug": "skyridge",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/17914/skyridge-logo.png"
+  },
+  "sk": {
+    "api_id": 154,
+    "api_name": "Skyridge",
+    "api_slug": "skyridge",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/17914/skyridge-logo.png"
+  },
+  "SV": {
+    "api_id": 113,
+    "api_name": "Supreme Victors",
+    "api_slug": "supreme-victors",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/14572/supreme-victors-logo.png"
+  },
+  "sv": {
+    "api_id": 113,
+    "api_name": "Supreme Victors",
+    "api_slug": "supreme-victors",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/14572/supreme-victors-logo.png"
+  },
+  "SW": {
+    "api_id": 123,
+    "api_name": "Secret Wonders",
+    "api_slug": "secret-wonders",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/15506/secret-wonders-logo.png"
+  },
+  "sw": {
+    "api_id": 123,
+    "api_name": "Secret Wonders",
+    "api_slug": "secret-wonders",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/15506/secret-wonders-logo.png"
+  },
+  "TM": {
+    "api_id": 106,
+    "api_name": "HS\u2014Triumphant",
+    "api_slug": "hs-triumphant",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13995/hs-triumphant-logo.png"
+  },
+  "tm": {
+    "api_id": 106,
+    "api_name": "HS\u2014Triumphant",
+    "api_slug": "hs-triumphant",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/13995/hs-triumphant-logo.png"
+  },
+  "TR": {
+    "api_id": 143,
+    "api_name": "Team Rocket Returns",
+    "api_slug": "team-rocket-returns",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/17080/team-rocket-returns-logo.png"
+  },
+  "tr": {
+    "api_id": 143,
+    "api_name": "Team Rocket Returns",
+    "api_slug": "team-rocket-returns",
+    "logo_url": "https://images.tcggo.com/tcggo/storage/17080/team-rocket-returns-logo.png"
+  }
+}

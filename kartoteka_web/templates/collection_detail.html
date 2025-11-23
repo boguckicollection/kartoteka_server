@@ -1,0 +1,739 @@
+{% extends "base.html" %}
+
+{% block title %}Kolekcja - Kartoteka Web{% endblock %}
+
+{% block content %}
+<div class="collection-detail-page">
+  <div class="page-header collection-header">
+    <a href="/my-collections" class="back-link">&larr; Wróć do kolekcji</a>
+    <div class="collection-title-section">
+      <h1 id="collection-title">Ładowanie...</h1>
+      <span class="collection-type-badge" id="collection-badge"></span>
+    </div>
+    <div class="collection-actions">
+      <button type="button" class="button primary" id="add-card-btn" title="Dodaj kartę" hidden>
+        + Dodaj kartę
+      </button>
+      <a href="/my-collections/{{ collection_id }}/print" class="button secondary" title="Drukuj szablon">
+        Drukuj
+      </a>
+      <button type="button" class="button inline danger" id="delete-collection-btn" title="Usuń kolekcję">
+        Usuń
+      </button>
+    </div>
+  </div>
+  
+  <div class="collection-stats-bar">
+    <div class="stat">
+      <span class="stat-value" id="stat-owned">0</span>
+      <span class="stat-label">Posiadane</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value" id="stat-missing">0</span>
+      <span class="stat-label">Brakujące</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value" id="stat-total">0</span>
+      <span class="stat-label">Wszystkie</span>
+    </div>
+    <div class="stat progress-stat">
+      <div class="progress-bar large">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <span class="stat-value" id="stat-percent">0%</span>
+    </div>
+  </div>
+  
+  <!-- Value Statistics Panel -->
+  <div class="collection-value-panel" id="value-panel">
+    <div class="value-panel-header">
+      <h3>Statystyki wartości</h3>
+      <button type="button" class="button secondary inline" id="refresh-values-btn" title="Odśwież wartości">
+        Odśwież
+      </button>
+    </div>
+    <div class="value-stats-grid">
+      <div class="value-stat owned">
+        <span class="value-stat-icon">&#10003;</span>
+        <div class="value-stat-content">
+          <span class="value-stat-label">Posiadane</span>
+          <span class="value-stat-value" id="value-owned">0,00 zł</span>
+        </div>
+      </div>
+      <div class="value-stat missing">
+        <span class="value-stat-icon">&#10007;</span>
+        <div class="value-stat-content">
+          <span class="value-stat-label">Brakujące</span>
+          <span class="value-stat-value" id="value-missing">0,00 zł</span>
+        </div>
+      </div>
+      <div class="value-stat total">
+        <span class="value-stat-icon">&#8721;</span>
+        <div class="value-stat-content">
+          <span class="value-stat-label">Cały set</span>
+          <span class="value-stat-value" id="value-total">0,00 zł</span>
+        </div>
+      </div>
+      <div class="value-stat avg">
+        <span class="value-stat-icon">&#248;</span>
+        <div class="value-stat-content">
+          <span class="value-stat-label">Śr. cena karty</span>
+          <span class="value-stat-value" id="value-avg">0,00 zł</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Top Cards Section -->
+    <div class="top-cards-section" id="top-cards-section">
+      <div class="top-card-item" id="most-expensive-owned">
+        <h4>Najdroższa posiadana</h4>
+        <div class="top-card-content">
+          <span class="top-card-placeholder">-</span>
+        </div>
+      </div>
+      <div class="top-card-item" id="most-expensive-missing">
+        <h4>Najdroższa brakująca</h4>
+        <div class="top-card-content">
+          <span class="top-card-placeholder">-</span>
+        </div>
+      </div>
+      <div class="top-card-item" id="cheapest-missing">
+        <h4>Najtańsza brakująca</h4>
+        <div class="top-card-content">
+          <span class="top-card-placeholder">-</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="value-note" id="value-note">
+      <small>Ceny: <span id="cards-with-price">0</span> kart z ceną, <span id="cards-without-price">0</span> bez ceny</small>
+    </div>
+  </div>
+  
+  <div class="collection-filters">
+    <div class="filter-group">
+      <label for="filter-select">Pokaż:</label>
+      <select id="filter-select">
+        <option value="all">Wszystkie karty</option>
+        <option value="owned">Tylko posiadane</option>
+        <option value="missing">Tylko brakujące</option>
+      </select>
+    </div>
+    <div class="view-toggle">
+      <button type="button" class="view-btn active" data-view="grid" title="Widok siatki">&#9638;</button>
+      <button type="button" class="view-btn" data-view="list" title="Widok listy">&#9776;</button>
+    </div>
+  </div>
+  
+  <div class="cards-container">
+    <div class="cards-grid" id="cards-grid">
+      <!-- Cards will be loaded here via JavaScript -->
+    </div>
+    
+    <div class="loading-state" id="loading-state">
+      <div class="spinner"></div>
+      <p>Ładowanie kart...</p>
+    </div>
+    
+    <div class="empty-state" id="empty-state" hidden>
+      <p>Brak kart do wyświetlenia.</p>
+    </div>
+  </div>
+  
+  <div class="pagination" id="pagination" hidden>
+    <button type="button" class="button secondary" id="prev-page">&larr; Poprzednia</button>
+    <span class="page-info" id="page-info">Strona 1</span>
+    <button type="button" class="button secondary" id="next-page">Następna &rarr;</button>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal-overlay" id="delete-modal" hidden>
+  <div class="modal modal-small">
+    <div class="modal-header">
+      <h2>Usuń kolekcję</h2>
+      <button type="button" class="modal-close" data-close-modal>&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>Czy na pewno chcesz usunąć tę kolekcję? Ta operacja jest nieodwracalna.</p>
+      <div class="form-actions">
+        <button type="button" class="button secondary" data-close-modal>Anuluj</button>
+        <button type="button" class="button primary" id="confirm-delete" style="background: var(--color-danger); border-color: var(--color-danger);">Usuń kolekcję</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Card Modal (for custom collections) -->
+<div class="modal-overlay" id="add-card-modal" hidden>
+  <div class="modal modal-large">
+    <div class="modal-header">
+      <h2>Dodaj kartę do kolekcji</h2>
+      <button type="button" class="modal-close" data-close-modal>&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="search-card-form">
+        <div class="search-input-group">
+          <input type="text" id="card-search-input" placeholder="Szukaj karty po nazwie..." />
+          <label class="checkbox-label">
+            <input type="checkbox" id="only-owned-checkbox" />
+            <span>Tylko z mojej kolekcji</span>
+          </label>
+        </div>
+      </div>
+      
+      <div class="search-results-container">
+        <div class="search-results-grid" id="search-results-grid">
+          <!-- Search results will be loaded here -->
+        </div>
+        <div class="search-loading" id="search-loading" hidden>
+          <div class="spinner"></div>
+        </div>
+        <div class="search-empty" id="search-empty" hidden>
+          <p>Brak wyników. Wpisz nazwę karty lub zaznacz "Tylko z mojej kolekcji".</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts_extra %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const collectionId = {{ collection_id }};
+  const cardsGrid = document.getElementById('cards-grid');
+  const loadingState = document.getElementById('loading-state');
+  const emptyState = document.getElementById('empty-state');
+  const pagination = document.getElementById('pagination');
+  const filterSelect = document.getElementById('filter-select');
+  const deleteModal = document.getElementById('delete-modal');
+  
+  let currentPage = 1;
+  let currentFilter = 'all';
+  let collectionData = null;
+  let progressData = null;
+  const perPage = 50;
+  
+  // Format price in PLN
+  function formatPrice(value) {
+    if (value === null || value === undefined) return '-';
+    return value.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' zł';
+  }
+  
+  // Load progress/value statistics
+  async function loadProgress() {
+    try {
+      const response = await fetch(`/collections/${collectionId}/progress`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+        }
+      });
+      
+      if (!response.ok) return;
+      
+      progressData = await response.json();
+      updateValueStats();
+    } catch (error) {
+      console.error('Error loading progress:', error);
+    }
+  }
+  
+  function updateValueStats() {
+    if (!progressData) return;
+    
+    document.getElementById('value-owned').textContent = formatPrice(progressData.owned_value);
+    document.getElementById('value-missing').textContent = formatPrice(progressData.missing_value);
+    document.getElementById('value-total').textContent = formatPrice(progressData.total_value);
+    document.getElementById('value-avg').textContent = formatPrice(progressData.avg_card_price);
+    document.getElementById('cards-with-price').textContent = progressData.cards_with_price;
+    document.getElementById('cards-without-price').textContent = progressData.cards_without_price;
+    
+    // Update top cards
+    updateTopCard('most-expensive-owned', progressData.most_expensive_owned);
+    updateTopCard('most-expensive-missing', progressData.most_expensive_missing);
+    updateTopCard('cheapest-missing', progressData.cheapest_missing);
+  }
+  
+  function updateTopCard(elementId, cardData) {
+    const container = document.getElementById(elementId);
+    const content = container.querySelector('.top-card-content');
+    
+    if (!cardData) {
+      content.innerHTML = '<span class="top-card-placeholder">-</span>';
+      return;
+    }
+    
+    content.innerHTML = `
+      <div class="top-card-mini">
+        ${cardData.image_small 
+          ? `<img src="${cardData.image_small}" alt="${cardData.name}" />`
+          : `<div class="top-card-placeholder-img">#${cardData.number}</div>`
+        }
+        <div class="top-card-info">
+          <span class="top-card-name">${cardData.name}</span>
+          <span class="top-card-number">#${cardData.number}</span>
+          <span class="top-card-price">${formatPrice(cardData.price)}</span>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Load collection data
+  async function loadCollection() {
+    loadingState.hidden = false;
+    emptyState.hidden = true;
+    cardsGrid.innerHTML = '';
+    
+    try {
+      const url = `/collections/${collectionId}?page=${currentPage}&per_page=${perPage}&filter=${currentFilter}`;
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          window.location.href = '/my-collections';
+          return;
+        }
+        throw new Error('Failed to load collection');
+      }
+      
+      collectionData = await response.json();
+      loadingState.hidden = true;
+      
+      updateHeader();
+      renderCards();
+      updatePagination();
+    } catch (error) {
+      console.error('Error loading collection:', error);
+      loadingState.hidden = true;
+      emptyState.hidden = false;
+      emptyState.querySelector('p').textContent = 'Błąd ładowania kolekcji.';
+    }
+  }
+  
+  function updateHeader() {
+    document.getElementById('collection-title').textContent = collectionData.name;
+    
+    const badge = document.getElementById('collection-badge');
+    const typeLabels = {
+      'custom': 'Własna',
+      'set': collectionData.set_type === 'masterset' ? 'Masterset' : 'Baseset',
+      'artist': 'Artysta'
+    };
+    badge.textContent = typeLabels[collectionData.collection_type] || 'Kolekcja';
+    
+    // Update subtitle in title
+    if (collectionData.set_name || collectionData.artist_name) {
+      const subtitle = document.createElement('span');
+      subtitle.className = 'collection-subtitle';
+      subtitle.textContent = collectionData.set_name || collectionData.artist_name;
+      document.querySelector('.collection-title-section').appendChild(subtitle);
+    }
+    
+    // Update stats
+    document.getElementById('stat-owned').textContent = collectionData.owned_cards;
+    document.getElementById('stat-missing').textContent = collectionData.total_cards - collectionData.owned_cards;
+    document.getElementById('stat-total').textContent = collectionData.total_cards;
+    document.getElementById('stat-percent').textContent = collectionData.progress_percent.toFixed(1) + '%';
+    document.getElementById('progress-fill').style.width = collectionData.progress_percent + '%';
+  }
+  
+  function renderCards() {
+    cardsGrid.innerHTML = '';
+    
+    if (!collectionData.cards || collectionData.cards.length === 0) {
+      emptyState.hidden = false;
+      return;
+    }
+    
+    emptyState.hidden = true;
+    
+    collectionData.cards.forEach(card => {
+      const cardEl = document.createElement('div');
+      cardEl.className = `card-thumbnail ${card.is_owned ? 'owned' : 'missing'}`;
+      cardEl.dataset.cardId = card.id;
+      
+      // Format price
+      const priceText = card.price ? `${card.price.toFixed(2)} PLN` : '';
+      
+      // Rarity display
+      const rarityText = card.rarity || '';
+      const rarityClass = rarityText ? `rarity-${rarityText.toLowerCase().replace(/\s+/g, '-')}` : '';
+      
+      cardEl.innerHTML = `
+        <div class="card-image-wrapper">
+          ${card.image_small 
+            ? `<img src="${card.image_small}" alt="${card.name}" loading="lazy" />`
+            : `<div class="card-placeholder">${card.number}</div>`
+          }
+          <div class="ownership-badge ${card.is_owned ? 'checked' : ''}">
+            ${card.is_owned ? '&#10003;' : ''}
+          </div>
+          ${card.quantity > 1 ? `<span class="quantity-badge">x${card.quantity}</span>` : ''}
+          
+          <!-- Card info overlay -->
+          <div class="card-overlay">
+            <div class="card-overlay-content">
+              <span class="card-overlay-name">${card.name}</span>
+              <span class="card-overlay-number">#${card.number_display || card.number}</span>
+              ${rarityText ? `<span class="card-overlay-rarity ${rarityClass}">${rarityText}</span>` : ''}
+              ${priceText ? `<span class="card-overlay-price">${priceText}</span>` : ''}
+              ${card.set_name ? `<span class="card-overlay-set">${card.set_name}</span>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+      
+      cardEl.addEventListener('click', () => toggleCard(card));
+      
+      cardsGrid.appendChild(cardEl);
+    });
+  }
+  
+  async function toggleCard(card) {
+    try {
+      const response = await fetch(`/collections/${collectionId}/cards/${card.id}/toggle`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to toggle card');
+      
+      const updatedCard = await response.json();
+      
+      // Update local data
+      const index = collectionData.cards.findIndex(c => c.id === card.id);
+      if (index !== -1) {
+        collectionData.cards[index] = updatedCard;
+      }
+      
+      // Update owned count
+      if (updatedCard.is_owned && !card.is_owned) {
+        collectionData.owned_cards++;
+      } else if (!updatedCard.is_owned && card.is_owned) {
+        collectionData.owned_cards--;
+      }
+      
+      collectionData.progress_percent = (collectionData.owned_cards / collectionData.total_cards) * 100;
+      
+      // Update UI
+      const cardEl = cardsGrid.querySelector(`[data-card-id="${card.id}"]`);
+      if (cardEl) {
+        cardEl.className = `card-thumbnail ${updatedCard.is_owned ? 'owned' : 'missing'}`;
+        const badge = cardEl.querySelector('.ownership-badge');
+        badge.className = `ownership-badge ${updatedCard.is_owned ? 'checked' : ''}`;
+        badge.innerHTML = updatedCard.is_owned ? '&#10003;' : '';
+      }
+      
+      // Update stats
+      document.getElementById('stat-owned').textContent = collectionData.owned_cards;
+      document.getElementById('stat-missing').textContent = collectionData.total_cards - collectionData.owned_cards;
+      document.getElementById('stat-percent').textContent = collectionData.progress_percent.toFixed(1) + '%';
+      document.getElementById('progress-fill').style.width = collectionData.progress_percent + '%';
+      
+    } catch (error) {
+      console.error('Error toggling card:', error);
+    }
+  }
+  
+  function updatePagination() {
+    const totalPages = Math.ceil(collectionData.total_cards / perPage);
+    
+    if (totalPages <= 1) {
+      pagination.hidden = true;
+      return;
+    }
+    
+    pagination.hidden = false;
+    document.getElementById('page-info').textContent = `Strona ${currentPage} z ${totalPages}`;
+    document.getElementById('prev-page').disabled = currentPage <= 1;
+    document.getElementById('next-page').disabled = currentPage >= totalPages;
+  }
+  
+  // Event listeners
+  filterSelect.addEventListener('change', function() {
+    currentFilter = this.value;
+    currentPage = 1;
+    loadCollection();
+  });
+  
+  document.getElementById('prev-page').addEventListener('click', function() {
+    if (currentPage > 1) {
+      currentPage--;
+      loadCollection();
+    }
+  });
+  
+  document.getElementById('next-page').addEventListener('click', function() {
+    currentPage++;
+    loadCollection();
+  });
+  
+  // View toggle
+  document.querySelectorAll('.view-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      
+      const view = this.dataset.view;
+      cardsGrid.className = view === 'list' ? 'cards-list' : 'cards-grid';
+    });
+  });
+  
+  // Delete collection
+  document.getElementById('delete-collection-btn').addEventListener('click', function() {
+    deleteModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+  });
+  
+  deleteModal.querySelectorAll('[data-close-modal]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      deleteModal.hidden = true;
+      document.body.style.overflow = '';
+    });
+  });
+  
+  deleteModal.addEventListener('click', function(e) {
+    if (e.target === deleteModal) {
+      deleteModal.hidden = true;
+      document.body.style.overflow = '';
+    }
+  });
+  
+  document.getElementById('confirm-delete').addEventListener('click', async function() {
+    try {
+      const response = await fetch(`/collections/${collectionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to delete collection');
+      
+      window.location.href = '/my-collections';
+    } catch (error) {
+      console.error('Error deleting collection:', error);
+      alert('Błąd podczas usuwania kolekcji');
+    }
+  });
+  
+  // Refresh values button
+  document.getElementById('refresh-values-btn').addEventListener('click', function() {
+    this.disabled = true;
+    this.textContent = 'Ładowanie...';
+    loadProgress().finally(() => {
+      this.disabled = false;
+      this.textContent = 'Odśwież';
+    });
+  });
+  
+  // Add card modal (for custom collections)
+  const addCardBtn = document.getElementById('add-card-btn');
+  const addCardModal = document.getElementById('add-card-modal');
+  const cardSearchInput = document.getElementById('card-search-input');
+  const onlyOwnedCheckbox = document.getElementById('only-owned-checkbox');
+  const searchResultsGrid = document.getElementById('search-results-grid');
+  const searchLoading = document.getElementById('search-loading');
+  const searchEmpty = document.getElementById('search-empty');
+  
+  let searchTimeout = null;
+  
+  function showAddCardButton() {
+    // Show button only for custom collections
+    if (collectionData && collectionData.collection_type === 'custom') {
+      addCardBtn.hidden = false;
+    }
+  }
+  
+  function openAddCardModal() {
+    addCardModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    cardSearchInput.focus();
+    // Load initial results (user's cards if checkbox checked)
+    searchCards();
+  }
+  
+  function closeAddCardModal() {
+    addCardModal.hidden = true;
+    document.body.style.overflow = '';
+    cardSearchInput.value = '';
+    searchResultsGrid.innerHTML = '';
+  }
+  
+  async function searchCards() {
+    const query = cardSearchInput.value.trim();
+    const onlyOwned = onlyOwnedCheckbox.checked;
+    
+    // Require at least 2 chars or onlyOwned checked
+    if (query.length < 2 && !onlyOwned) {
+      searchResultsGrid.innerHTML = '';
+      searchEmpty.hidden = false;
+      return;
+    }
+    
+    searchLoading.hidden = false;
+    searchEmpty.hidden = true;
+    searchResultsGrid.innerHTML = '';
+    
+    try {
+      const params = new URLSearchParams({
+        q: query,
+        only_owned: onlyOwned.toString(),
+        limit: '20'
+      });
+      
+      const response = await fetch(`/collections/${collectionId}/search-cards?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to search cards');
+      
+      const results = await response.json();
+      searchLoading.hidden = true;
+      
+      if (results.length === 0) {
+        searchEmpty.hidden = false;
+        return;
+      }
+      
+      renderSearchResults(results);
+    } catch (error) {
+      console.error('Error searching cards:', error);
+      searchLoading.hidden = true;
+      searchEmpty.hidden = false;
+      searchEmpty.querySelector('p').textContent = 'Błąd wyszukiwania.';
+    }
+  }
+  
+  function renderSearchResults(results) {
+    searchResultsGrid.innerHTML = '';
+    
+    results.forEach(card => {
+      const cardEl = document.createElement('div');
+      cardEl.className = 'search-result-card';
+      
+      const ownedBadge = card.is_in_main_collection 
+        ? `<span class="owned-indicator" title="Masz ${card.quantity_owned} szt.">&#10003; ${card.quantity_owned}</span>`
+        : '';
+      
+      cardEl.innerHTML = `
+        <div class="search-result-image">
+          ${card.image_small 
+            ? `<img src="${card.image_small}" alt="${card.name}" loading="lazy" />`
+            : `<div class="search-result-placeholder">#${card.number}</div>`
+          }
+          ${ownedBadge}
+        </div>
+        <div class="search-result-info">
+          <span class="search-result-name">${card.name}</span>
+          <span class="search-result-set">${card.set_name} #${card.number_display || card.number}</span>
+        </div>
+        <button type="button" class="button primary small add-to-collection-btn" data-card-id="${card.id}">
+          Dodaj
+        </button>
+      `;
+      
+      const addBtn = cardEl.querySelector('.add-to-collection-btn');
+      addBtn.addEventListener('click', () => addCardToCollection(card, cardEl));
+      
+      searchResultsGrid.appendChild(cardEl);
+    });
+  }
+  
+  async function addCardToCollection(card, cardEl) {
+    const addBtn = cardEl.querySelector('.add-to-collection-btn');
+    addBtn.disabled = true;
+    addBtn.textContent = '...';
+    
+    try {
+      const response = await fetch(`/collections/${collectionId}/cards/add?card_record_id=${card.id}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        if (response.status === 409) {
+          // Already in collection
+          addBtn.textContent = 'Już dodana';
+          addBtn.disabled = true;
+          return;
+        }
+        throw new Error(error.detail || 'Failed to add card');
+      }
+      
+      // Success - update UI
+      addBtn.textContent = 'Dodana!';
+      addBtn.classList.remove('primary');
+      addBtn.classList.add('secondary');
+      cardEl.classList.add('added');
+      
+      // Update collection stats
+      collectionData.total_cards++;
+      if (card.is_in_main_collection) {
+        collectionData.owned_cards++;
+      }
+      collectionData.progress_percent = collectionData.total_cards > 0 
+        ? (collectionData.owned_cards / collectionData.total_cards) * 100 
+        : 0;
+      
+      document.getElementById('stat-owned').textContent = collectionData.owned_cards;
+      document.getElementById('stat-missing').textContent = collectionData.total_cards - collectionData.owned_cards;
+      document.getElementById('stat-total').textContent = collectionData.total_cards;
+      document.getElementById('stat-percent').textContent = collectionData.progress_percent.toFixed(1) + '%';
+      document.getElementById('progress-fill').style.width = collectionData.progress_percent + '%';
+      
+    } catch (error) {
+      console.error('Error adding card:', error);
+      addBtn.disabled = false;
+      addBtn.textContent = 'Błąd';
+      setTimeout(() => {
+        addBtn.textContent = 'Dodaj';
+      }, 2000);
+    }
+  }
+  
+  // Event listeners for add card modal
+  addCardBtn.addEventListener('click', openAddCardModal);
+  
+  addCardModal.querySelectorAll('[data-close-modal]').forEach(btn => {
+    btn.addEventListener('click', closeAddCardModal);
+  });
+  
+  addCardModal.addEventListener('click', function(e) {
+    if (e.target === addCardModal) {
+      closeAddCardModal();
+    }
+  });
+  
+  cardSearchInput.addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(searchCards, 300);
+  });
+  
+  onlyOwnedCheckbox.addEventListener('change', searchCards);
+  
+  // Modify updateHeader to show add card button
+  const originalUpdateHeader = updateHeader;
+  updateHeader = function() {
+    originalUpdateHeader();
+    showAddCardButton();
+  };
+  
+  // Initial load
+  loadCollection();
+  loadProgress();
+});
+</script>
+{% endblock %}

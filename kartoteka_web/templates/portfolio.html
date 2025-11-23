@@ -4,10 +4,9 @@
 <section class="page-hero portfolio-hero">
   <div>
     <p class="eyebrow">Zapisane karty</p>
-    <h1>Przegląd kolekcji</h1>
+    <h1>Przegląd kolekcji {{ username or 'trenera' }}</h1>
     <p>
-      Ten widok przedstawia Twoje wpisy w formie prostych kart. To wygodne miejsce na szybkie
-      sprawdzenie, które pozycje masz już w kolekcji.
+      Zarządzaj swoją kolekcją i śledź jej wartość w czasie.
     </p>
     <div class="hero-actions">
       <a class="button secondary" href="/collection">Przejdź do listy edycji</a>
@@ -16,15 +15,57 @@
   </div>
 </section>
 
+<!-- Statystyki kolekcji -->
+<section class="panel collection-stats">
+  <div class="panel-header">
+    <div>
+      <h2>Statystyki kolekcji</h2>
+      <p>Aktualna wartość i zmiany w czasie</p>
+    </div>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Liczba kart</div>
+      <div class="stat-value" id="stat-total-cards">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Unikalne karty</div>
+      <div class="stat-value" id="stat-unique-cards">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Wartość kolekcji</div>
+      <div class="stat-value" id="stat-total-value">0 PLN</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Wartość zakupu</div>
+      <div class="stat-value" id="stat-purchase-value">0 PLN</div>
+    </div>
+  </div>
+</section>
+
+<!-- Wykres wartości -->
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Wartość kolekcji w czasie</h2>
+      <p>Śledzenie zmian wartości rynkowej</p>
+    </div>
+  </div>
+  <div class="chart-container">
+    <canvas id="collection-value-chart"></canvas>
+  </div>
+</section>
+
+<!-- Karty w kolekcji (grid) -->
 <section class="panel">
   <div class="panel-header">
     <div>
       <h2>Karty w kolekcji</h2>
-      <p>Podstawowe metadane o każdej karcie i zadeklarowane ilości.</p>
+      <p>Twoje karty w formie miniaturek</p>
     </div>
   </div>
   <div class="alert" id="portfolio-alert" hidden></div>
-  <div class="portfolio-list" id="portfolio-cards"></div>
+  <div class="card-search-results card-search-results--grid" id="portfolio-cards" role="list"></div>
   <p class="empty-state" id="portfolio-empty" hidden>Brak kart w kolekcji. Dodaj wpisy, by zobaczyć je tutaj.</p>
 </section>
 

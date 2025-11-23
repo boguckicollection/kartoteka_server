@@ -6,32 +6,63 @@ import contextlib
 import logging
 import os
 from pathlib import Path
-from typing import Any
+import contextlib
+import logging
+import os
+from pathlib import Path
+from typing import Any, Optional
 
 import anyio
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, Request, Response, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from sqlalchemy.orm import selectinload
-from sqlmodel import select
+from sqlmodel import Session, select
 
 load_dotenv(Path(__file__).resolve().with_name(".env"))
 
-from kartoteka_web import models
+from kartoteka_web import models, scheduler
 from kartoteka_web.auth import get_current_user, oauth2_scheme
-from kartoteka_web.database import init_db, session_scope
-from kartoteka_web.routes import cards, users
-from kartoteka_web.services import set_icons
+from kartoteka_web.database import init_db, session_scope, get_session
+from kartoteka_web.routes import cards, users, products, collections
+from kartoteka_web.services import set_icons, tcg_api
+from kartoteka_web.services.tcg_api import get_latest_products
 from kartoteka_web.utils import images as image_utils, sets as set_utils, text
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Starting application...")
+    print("🚀 Kartoteka: Starting application...")
     init_db()
-    await anyio.to_thread.run_sync(set_icons.ensure_set_icons)
+    try:
+        print("🔧 Kartoteka: Starting scheduler...")
+        scheduler.start_scheduler()
+        print("✅ Kartoteka: Scheduler started!")
+    except Exception as e:
+        print(f"❌ Kartoteka: Scheduler failed to start: {e}")
+        logger.error(f"Scheduler failed to start: {e}", exc_info=True)
+    # await anyio.to_thread.run_sync(set_icons.ensure_set_icons)
     yield
+    # Shutdown
+    logger.info("Shutting down application...")
+    print("🛑 Kartoteka: Shutting down application...")
+    try:
+        scheduler.stop_scheduler()
+    except Exception as e:
+        print(f"⚠️  Kartoteka: Error stopping scheduler: {e}")
+        logger.warning(f"Error stopping scheduler: {e}")
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -58,18 +89,18 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "img-src 'self' data: https:; "
             "font-src 'self' data:; "
             "connect-src 'self'; "
+            "manifest-src 'self'; "
             "frame-ancestors 'none';",
         )
         return response
 
 
-logger = logging.getLogger(__name__)
-
-
 app = FastAPI(title="Kartoteka Web", version="1.0.0", lifespan=lifespan)
-app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 app.include_router(users.router)
 app.include_router(cards.router)
+app.include_router(products.router)
+app.include_router(collections.router)
 
 app.mount("/static", StaticFiles(directory="kartoteka_web/static"), name="static")
 app.mount("/icon", StaticFiles(directory="icon"), name="icon-assets")
@@ -88,14 +119,142 @@ templates = Jinja2Templates(directory="kartoteka_web/templates")
 
 
 @app.get("/", response_class=HTMLResponse)
-async def home_page(request: Request) -> HTMLResponse:
+async def home_page(
+    request: Request,
+    db: Session = Depends(get_session),
+):
+    rapidapi_key = os.getenv("RAPIDAPI_KEY")
+    rapidapi_host = os.getenv("RAPIDAPI_HOST")
+
+    latest_products = get_latest_products(
+        rapidapi_key=rapidapi_key, rapidapi_host=rapidapi_host
+    )
+
     username, invalid_credentials, avatar_url = await _resolve_request_user(request)
-    context = {
-        "request": request,
-        "username": username if not invalid_credentials else "",
-        "avatar_url": avatar_url if not invalid_credentials else "",
-    }
-    return templates.TemplateResponse("home.html", context)
+
+    # Get user data if logged in
+    collection_stats = None
+    recently_added = []
+    price_changes = []
+
+    if username and not invalid_credentials:
+        try:
+            # Get current user
+            token = await oauth2_scheme(request)
+            with session_scope() as session:
+                user = await get_current_user(session=session, token=token)
+
+                # Get collection stats
+                from kartoteka_web.routes.cards import get_collection_stats, get_recently_added_cards, get_price_changes
+
+                # Temporarily set user for function calls
+                # Note: These functions expect Depends(get_current_user) but we'll call them directly
+                entries = session.exec(
+                    select(models.CollectionEntry)
+                    .where(models.CollectionEntry.user_id == user.id)
+                    .options(
+                        selectinload(models.CollectionEntry.card),
+                        selectinload(models.CollectionEntry.product)
+                    )
+                ).all()
+
+                # Calculate stats manually
+                total_cards = sum(entry.quantity or 0 for entry in entries)
+                unique_cards = len(entries)
+                total_value = 0.0
+
+                for entry in entries:
+                    if entry.card and entry.card.price:
+                        total_value += entry.card.price
+                    elif entry.product and entry.product.price:
+                        total_value += entry.product.price
+
+                collection_stats = {
+                    "total_cards": total_cards,
+                    "unique_cards": unique_cards,
+                    "total_value": round(total_value, 2),
+                }
+
+                # Get recently added (last 5)
+                recent_entries = session.exec(
+                    select(models.CollectionEntry)
+                    .where(models.CollectionEntry.user_id == user.id)
+                    .options(
+                        selectinload(models.CollectionEntry.card),
+                        selectinload(models.CollectionEntry.product)
+                    )
+                    .order_by(models.CollectionEntry.id.desc())
+                    .limit(5)
+                ).all()
+
+                for entry in recent_entries:
+                    if entry.card:
+                        recently_added.append({
+                            "type": "card",
+                            "name": entry.card.name,
+                            "image_small": entry.card.image_small,
+                            "set_name": entry.card.set_name,
+                            "price": entry.card.price,
+                        })
+                    elif entry.product:
+                        recently_added.append({
+                            "type": "product",
+                            "name": entry.product.name,
+                            "image_small": entry.product.image_small,
+                            "set_name": entry.product.set_name,
+                            "price": entry.product.price,
+                        })
+
+                # Get price changes (top 5)
+                for entry in entries[:50]:  # Limit to first 50 to avoid performance issues
+                    if entry.card:
+                        current_price = entry.card.price or 0.0
+                        avg_price = entry.card.price_7d_average or 0.0
+
+                        if current_price > 0 and avg_price > 0:
+                            change = current_price - avg_price
+                            change_percent = (change / avg_price) * 100
+
+                            price_changes.append({
+                                "name": entry.card.name,
+                                "image_small": entry.card.image_small,
+                                "current_price": current_price,
+                                "change_percent": round(change_percent, 2),
+                            })
+                    elif entry.product:
+                        current_price = entry.product.price or 0.0
+                        avg_price = entry.product.price_7d_average or 0.0
+
+                        if current_price > 0 and avg_price > 0:
+                            change = current_price - avg_price
+                            change_percent = (change / avg_price) * 100
+
+                            price_changes.append({
+                                "name": entry.product.name,
+                                "image_small": entry.product.image_small,
+                                "current_price": current_price,
+                                "change_percent": round(change_percent, 2),
+                            })
+
+                # Sort by absolute change percent
+                price_changes.sort(key=lambda x: abs(x["change_percent"]), reverse=True)
+                price_changes = price_changes[:5]
+
+        except HTTPException:
+            pass
+
+    return templates.TemplateResponse(
+        "home.html",
+        {
+            "request": request,
+            "latest_products": latest_products,
+            "username": username if not invalid_credentials else "",
+            "avatar_url": avatar_url if not invalid_credentials else "",
+            "collection_stats": collection_stats,
+            "recently_added": recently_added,
+            "price_changes": price_changes,
+        },
+    )
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -176,6 +335,42 @@ async def portfolio_page(request: Request) -> HTMLResponse:
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request) -> HTMLResponse:
     return await _render_authenticated_page(request, "settings.html")
+
+
+@app.get("/my-collections", response_class=HTMLResponse)
+async def my_collections_page(request: Request) -> HTMLResponse:
+    return await _render_authenticated_page(request, "collections.html")
+
+
+@app.get("/my-collections/{collection_id}", response_class=HTMLResponse)
+async def collection_detail_page(request: Request, collection_id: int) -> HTMLResponse:
+    return await _render_authenticated_page(
+        request, "collection_detail.html", {"collection_id": collection_id}
+    )
+
+
+@app.get("/my-collections/{collection_id}/print", response_class=HTMLResponse)
+async def collection_print_page(request: Request, collection_id: int) -> HTMLResponse:
+    return await _render_authenticated_page(
+        request, "collection_print.html", {"collection_id": collection_id}
+    )
+
+
+@app.get("/sets", response_class=HTMLResponse)
+async def sets_list_page(request: Request) -> HTMLResponse:
+    """Page showing all available Pokemon TCG sets with print option."""
+    username, invalid_credentials, avatar_url = await _resolve_request_user(request)
+    context = _public_page_context(request, username, invalid_credentials, avatar_url)
+    return templates.TemplateResponse("sets.html", context)
+
+
+@app.get("/sets/{set_code}/print", response_class=HTMLResponse)
+async def set_print_page(request: Request, set_code: str) -> HTMLResponse:
+    """Print template page for a specific set (without collection)."""
+    username, invalid_credentials, avatar_url = await _resolve_request_user(request)
+    context = _public_page_context(request, username, invalid_credentials, avatar_url)
+    context["set_code"] = set_code
+    return templates.TemplateResponse("set_print.html", context)
 
 
 @app.get("/cards/{set_identifier}/{number}", response_class=HTMLResponse)

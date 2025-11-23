@@ -288,8 +288,9 @@ def test_card_search_and_detail(api_client, monkeypatch):
     )
     assert missing.status_code == 404
 
+    # Card search is now accessible without authentication
     unauthenticated_search = api_client.get("/cards/search", params={"query": "Eevee"})
-    assert unauthenticated_search.status_code == 401
+    assert unauthenticated_search.status_code == 200  # Changed from 401 to 200
 
 
 def test_card_info_remote_fallback(api_client, monkeypatch):

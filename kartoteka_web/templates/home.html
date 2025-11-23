@@ -4,6 +4,13 @@
 <section class="home-hero">
   <div class="home-hero-copy">
     <p class="eyebrow">Pokemon TCG Hub</p>
+    {% if username %}
+    <h1>Witaj, {{ username }}!</h1>
+    <div class="hero-actions">
+      <a class="button primary" href="/collection">Moja kolekcja</a>
+      <a class="button secondary" href="/cards/add">Dodaj karty</a>
+    </div>
+    {% else %}
     <h1>Zarządzaj kolekcją i śledź rynek kart</h1>
     <p>
       Kartoteka łączy informacje o Twoim portfelu z aktualnościami ze świata Pokemon.
@@ -13,7 +20,17 @@
       <a class="button primary" href="/login">Zaloguj się</a>
       <a class="button secondary" href="/register">Załóż konto</a>
     </div>
+    {% endif %}
   </div>
+  {% if username and collection_stats %}
+  <div class="home-hero-cards home-hero-stats">
+    <article class="portfolio-value-card">
+      <h3>Wartość kolekcji</h3>
+      <p class="portfolio-value">{{ "%.2f"|format(collection_stats.total_value) }} <span>PLN</span></p>
+      <p class="portfolio-meta">{{ collection_stats.total_cards }} kart ({{ collection_stats.unique_cards }} unikalnych)</p>
+    </article>
+  </div>
+  {% elif not username %}
   <div class="home-hero-cards">
     <article>
       <h3>Aktualna wartość portfela</h3>
@@ -28,110 +45,81 @@
       <p>Dostęp z przeglądarki i aplikacji mobilnej – Twoje dane zawsze pod ręką.</p>
     </article>
   </div>
+  {% endif %}
 </section>
 
+{% if username and recently_added %}
 <section class="panel home-panel">
   <div class="panel-header">
     <div>
-      <h2>Nowości ze świata Pokemon</h2>
-      <p>Najważniejsze informacje z ostatnich dni, które warto znać przed kolejnymi zakupami.</p>
+      <h2>Ostatnio dodane</h2>
+      <p>Karty i produkty dodane ostatnio do Twojej kolekcji.</p>
     </div>
   </div>
-  <div class="home-news-grid">
-    <article class="home-news-card">
-      <span class="home-news-tag" data-category="turnieje">Turnieje</span>
-      <h3>Finały World Championships 2025</h3>
-      <p>Najlepsze talie turniejowe ujawniają popyt na karty z serii Stellar Crown oraz powrót klasycznych archetypów.</p>
-      <time datetime="2025-03-05">5 marca 2025</time>
+  <div class="home-products-grid horizontal-scroll">
+    {% for item in recently_added %}
+    <article>
+      {% if item.image_small %}
+      <img src="{{ item.image_small }}" alt="{{ item.name }}" />
+      {% endif %}
+      <h3>{{ item.name }}</h3>
+      <p>{{ item.set_name }}</p>
+      {% if item.price %}
+      <p><strong>{{ "%.2f"|format(item.price) }} PLN</strong></p>
+      {% endif %}
     </article>
-    <article class="home-news-card">
-      <span class="home-news-tag" data-category="kolekcjonerstwo">Kolekcjonerstwo</span>
-      <h3>Limitowane boxy 151 Premium</h3>
-      <p>Pokemon Center zapowiedziało kolejną falę boxów z ekskluzywnymi ilustracjami – przedsprzedaż startuje za tydzień.</p>
-      <time datetime="2025-03-02">2 marca 2025</time>
-    </article>
-    <article class="home-news-card">
-      <span class="home-news-tag" data-category="rynek">Rynek</span>
-      <h3>Raport cenowy Q1</h3>
-      <p>
-        Średnia wartość kart holo wzrosła o 8% względem poprzedniego kwartału, a rynek alternatywnych artów nadal
-        przyspiesza.
-      </p>
-      <time datetime="2025-03-01">1 marca 2025</time>
-    </article>
+    {% endfor %}
   </div>
 </section>
+{% endif %}
 
+{% if username and price_changes %}
 <section class="panel home-panel">
   <div class="panel-header">
     <div>
-      <h2>Zapowiadane sety</h2>
-      <p>Przygotuj portfel na premiery, które mogą namieszać w cenach kart.</p>
-    </div>
-  </div>
-  <div class="home-sets-grid">
-    <article>
-      <h3>Stellar Crown</h3>
-      <p>Nowy set z akcentem na Pokemon typu Dragon i Fairy. Data premiery: <strong>19 kwietnia 2025</strong>.</p>
-    </article>
-    <article>
-      <h3>Obsidian Flames+ Collection</h3>
-      <p>Reedycja bestsellerowych kart wraz z unikalnymi promkami Gym Leader. Premiera: <strong>maj 2025</strong>.</p>
-    </article>
-    <article>
-      <h3>Legends Awakened</h3>
-      <p>
-        Specjalny mini-set skupiający legendarne trio Johto z nowymi ilustracjami.
-        Premiera: <strong>czerwiec 2025</strong>.
-      </p>
-    </article>
-  </div>
-</section>
-
-<section class="panel home-panel">
-  <div class="panel-header">
-    <div>
-      <h2>Trendy cenowe</h2>
-      <p>Największe wzrosty i spadki cen kart obserwowane w ostatnich odczytach.</p>
+      <h2>Największe zmiany cen w Twojej kolekcji</h2>
+      <p>Karty i produkty z największymi zmianami wartości względem średniej 7-dniowej.</p>
     </div>
   </div>
   <div class="home-trends">
     <div class="home-trends-column">
-      <h3>Wzrosty</h3>
+      <h3>Top 5 zmian</h3>
       <ul>
+        {% for item in price_changes %}
         <li>
-          <span>Charizard ex (Obsidian Flames)</span>
-          <span class="trend-up">▲ +12%</span>
+          <span>{{ item.name }}</span>
+          {% if item.change_percent > 0 %}
+          <span class="trend-up">▲ +{{ "%.1f"|format(item.change_percent) }}%</span>
+          {% else %}
+          <span class="trend-down">▼ {{ "%.1f"|format(item.change_percent) }}%</span>
+          {% endif %}
         </li>
-        <li>
-          <span>Iron Valiant ex (Paradox Rift)</span>
-          <span class="trend-up">▲ +9%</span>
-        </li>
-        <li>
-          <span>Miraidon ex (Scarlet &amp; Violet)</span>
-          <span class="trend-up">▲ +6%</span>
-        </li>
-      </ul>
-    </div>
-    <div class="home-trends-column">
-      <h3>Spadki</h3>
-      <ul>
-        <li>
-          <span>Gardevoir ex (Triple Beat)</span>
-          <span class="trend-down">▼ -7%</span>
-        </li>
-        <li>
-          <span>Mew VMAX (Fusion Strike)</span>
-          <span class="trend-down">▼ -5%</span>
-        </li>
-        <li>
-          <span>Pikachu VMAX (Celebrations)</span>
-          <span class="trend-down">▼ -4%</span>
-        </li>
+        {% endfor %}
       </ul>
     </div>
   </div>
 </section>
+{% endif %}
+
+<section class="panel home-panel">
+  <div class="panel-header">
+    <div>
+      <h2>Najnowsze produkty</h2>
+      <p>Przeglądaj najnowsze produkty i dodaj je do swojej kolekcji.</p>
+    </div>
+  </div>
+  <div class="home-products-grid horizontal-scroll">
+    {% for product in latest_products %}
+    <article>
+      <img src="{{ product.image_large }}" alt="{{ product.name }}" />
+      <h3>{{ product.name }}</h3>
+      <p>Data premiery: <strong>{{ product.release_date }}</strong></p>
+      <p>Cena: <strong>{{ "%.2f"|format(product.price) }} PLN</strong></p>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
 
 <section class="panel home-panel">
   <div class="panel-header">

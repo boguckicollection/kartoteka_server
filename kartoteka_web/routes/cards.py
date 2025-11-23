@@ -6,18 +6,20 @@ import datetime as dt
 import logging
 import os
 import re
+import time
+from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy import func, or_
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from .. import models, schemas
 from ..auth import get_current_user, get_optional_user
-from ..database import get_session
-from ..services import catalog_sync, tcg_api
+from ..database import get_session, session_scope
+from ..services import catalog_sync, tcg_api, crud
 from ..utils import images as image_utils, text, sets as set_utils
 
 router = APIRouter(prefix="/cards", tags=["cards"])
@@ -42,8 +44,6 @@ CARD_NUMBER_PATTERN = re.compile(
 logger = logging.getLogger(__name__)
 
 DEFAULT_SHOP_URL = "https://kartoteka.shop/pl/c/Karty-Pokemon/38"
-SET_ICON_URL_BASE = "/icon/set"
-SET_ICON_DIRECTORY = Path(__file__).resolve().parents[2] / "icon" / "set"
 
 
 def _compose_query(*parts: str | None) -> str:
@@ -113,8 +113,8 @@ def _local_set_icon_path(set_code: str | None, set_name: str | None = None) -> s
     _, icon_path = set_utils.resolve_cached_set_icon(
         set_code=set_code,
         set_name=set_name,
-        icons_directory=SET_ICON_DIRECTORY,
-        url_base=SET_ICON_URL_BASE,
+        icons_directory=set_utils.DEFAULT_ICON_DIRECTORY,
+        url_base=set_utils.SET_ICON_URL_BASE,
     )
     return icon_path
 
@@ -228,8 +228,20 @@ def _select_remote_card(
     *,
     require_number_match: bool = False,
 ) -> dict[str, Any] | None:
+    """Select the best matching card from remote search results.
+    
+    IMPORTANT: When set_code is provided, we require an EXACT match on both
+    set_code AND number. This prevents returning the wrong card when searching
+    for a specific card like "Charizard from Arceus set #1".
+    """
     if not records:
         return None
+    
+    # Debug logging (set to DEBUG level to avoid production log clutter)
+    logger.debug(f"_select_remote_card: Looking for set_code={detail.set_code}, number={detail.number}")
+    logger.debug(f"_select_remote_card: Got {len(records)} records")
+    for i, r in enumerate(records[:5]):
+        logger.debug(f"  Record {i}: set_code={r.get('set_code')}, number={r.get('number')}, name={r.get('name')}")
 
     def _norm(value: Any) -> str:
         return (str(value or "").strip().lower())
@@ -252,6 +264,30 @@ def _select_remote_card(
     target_set_code_clean = set_utils.clean_code(detail.set_code) or ""
     target_set_name = _norm(detail.set_name)
 
+    # First pass: Try to find an EXACT match (set_code + number)
+    # This is critical for /cards/info endpoint where user clicks specific card
+    if target_set_code_clean and target_number_clean:
+        for record in records:
+            record_number_clean = _clean_number(record.get("number"))
+            record_number_display_clean = _clean_number(record.get("number_display"))
+            record_set_code_clean = set_utils.clean_code(record.get("set_code")) or ""
+            
+            # Check for exact set_code match
+            set_matches = (
+                record_set_code_clean == target_set_code_clean
+                or _norm(record.get("set_code")) == target_set_code
+            )
+            
+            # Check for exact number match
+            number_matches = (
+                record_number_clean == target_number_clean
+                or record_number_display_clean == target_number_clean
+            )
+            
+            if set_matches and number_matches:
+                return record
+
+    # Second pass: Scoring-based matching (fallback for less specific queries)
     best_score = -1
     best_record: dict[str, Any] | None = None
 
@@ -269,6 +305,7 @@ def _select_remote_card(
         record_set_code_clean = set_utils.clean_code(record.get("set_code")) or ""
         record_set_name = _norm(record.get("set_name"))
 
+        # Number matching (higher priority)
         if target_number and record_number == target_number:
             score += 5
         if (
@@ -283,19 +320,24 @@ def _select_remote_card(
             and combined_number_clean.startswith(target_number_clean)
         ):
             score += 1
+            
+        # Total matching
         if target_total_clean and record_total_clean:
             if target_total_clean == record_total_clean:
                 score += 1
+                
+        # Set matching (INCREASED priority - set must match for correct card)
         if target_set_code and record_set_code == target_set_code:
-            score += 3
+            score += 10  # Increased from 3
         if (
             target_set_code_clean
             and record_set_code_clean
             and target_set_code_clean == record_set_code_clean
         ):
-            score += 2
+            score += 8  # Increased from 2
         if target_set_name and record_set_name == target_set_name:
-            score += 1
+            score += 5  # Increased from 1
+            
         if score > best_score:
             best_score = score
             best_record = record
@@ -429,9 +471,9 @@ def _find_card(
         if card:
             return card
 
-    if name_value:
-        return session.exec(select(models.Card).where(models.Card.name == name_value)).first()
-
+    # FIXED: Nie zwracaj karty jeśli numer się nie zgadza
+    # Poprzednio zwracało pierwszą kartę o danej nazwie, co powodowało duplikację
+    # Teraz zwracamy None i tworzymy nową kartę
     return None
 
 
@@ -459,6 +501,52 @@ def _apply_card_images(card: models.Card, card_data: schemas.CardBase) -> bool:
     if large_value and current_large != large_value:
         card.image_large = large_value
         updated = True
+    return updated
+
+
+def _apply_card_price(card: models.Card, session: Session) -> bool:
+    """Fetch and update price from CardRecord catalog if available."""
+    from sqlmodel import select
+    
+    # Try to find price in CardRecord catalog
+    name_norm = text.normalize(card.name, keep_spaces=True)
+    set_name_norm = text.normalize(card.set_name, keep_spaces=True)
+    
+    # First try: exact match (name + set + number)
+    stmt = select(models.CardRecord).where(
+        models.CardRecord.name_normalized == name_norm,
+        models.CardRecord.set_name_normalized == set_name_norm,
+        models.CardRecord.number == card.number
+    ).limit(1)
+    
+    card_record = session.exec(stmt).first()
+    
+    # Second try: if no exact match, try normalized number match
+    if not card_record:
+        number_clean = text.sanitize_number(card.number or "")
+        if number_clean:
+            stmt = select(models.CardRecord).where(
+                models.CardRecord.name_normalized == name_norm,
+                models.CardRecord.set_name_normalized == set_name_norm
+            )
+            candidates = session.exec(stmt).all()
+            for candidate in candidates:
+                candidate_number_clean = text.sanitize_number(candidate.number or "")
+                if candidate_number_clean == number_clean:
+                    card_record = candidate
+                    break
+    
+    updated = False
+    if card_record:
+        # Update price if available
+        if card_record.price is not None and card.price != card_record.price:
+            card.price = card_record.price
+            updated = True
+        # Update 7-day average if available
+        if card_record.price_7d_average is not None and card.price_7d_average != card_record.price_7d_average:
+            card.price_7d_average = card_record.price_7d_average
+            updated = True
+    
     return updated
 
 
@@ -552,10 +640,12 @@ def search_cards_endpoint(
     order: str | None = None,
     page: int = 1,
     per_page: int = 20,
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User | None = Depends(get_optional_user),
     session: Session = Depends(get_session),
 ):
-    del current_user  # Only used to enforce authentication via dependency.
+    # Optional authentication - endpoint is accessible to all users
+    # current_user will be None if not authenticated
+    del current_user
 
     parsed_name = ""
     parsed_number: str | None = None
@@ -704,7 +794,7 @@ def search_cards_endpoint(
     ]
     return schemas.CardSearchResponse(
         items=items,
-        total=len(items),
+        total=filtered_total_value,  # Total number of results, not just items on this page
         total_count=effective_total,
         page=page_value,
         per_page=per_page_value,
@@ -763,47 +853,108 @@ def card_info(
 
     detail.shop_url = (detail.shop_url or DEFAULT_SHOP_URL).strip() or DEFAULT_SHOP_URL
 
+    # First, try to find the card in the local CardRecord cache
+    # This is faster and more reliable than the remote API text search
+    local_card_record = None
+    if set_code_value and number_value:
+        # Try exact match on set_code + number
+        stmt = select(models.CardRecord).where(
+            models.CardRecord.set_code_clean == set_code_value.lower(),
+            models.CardRecord.number == number_value,
+        ).limit(1)
+        local_card_record = session.exec(stmt).first()
+        
+        if not local_card_record:
+            # Also try with case-insensitive set_code match
+            number_clean = text.sanitize_number(number_value)
+            all_candidates = session.exec(
+                select(models.CardRecord).where(
+                    models.CardRecord.name_normalized.contains(text.normalize(name_value, keep_spaces=True))
+                )
+            ).all()
+            for candidate in all_candidates:
+                candidate_set_code = set_utils.clean_code(candidate.set_code) or ""
+                candidate_number = text.sanitize_number(candidate.number or "")
+                if candidate_set_code == set_code_value.lower() and candidate_number == number_clean:
+                    local_card_record = candidate
+                    break
+    
+    if local_card_record:
+        logger.debug(f"card_info: Found card in local cache: {local_card_record.name} - {local_card_record.set_code} - {local_card_record.number}")
+
     remote_results: list[dict[str, Any]] = []
     remote_fetch_limit = max(6, limit_value + 1)
-    try:
-        remote_results, _, _ = tcg_api.search_cards(
-            name=name,
-            number=number,
-            set_name=set_name,
-            set_code=set_code,
-            total=total,
-            limit=remote_fetch_limit,
-            per_page=remote_fetch_limit,
-            rapidapi_key=RAPIDAPI_KEY,
-            rapidapi_host=RAPIDAPI_HOST,
-        )
-        if not remote_results and number_value:
+    
+    # If we found the card locally, convert it to the expected format
+    if local_card_record:
+        local_result = {
+            "name": local_card_record.name,
+            "number": local_card_record.number,
+            "number_display": local_card_record.number_display or local_card_record.number,
+            "total": local_card_record.total,
+            "set_name": local_card_record.set_name,
+            "set_code": local_card_record.set_code,
+            "rarity": local_card_record.rarity,
+            "image_small": local_card_record.image_small,
+            "image_large": local_card_record.image_large,
+            "artist": local_card_record.artist,
+            "series": local_card_record.series,
+            "release_date": local_card_record.release_date,
+            "set_icon": local_card_record.set_icon,
+            "set_icon_path": _local_set_icon_path(local_card_record.set_code, local_card_record.set_name),
+            "price": local_card_record.price,
+            "price_7d_average": local_card_record.price_7d_average,
+            "id": local_card_record.remote_id,
+        }
+        remote_results = [local_result]
+    
+    # Only call remote API if we didn't find the card locally
+    if not remote_results:
+        try:
             remote_results, _, _ = tcg_api.search_cards(
                 name=name,
-                number=None,
+                number=number,
                 set_name=set_name,
                 set_code=set_code,
-                total=None,
+                total=total,
                 limit=remote_fetch_limit,
                 per_page=remote_fetch_limit,
                 rapidapi_key=RAPIDAPI_KEY,
                 rapidapi_host=RAPIDAPI_HOST,
             )
-        if not remote_results and (set_code_value or set_name_value):
-            remote_results, _, _ = tcg_api.search_cards(
-                name=name,
-                number=None,
-                set_name=None,
-                set_code=None,
-                total=None,
-                limit=remote_fetch_limit,
-                per_page=remote_fetch_limit,
-                rapidapi_key=RAPIDAPI_KEY,
-                rapidapi_host=RAPIDAPI_HOST,
-            )
-    except Exception as exc:  # pragma: no cover - defensive logging
-        logger.warning("Failed to fetch remote card details for %s #%s: %s", name, number, exc)
-        remote_results = []
+            if not remote_results and number_value:
+                remote_results, _, _ = tcg_api.search_cards(
+                    name=name,
+                    number=None,
+                    set_name=set_name,
+                    set_code=set_code,
+                    total=None,
+                    limit=remote_fetch_limit,
+                    per_page=remote_fetch_limit,
+                    rapidapi_key=RAPIDAPI_KEY,
+                    rapidapi_host=RAPIDAPI_HOST,
+                )
+            if not remote_results and (set_code_value or set_name_value):
+                remote_results, _, _ = tcg_api.search_cards(
+                    name=name,
+                    number=None,
+                    set_name=None,
+                    set_code=None,
+                    total=None,
+                    limit=remote_fetch_limit,
+                    per_page=remote_fetch_limit,
+                    rapidapi_key=RAPIDAPI_KEY,
+                    rapidapi_host=RAPIDAPI_HOST,
+                )
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.warning("Failed to fetch remote card details for %s #%s: %s", name, number, exc)
+            remote_results = []
+
+    # Debug: Log search results before selection
+    logger.info(f"card_info: Got {len(remote_results)} remote results for {name}, {number}, {set_code}")
+    for i, r in enumerate(remote_results[:5]):
+        logger.info(f"  Result {i}: set_code={r.get('set_code')}, number={r.get('number')}, name={r.get('name')}")
+    logger.info(f"card_info: detail.set_code={detail.set_code}, detail.number={detail.number}")
 
     remote_card = (
         _select_remote_card(
@@ -992,14 +1143,28 @@ def list_collection(
     entries = session.exec(
         select(models.CollectionEntry)
         .where(models.CollectionEntry.user_id == current_user.id)
-        .options(selectinload(models.CollectionEntry.card))
+        .options(
+            selectinload(models.CollectionEntry.card),
+            selectinload(models.CollectionEntry.product)
+        )
     ).all()
+    
+    # Refresh prices for cards/products that don't have them
+    for entry in entries:
+        if entry.card and entry.card.price is None:
+            _apply_card_price(entry.card, session)
+        elif entry.product and entry.product.price is None:
+            from .products import _apply_product_price
+            _apply_product_price(entry.product, session)
+    
+    session.commit()
     return _serialize_entries(entries, session=session)
 
 
 @router.post("/", response_model=schemas.CollectionEntryRead, status_code=status.HTTP_201_CREATED)
 def add_card(
     payload: schemas.CollectionEntryCreate,
+    background_tasks: BackgroundTasks,
     current_user: models.User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
@@ -1031,6 +1196,8 @@ def add_card(
         )
         _apply_card_images(card, card_data)
         session.add(card)
+        session.flush()
+        _apply_card_price(card, session)
         session.commit()
         session.refresh(card)
     else:
@@ -1042,6 +1209,8 @@ def add_card(
             card.rarity = rarity_value
             updated = True
         if _apply_card_images(card, card_data):
+            updated = True
+        if _apply_card_price(card, session):
             updated = True
         if updated:
             session.add(card)
@@ -1069,7 +1238,71 @@ def add_card(
     session.commit()
     session.refresh(entry)
     session.refresh(card)
+    
+    # Fetch price history in the background
+    background_tasks.add_task(fetch_and_save_history_for_card, card.id)
+
     return _serialize_entry(entry, session=session)
+
+
+def fetch_and_save_history_for_card(card_id: int):
+    """
+    Background task to fetch and save price history for a specific card.
+    Uses its own session scope to be thread-safe.
+    """
+    logger.info(f"Background task started for card_id: {card_id}")
+    with session_scope() as session:
+        card = session.get(models.Card, card_id)
+        if not card:
+            logger.error(f"[BG Task] Card with id {card_id} not found.")
+            return
+
+        # Find the corresponding CardRecord to get the remote_id
+        stmt = select(models.CardRecord).where(
+            models.CardRecord.name == card.name,
+            models.CardRecord.set_name == card.set_name,
+            models.CardRecord.number == card.number
+        ).limit(1)
+        card_record = session.exec(stmt).first()
+
+        if not (card_record and card_record.remote_id):
+            logger.warning(f"[BG Task] No CardRecord or remote_id found for {card.name} ({card.set_name} #{card.number}). Cannot fetch history.")
+            return
+
+        logger.info(f"[BG Task] Found remote_id: {card_record.remote_id} for {card.name}. Fetching history...")
+        try:
+            today = dt.date.today()
+            date_from = today - dt.timedelta(days=365)
+            
+            history_data = tcg_api.fetch_card_price_history(
+                card_record.remote_id,
+                date_from=date_from,
+                date_to=today
+            )
+            
+            if not history_data:
+                logger.info(f"[BG Task] No price history returned from API for remote_id: {card_record.remote_id}.")
+                return
+
+            normalized_history = tcg_api.normalize_price_history(history_data)
+            
+            if normalized_history:
+                added, updated = crud.upsert_price_history(
+                    session, card_record_id=card_record.id, price_history=normalized_history
+                )
+                card_record.last_price_synced = dt.datetime.now(dt.timezone.utc)
+                session.add(card_record)
+                # The session is committed by the session_scope context manager
+                logger.info(f"[BG Task] Success for {card.name}. Added: {added}, Updated: {updated} price points.")
+            else:
+                logger.info(f"[BG Task] API returned data, but it was empty after normalization for {card.name}.")
+
+        except Exception as e:
+            logger.error(f"[BG Task] Failed to fetch/save price history for {card.name}: {e}", exc_info=True)
+
+
+
+
 
 
 @router.patch("/{entry_id}", response_model=schemas.CollectionEntryRead)
@@ -1124,3 +1357,335 @@ def delete_entry(
     session.delete(entry)
     session.commit()
     return None
+
+
+def _fetch_collection_history(
+    entries: list[models.CollectionEntry],
+    days: int,
+    session: Session,
+) -> list[schemas.CollectionValueHistoryPoint]:
+    """
+    Fetch historical collection values, sourcing from local DB and backfilling from the API
+    for any cards with missing or stale data.
+    This implementation is optimized for performance and correctness.
+    """
+    today = dt.date.today()
+    date_from = today - dt.timedelta(days=days)
+
+    card_entries = {entry.card.id: entry for entry in entries if entry.card and entry.quantity > 0}
+    if not card_entries:
+        return []
+
+    card_map = {card_id: entry.card for card_id, entry in card_entries.items()}
+
+    # Step 1: Get all relevant CardRecords for the cards in the collection
+    card_identifiers = list(set((c.name, c.set_name, c.number) for c in card_map.values()))
+    card_records_map: dict[tuple, models.CardRecord] = {}
+    if card_identifiers:
+        clauses = [
+            (models.CardRecord.name == name and models.CardRecord.set_name == set_name and models.CardRecord.number == number)
+            for name, set_name, number in card_identifiers
+        ]
+        card_records_stmt = select(models.CardRecord).where(or_(*clauses))
+        card_records = session.exec(card_records_stmt).all()
+        card_records_map = {(r.name, r.set_name, r.number): r for r in card_records}
+
+    # Step 2: On-demand fetching for cards with missing/stale history
+    stale_threshold = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=7)
+    records_to_fetch: list[models.CardRecord] = []
+    
+    for card in card_map.values():
+        key = (card.name, card.set_name, card.number)
+        record = card_records_map.get(key)
+        if record and record.remote_id:
+            last_synced = record.last_price_synced
+            if last_synced and last_synced.tzinfo is None:
+                last_synced = last_synced.replace(tzinfo=dt.timezone.utc)
+
+            if not last_synced or last_synced < stale_threshold:
+                records_to_fetch.append(record)
+
+    if records_to_fetch:
+        logger.info(f"Found {len(records_to_fetch)} cards with stale/missing price history. Fetching from API.")
+        for i, record in enumerate(records_to_fetch):
+            if i > 0:
+                time.sleep(1.1)  # Rate limit
+            try:
+                logger.info(f"Fetching history for remote_id: {record.remote_id}")
+                history_data = tcg_api.fetch_card_price_history(
+                    record.remote_id, date_from=date_from, date_to=today,
+                    rapidapi_key=RAPIDAPI_KEY, rapidapi_host=RAPIDAPI_HOST,
+                )
+                if history_data:
+                    normalized_history = tcg_api.normalize_price_history(history_data)
+                    if normalized_history:
+                        added, updated = crud.upsert_price_history(
+                            session, card_record_id=record.id, price_history=normalized_history
+                        )
+                        record.last_price_synced = dt.datetime.now(dt.timezone.utc)
+                        session.add(record)
+                        logger.info(f"Updated history for {record.name}: {added} added, {updated} updated.")
+            except Exception as e:
+                logger.error(f"Failed to fetch/save history for {record.name}: {e}", exc_info=True)
+        session.commit()
+
+    # Step 3: Create a mapping of Card.id -> CardRecord.id
+    card_to_record_id_map: dict[int, int] = {
+        card.id: card_records_map[key].id
+        for card in card_map.values()
+        if (key := (card.name, card.set_name, card.number)) in card_records_map
+    }
+    record_ids = list(card_to_record_id_map.values())
+    if not record_ids:
+        return []
+
+    # Step 4: Fetch ALL relevant price history in one batch.
+    # We fetch all history, not just from date_from, to establish a correct starting value.
+    price_history_data = session.exec(
+        select(models.PriceHistory)
+        .where(models.PriceHistory.card_record_id.in_(record_ids))
+        .order_by(models.PriceHistory.date)
+    ).all()
+
+    # Step 5: Pre-process history to find the initial price for each card at the beginning of the date range.
+    latest_prices: dict[int, float] = {}
+    for record_id in record_ids:
+        # Fallback to the card's current price if no history is found.
+        card_id = next((cid for cid, rid in card_to_record_id_map.items() if rid == record_id), None)
+        if card_id and (card := card_map.get(card_id)):
+            latest_prices[record_id] = card.price or 0.0
+
+    for ph in price_history_data:
+        if ph.card_record_id and ph.date < date_from:
+            latest_prices[ph.card_record_id] = ph.price or 0.0
+    
+    # Group subsequent price points by date for efficient iteration
+    from collections import defaultdict
+    prices_by_date: dict[dt.date, dict[int, float]] = defaultdict(dict)
+    for ph in price_history_data:
+        if ph.card_record_id and ph.date >= date_from:
+            prices_by_date[ph.date][ph.card_record_id] = ph.price or 0.0
+
+    # Step 6: Iterate through the date range and calculate daily totals.
+    value_history = []
+    date_range = [date_from + dt.timedelta(days=x) for x in range((today - date_from).days + 1)]
+
+    daily_total = sum(
+        (latest_prices.get(record_id, 0.0) * (card_entries[card_id].quantity or 1))
+        for card_id, record_id in card_to_record_id_map.items()
+    )
+
+    for day in date_range:
+        if day in prices_by_date:
+            # Recalculate total value only when prices change
+            for record_id, new_price in prices_by_date[day].items():
+                card_id = next((cid for cid, rid in card_to_record_id_map.items() if rid == record_id), None)
+                if card_id:
+                    quantity = card_entries[card_id].quantity or 1
+                    old_price = latest_prices.get(record_id, 0.0)
+                    daily_total -= old_price * quantity
+                    daily_total += new_price * quantity
+                    latest_prices[record_id] = new_price
+
+        value_history.append(
+            schemas.CollectionValueHistoryPoint(date=day.isoformat(), value=round(daily_total, 2))
+        )
+        
+    return value_history
+
+
+@router.get("/stats", response_model=schemas.CollectionStats)
+def get_collection_stats(
+    use_history: bool = True,
+    current_user: models.User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Get collection statistics including value history."""
+    entries = session.exec(
+        select(models.CollectionEntry)
+        .where(models.CollectionEntry.user_id == current_user.id)
+        .options(
+            selectinload(models.CollectionEntry.card),
+            selectinload(models.CollectionEntry.product)
+        )
+    ).all()
+    
+    # Calculate current stats
+    total_cards = sum(entry.quantity or 0 for entry in entries)
+    unique_cards = len(entries)
+    total_value = 0.0
+    purchase_value = 0.0
+
+    # Refresh prices for cards/products that don't have them
+    for entry in entries:
+        quantity = entry.quantity or 0
+        
+        if entry.card:
+            if entry.card.price is None:
+                _apply_card_price(entry.card, session)
+            price = entry.card.price or 0.0
+            total_value += price * quantity
+        elif entry.product:
+            from .products import _apply_product_price
+            if entry.product.price is None:
+                _apply_product_price(entry.product, session)
+            price = entry.product.price or 0.0
+            total_value += price * quantity
+
+        purchase_price = entry.purchase_price or 0.0
+        purchase_value += purchase_price * quantity
+    
+    session.commit()
+    
+    # Generate monthly value history
+    value_history: list[schemas.CollectionValueHistoryPoint] = []
+    
+    if use_history:
+        # Fetch real historical data from the local database
+        logger.info("Fetching historical prices for collection from local DB...")
+        value_history = _fetch_collection_history(
+            entries=list(entries),
+            days=365,
+            session=session,
+        )
+    
+    return schemas.CollectionStats(
+        total_cards=total_cards,
+        unique_cards=unique_cards,
+        total_value=total_value,
+        purchase_value=purchase_value,
+        value_history=value_history,
+    )
+
+
+@router.post("/refresh-prices", response_model=dict[str, Any])
+def refresh_collection_prices(
+    current_user: models.User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Refresh prices for all cards and products in user's collection from cache."""
+    entries = session.exec(
+        select(models.CollectionEntry)
+        .where(models.CollectionEntry.user_id == current_user.id)
+        .options(
+            selectinload(models.CollectionEntry.card),
+            selectinload(models.CollectionEntry.product)
+        )
+    ).all()
+    
+    updated_cards = 0
+    updated_products = 0
+    
+    for entry in entries:
+        if entry.card:
+            if _apply_card_price(entry.card, session):
+                session.add(entry.card)
+                updated_cards += 1
+        elif entry.product:
+            # Import _apply_product_price from products module
+            from .products import _apply_product_price
+            if _apply_product_price(entry.product, session):
+                session.add(entry.product)
+                updated_products += 1
+    
+    total_updated = updated_cards + updated_products
+    if total_updated > 0:
+        session.commit()
+    
+    return {
+        "message": f"Zaktualizowano ceny dla {updated_cards} kart i {updated_products} produktów",
+        "updated_cards": updated_cards,
+        "updated_products": updated_products,
+        "total_updated": total_updated,
+        "total_entries": len(entries)
+    }
+
+
+@router.get("/recently-added", response_model=list[schemas.CollectionEntryRead])
+def get_recently_added_cards(
+    limit: int = 10,
+    current_user: models.User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Get recently added cards and products from user's collection."""
+    entries = session.exec(
+        select(models.CollectionEntry)
+        .where(models.CollectionEntry.user_id == current_user.id)
+        .options(
+            selectinload(models.CollectionEntry.card),
+            selectinload(models.CollectionEntry.product)
+        )
+        .order_by(models.CollectionEntry.id.desc())
+        .limit(limit)
+    ).all()
+
+    return entries
+
+
+@router.get("/price-changes", response_model=list[dict[str, Any]])
+def get_price_changes(
+    limit: int = 10,
+    current_user: models.User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Get cards with biggest price changes in user's collection."""
+    entries = session.exec(
+        select(models.CollectionEntry)
+        .where(models.CollectionEntry.user_id == current_user.id)
+        .options(
+            selectinload(models.CollectionEntry.card),
+            selectinload(models.CollectionEntry.product)
+        )
+    ).all()
+
+    price_changes: list[dict[str, Any]] = []
+
+    for entry in entries:
+        if entry.card:
+            current_price = entry.card.price or 0.0
+            avg_price = entry.card.price_7d_average or 0.0
+
+            # Only include cards with both prices
+            if current_price > 0 and avg_price > 0:
+                change = current_price - avg_price
+                change_percent = (change / avg_price) * 100 if avg_price > 0 else 0.0
+
+                price_changes.append({
+                    "type": "card",
+                    "id": entry.card.id,
+                    "name": entry.card.name,
+                    "number": entry.card.number,
+                    "set_name": entry.card.set_name,
+                    "set_code": entry.card.set_code,
+                    "image_small": entry.card.image_small,
+                    "current_price": current_price,
+                    "average_price": avg_price,
+                    "price_change": change,
+                    "price_change_percent": round(change_percent, 2),
+                })
+        elif entry.product:
+            current_price = entry.product.price or 0.0
+            avg_price = entry.product.price_7d_average or 0.0
+
+            # Only include products with both prices
+            if current_price > 0 and avg_price > 0:
+                change = current_price - avg_price
+                change_percent = (change / avg_price) * 100 if avg_price > 0 else 0.0
+
+                price_changes.append({
+                    "type": "product",
+                    "id": entry.product.id,
+                    "name": entry.product.name,
+                    "set_name": entry.product.set_name,
+                    "set_code": entry.product.set_code,
+                    "image_small": entry.product.image_small,
+                    "current_price": current_price,
+                    "average_price": avg_price,
+                    "price_change": change,
+                    "price_change_percent": round(change_percent, 2),
+                })
+
+    # Sort by absolute change percent (biggest changes first)
+    price_changes.sort(key=lambda x: abs(x["price_change_percent"]), reverse=True)
+
+    return price_changes[:limit]

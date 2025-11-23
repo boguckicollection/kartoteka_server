@@ -1,4 +1,16 @@
 {
+  "Mega Evolution": [
+    {
+      "name": "Mega Evolution",
+      "code": "MEG",
+      "abbr": "MEG"
+    },
+    {
+      "name": "Phantasmal Flames",
+      "code": "PFL",
+      "abbr": "PFL"
+    }
+  ],
   "Scarlet & Violet": [
     {
       "name": "Scarlet & Violet",

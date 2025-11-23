@@ -11,7 +11,7 @@
 <section class="page-hero add-card-hero">
   <div>
     <p class="eyebrow">Rozszerz swoją kolekcję</p>
-    <h1>Dodaj kartę z katalogu</h1>
+    <h1>Dodaj kartę do kolekcji, {{ username or 'Trenerze' }}</h1>
     <p>Wpisz nazwę lub numer karty. Wyniki możesz od razu zapisać w kolekcji, ustawiając ilość i podstawowe oznaczenia.</p>
   </div>
 </section>
@@ -19,20 +19,24 @@
 <section class="panel" id="add-card-page">
   <div class="panel-header">
     <div>
-      <h2>Wyszukiwarka kart</h2>
-      <p>Dodaj numer lub kod seta, aby szybciej znaleźć właściwy wariant.</p>
+      <h2>Wyszukiwarka</h2>
+      <p>Wyszukaj karty lub produkty, aby dodać je do swojej kolekcji.</p>
     </div>
   </div>
   <form id="add-card-form" class="add-card-form" autocomplete="off" data-card-search-form>
     <div class="add-card-form-field">
-      <label for="add-card-query">Nazwa lub numer karty</label>
+      <label for="add-card-query">Nazwa</label>
       <div class="add-card-form-row">
+        <select name="type" id="search-type" class="add-card-form-control">
+          <option value="card" selected>Karty</option>
+          <option value="product">Produkty</option>
+        </select>
         <input
           type="text"
           name="query"
           id="add-card-query"
           autocomplete="off"
-          placeholder="np. Pikachu 25/102"
+          placeholder="np. Pikachu"
           required
           class="add-card-form-control"
         />

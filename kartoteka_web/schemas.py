@@ -52,6 +52,8 @@ class CardBase(SQLModel):
 
 class CardRead(CardBase):
     id: int
+    price: Optional[float] = None
+    price_7d_average: Optional[float] = None
 
 
 class CardSearchResult(SQLModel):
@@ -135,6 +137,25 @@ class CollectionEntryCreate(CollectionEntryBase):
     card: CardBase
 
 
+class ProductBase(SQLModel):
+    name: str
+    set_name: str
+    set_code: Optional[str] = None
+    image_small: Optional[str] = None
+    image_large: Optional[str] = None
+    release_date: Optional[str] = None
+    price: Optional[float] = None
+    price_7d_average: Optional[float] = None
+
+
+class ProductRead(ProductBase):
+    id: int
+
+
+class ProductCollectionEntryCreate(CollectionEntryBase):
+    product: ProductBase
+
+
 class CollectionEntryUpdate(SQLModel):
     quantity: Optional[int] = None
     purchase_price: Optional[float] = None
@@ -142,6 +163,146 @@ class CollectionEntryUpdate(SQLModel):
     is_holo: Optional[bool] = None
 
 
+
 class CollectionEntryRead(CollectionEntryBase):
     id: int
-    card: CardRead
+    card: Optional[CardRead] = None
+    product: Optional[ProductRead] = None
+
+
+class CollectionValueHistoryPoint(SQLModel):
+    """Single point in collection value history."""
+    date: str
+    value: float
+    purchase_value: Optional[float] = None
+
+
+class CollectionStats(SQLModel):
+    """Collection statistics and value tracking."""
+    total_cards: int = 0
+    unique_cards: int = 0
+    total_value: float = 0.0
+    purchase_value: float = 0.0
+    value_history: List[CollectionValueHistoryPoint] = Field(default_factory=list)
+
+
+# ============================================================================
+# User Collection Schemas (for set/artist tracking)
+# ============================================================================
+
+class CollectionBase(SQLModel):
+    """Base schema for user collections."""
+    name: str
+    description: Optional[str] = None
+    collection_type: str = "custom"  # custom, set, artist
+
+
+class CollectionCreate(CollectionBase):
+    """Schema for creating a new collection."""
+    # For SET type
+    set_code: Optional[str] = None
+    set_type: Optional[str] = None  # baseset or masterset
+    
+    # For ARTIST type
+    artist_name: Optional[str] = None
+
+
+class CollectionUpdate(SQLModel):
+    """Schema for updating a collection."""
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+class CollectionCardInfo(SQLModel):
+    """Card information within a collection."""
+    id: int
+    card_record_id: int
+    name: str
+    number: str
+    number_display: Optional[str] = None
+    set_name: str
+    set_code: Optional[str] = None
+    rarity: Optional[str] = None
+    artist: Optional[str] = None
+    image_small: Optional[str] = None
+    image_large: Optional[str] = None
+    is_owned: bool = False
+    quantity: int = 0
+    is_reverse: bool = False
+    is_holo: bool = False
+
+
+class CollectionRead(CollectionBase):
+    """Schema for reading a collection."""
+    id: int
+    user_id: int
+    set_code: Optional[str] = None
+    set_name: Optional[str] = None
+    set_type: Optional[str] = None
+    artist_name: Optional[str] = None
+    cover_image: Optional[str] = None
+    total_cards: int = 0
+    owned_cards: int = 0
+    progress_percent: float = 0.0
+    created_at: dt.datetime
+    updated_at: dt.datetime
+
+
+class CollectionDetailRead(CollectionRead):
+    """Schema for reading collection with cards."""
+    cards: List[CollectionCardInfo] = Field(default_factory=list)
+
+
+class CollectionCardUpdate(SQLModel):
+    """Schema for updating card ownership in collection."""
+    is_owned: Optional[bool] = None
+    quantity: Optional[int] = None
+    is_reverse: Optional[bool] = None
+    is_holo: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class CollectionProgressCard(SQLModel):
+    """Card info for progress statistics."""
+    name: str
+    number: str
+    set_name: str
+    image_small: Optional[str] = None
+    price: Optional[float] = None
+    is_owned: bool = False
+
+
+class CollectionProgress(SQLModel):
+    """Progress statistics for a collection."""
+    total_cards: int = 0
+    owned_cards: int = 0
+    missing_cards: int = 0
+    progress_percent: float = 0.0
+    owned_value: float = 0.0
+    missing_value: float = 0.0
+    total_value: float = 0.0
+    # Additional stats
+    avg_card_price: float = 0.0
+    cards_with_price: int = 0
+    cards_without_price: int = 0
+    # Top cards
+    most_expensive_owned: Optional[CollectionProgressCard] = None
+    most_expensive_missing: Optional[CollectionProgressCard] = None
+    cheapest_missing: Optional[CollectionProgressCard] = None
+
+
+class SetInfoRead(SQLModel):
+    """Schema for reading set information."""
+    code: str
+    name: str
+    series: Optional[str] = None
+    release_date: Optional[str] = None
+    total_cards: Optional[int] = None
+    logo_url: Optional[str] = None
+    symbol_url: Optional[str] = None
+
+
+class ArtistInfo(SQLModel):
+    """Schema for artist information."""
+    name: str
+    card_count: int = 0

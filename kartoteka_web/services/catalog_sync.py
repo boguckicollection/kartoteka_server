@@ -100,7 +100,12 @@ def upsert_card_record(
     )
     record = session.exec(stmt).first()
 
+    # Extract remote_id from payload
+    remote_id_value = payload.get("id")
+    remote_id = str(remote_id_value).strip() if remote_id_value else None
+    
     base_kwargs = {
+        "remote_id": remote_id,
         "name": name,
         "name_normalized": text.normalize(name, keep_spaces=True),
         "number": number,
