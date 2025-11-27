@@ -28,6 +28,13 @@ class User(SQLModel, table=True):
     username: str = Field(index=True, unique=True)
     email: Optional[str] = Field(default=None, index=True)
     avatar_url: Optional[str] = Field(default=None)
+    is_admin: bool = Field(default=False)
+    
+    # Security fields
+    failed_login_attempts: int = Field(default=0)
+    last_failed_login: Optional[dt.datetime] = Field(default=None)
+    locked_until: Optional[dt.datetime] = Field(default=None)
+    
     hashed_password: str
     created_at: dt.datetime = Field(
         default_factory=lambda: dt.datetime.now(dt.timezone.utc)

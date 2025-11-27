@@ -517,18 +517,44 @@
   };
 
   const updateUserBadge = (user) => {
-    const username = user && user.username ? String(user.username).trim() : "";
-    const label = document.querySelector("[data-username-display]");
-    if (label) {
-      label.textContent = username || "Gość";
-    }
-    const loginButton = document.getElementById("login-button");
-    if (loginButton) {
-      loginButton.hidden = Boolean(username);
-    }
-    const logoutButton = document.getElementById("logout-button");
-    if (logoutButton) {
-      logoutButton.hidden = !username;
+    const userMenuContainer = document.getElementById("user-menu-container");
+    const authButtons = document.getElementById("auth-buttons");
+    const userMenuUsername = document.getElementById("user-menu-username");
+    const userMenuUsernameFull = document.getElementById("user-menu-username-full");
+    const userMenuAvatar = document.getElementById("user-menu-avatar");
+    const adminLink = document.getElementById("user-menu-admin-link");
+
+    if (user && user.username) {
+      const username = String(user.username).trim();
+      
+      // Update username
+      if (userMenuUsername) userMenuUsername.textContent = username;
+      if (userMenuUsernameFull) {
+        userMenuUsernameFull.textContent = username;
+        userMenuUsernameFull.title = username;
+      }
+
+      // Update avatar
+      if (userMenuAvatar) {
+        if (user.avatar_url) {
+          userMenuAvatar.innerHTML = `<img src="${escapeHtml(user.avatar_url)}" alt="Avatar" class="w-full h-full object-cover">`;
+        } else {
+          userMenuAvatar.textContent = username.charAt(0).toUpperCase();
+        }
+      }
+
+      // Show admin link if applicable
+      if (adminLink) {
+        adminLink.classList.toggle("hidden", !user.is_admin);
+      }
+
+      // Toggle visibility
+      if (userMenuContainer) userMenuContainer.classList.remove("hidden");
+      if (authButtons) authButtons.classList.add("hidden");
+    } else {
+      // Hide user menu, show auth buttons
+      if (userMenuContainer) userMenuContainer.classList.add("hidden");
+      if (authButtons) authButtons.classList.remove("hidden");
     }
   };
 
@@ -590,14 +616,18 @@
     const toggle = document.querySelector("[data-nav-toggle]");
     if (nav && toggle) {
       toggle.addEventListener("click", () => {
-        const expanded = toggle.getAttribute("aria-expanded") === "true";
-        const next = !expanded;
-        toggle.setAttribute("aria-expanded", String(next));
-        nav.dataset.open = String(next);
+        const isHidden = nav.classList.contains("hidden");
+        if (isHidden) {
+          nav.classList.remove("hidden");
+          toggle.setAttribute("aria-expanded", "true");
+        } else {
+          nav.classList.add("hidden");
+          toggle.setAttribute("aria-expanded", "false");
+        }
       });
       document.addEventListener("click", (event) => {
         if (!nav.contains(event.target) && !toggle.contains(event.target)) {
-          nav.dataset.open = "false";
+          nav.classList.add("hidden");
           toggle.setAttribute("aria-expanded", "false");
         }
       });
@@ -703,7 +733,7 @@
     return tr;
   };
 
-  const renderCollection = (entries) => {
+    const renderCollection = (entries) => {
     const container = document.getElementById("collection-cards");
     const emptyMessage = document.getElementById("collection-empty");
     if (!container) return;
@@ -725,8 +755,8 @@
     // Render cards based on view mode
     for (const entry of entries) {
       const card = entry.card || entry.product || {};
-      const article = document.createElement("article");
-      article.className = "card-search-item card-collection-item";
+      const article = document.createElement("div");
+      article.className = "bg-zinc-900 border border-zinc-800 rounded-lg p-3 hover:border-zinc-600 transition-colors group relative";
       article.dataset.entryId = entry.id;
       
       const cardName = card.name || "Nieznana karta";
@@ -736,251 +766,75 @@
       const currentPrice = typeof card.price === "number"
         ? `${card.price.toFixed(2)} PLN`
         : "–";
+      const rarity = card.rarity || "";
       
-      if (viewMode === "clean") {
-        // Clean mode - only thumbnails
-        article.innerHTML = `
-          <div class="card-search-media">
-            <div class="card-search-thumbnail">
-              ${hasThumbnail 
-                ? `<img src="${escapeHtml(card.image_small)}" alt="${escapeHtml(cardName)}" loading="lazy" />`
-                : `<div class="card-search-thumbnail-fallback">Brak miniatury</div>`
-              }
-              <div class="card-search-quantity-badge">${quantity}×</div>
-            </div>
-          </div>
-        `;
-      } else if (viewMode === "info") {
-        // Info mode - gradient overlay with information (exactly like search results)
-        const rarityRaw = (card.rarity || "").trim();
-        const rarityText = rarityRaw || "Brak danych";
-        const rarityIconFromMap = resolveRarityIconUrl(rarityRaw);
-        const rarityIconUrl = rarityIconFromMap;
-        const hasRarityVisual = Boolean(rarityIconUrl);
-        const rarityAlt = `Symbol rzadkości ${rarityText}`;
-        const rarityFallback = rarityRaw ? rarityRaw.charAt(0).toUpperCase() : "?";
-        
-        const { primary: setIconUrl, fallback: setIconFallbackUrl } = resolveSetIconUrl(card, { preferLocal: true });
-        const setCodeRaw = (card.set_code || "").trim();
-        const setCodeText = setCodeRaw || "—";
-        const setIconAltBase = setName && setName !== "Nieznany dodatek" ? setName : setCodeText;
-        const setIconAlt = setIconAltBase ? `Symbol dodatku ${setIconAltBase}` : "Symbol dodatku";
-        const hasSetIconVisual = Boolean(setIconUrl);
-        const setIconFallbackHiddenAttr = hasSetIconVisual ? " hidden" : "";
-        const setIconFallbackUrlAttr = setIconFallbackUrl && setIconFallbackUrl !== setIconUrl
-          ? ` data-card-set-icon-fallback-url="${escapeHtml(setIconFallbackUrl)}"`
-          : "";
-        const setIconImageMarkup = hasSetIconVisual
-          ? `<img class="card-search-set-icon" src="${escapeHtml(setIconUrl)}" alt="${escapeHtml(setIconAlt)}" loading="lazy" decoding="async" data-card-set-icon${setIconFallbackUrlAttr} />`
-          : "";
-        
-        const setIconMarkup = `
-          <div class="card-search-badge card-search-badge--set">
-            ${setIconImageMarkup}
-            <span class="card-search-set-code card-search-set-fallback"${setIconFallbackHiddenAttr} data-card-set-code data-card-set-icon-fallback>${escapeHtml(setCodeText)}</span>
-          </div>
-        `;
-        
-        const rarityIconMarkup = `
-          <div class="card-search-badge card-search-badge--rarity">
-            <div class="card-search-rarity-icon">
-              ${
-                rarityIconUrl
-                  ? `<img src="${escapeHtml(rarityIconUrl)}" alt="${escapeHtml(rarityAlt)}" loading="lazy" decoding="async" data-card-rarity-icon />`
-                  : ""
-              }
-              <span class="card-search-rarity-icon-fallback"${hasRarityVisual ? " hidden" : ""} data-card-rarity-icon-fallback aria-hidden="true">${escapeHtml(rarityFallback)}</span>
-            </div>
-          </div>
-        `;
-        
-        const setBadgesGridMarkup = `
-          <div class="card-search-set-badges">
-            ${setIconMarkup}
-            ${rarityIconMarkup}
-          </div>
-        `;
-        
-        // Build card detail link (same as in search results)
-        const cardLinkParams = new URLSearchParams();
-        if (card.name) cardLinkParams.set("name", card.name);
-        if (card.number) cardLinkParams.set("number", card.number);
-        if (card.set_name) cardLinkParams.set("set_name", card.set_name);
-        if (card.set_code) cardLinkParams.set("set_code", card.set_code);
-        const cardLinkQuery = cardLinkParams.toString();
-        const cardLinkSetSegment = encodeURIComponent(card.set_code || card.set_name || "");
-        const cardLinkNumberSegment = encodeURIComponent(card.number || "");
-        const cardLink = `/cards/${cardLinkSetSegment}/${cardLinkNumberSegment}${cardLinkQuery ? `?${cardLinkQuery}` : ""}`;
-        
-        article.innerHTML = `
-          <div class="card-search-media">
-            <div class="card-search-thumbnail">
-              <a class="card-search-thumbnail-link" href="${escapeHtml(cardLink)}" aria-label="${escapeHtml(cardName)}">
-                ${
-                  hasThumbnail
-                    ? `<img src="${escapeHtml(card.image_small)}" alt="${escapeHtml(cardName)}" loading="lazy" decoding="async" data-card-thumbnail />`
-                    : ""
-                }
-                <div class="card-search-thumbnail-fallback"${hasThumbnail ? " hidden" : ""} data-card-thumbnail-fallback>
-                  Brak miniatury
-                </div>
-              </a>
-              <div class="card-search-quantity-badge">${quantity}×</div>
-              <div class="card-search-overlay">
-                <div class="card-search-overlay-content">
-                  <div class="card-search-set">
-                    ${setBadgesGridMarkup}
-                  </div>
-                  <div class="card-search-info">
-                    <h3>
-                      <a class="card-search-title-link" href="${escapeHtml(cardLink)}">${escapeHtml(cardName)}</a>
-                    </h3>
-                    <p class="card-search-info-meta">
-                      <span class="card-search-set-name">${escapeHtml(setName)}</span>
-                      ${
-                        card.number
-                          ? `<span class="card-search-info-divider" aria-hidden="true">•</span>
-                             <span class="card-search-info-number">${escapeHtml(card.number)}</span>`
-                          : ""
-                      }
-                    </p>
-                    ${
-                      currentPrice !== "–"
-                        ? `<p class="card-search-price" data-card-price><span class="card-search-price-label">Cena:</span> <span class="card-search-price-value">${escapeHtml(currentPrice)}</span></p>`
+      // Build card detail link
+      const cardLinkParams = new URLSearchParams();
+      if (card.name) cardLinkParams.set("name", card.name);
+      if (card.number) cardLinkParams.set("number", card.number);
+      if (card.set_name) cardLinkParams.set("set_name", card.set_name);
+      if (card.set_code) cardLinkParams.set("set_code", card.set_code);
+      const cardLinkQuery = cardLinkParams.toString();
+      const cardLinkSetSegment = encodeURIComponent(card.set_code || card.set_name || "");
+      const cardLinkNumberSegment = encodeURIComponent(card.number || "");
+      const cardLink = `/cards/${cardLinkSetSegment}/${cardLinkNumberSegment}${cardLinkQuery ? `?${cardLinkQuery}` : ""}`;
+
+      if (viewMode === "info") {
+          article.innerHTML = `
+            <a href="${escapeHtml(cardLink)}" class="block">
+                <div class="aspect-[2.5/3.5] bg-zinc-800 rounded mb-2 relative overflow-hidden">
+                    ${hasThumbnail 
+                        ? `<img src="${escapeHtml(card.image_small)}" alt="${escapeHtml(cardName)}" class="w-full h-full object-cover" loading="lazy" />` 
+                        : `<div class="flex items-center justify-center h-full text-zinc-700"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>`
+                    }
+                    ${quantity > 1 
+                        ? `<div class="absolute top-2 right-2 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] font-medium text-white border border-white/10">${quantity}×</div>` 
                         : ""
                     }
-                  </div>
+                    ${rarity 
+                        ? `<div class="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] font-medium text-white border border-white/10">${escapeHtml(rarity)}</div>` 
+                        : ""
+                    }
                 </div>
-              </div>
-            </div>
-          </div>
-        `;
+                <div class="space-y-1">
+                    <h3 class="text-xs font-medium text-zinc-200 truncate" title="${escapeHtml(cardName)}">${escapeHtml(cardName)}</h3>
+                    <div class="flex justify-between items-center">
+                        <p class="text-[10px] text-zinc-500 truncate max-w-[60%]">${escapeHtml(setName)}</p>
+                        ${card.number ? `<p class="text-[10px] text-zinc-600">#${escapeHtml(card.number)}</p>` : ""}
+                    </div>
+                    <div class="flex justify-between items-end pt-1">
+                        <div class="text-xs font-semibold text-white">${escapeHtml(currentPrice)}</div>
+                    </div>
+                </div>
+            </a>
+          `;
       } else {
-        // Edit mode - standard layout with controls
-        article.innerHTML = `
-          <div class="card-search-media">
-            <div class="card-search-thumbnail">
-              ${hasThumbnail 
-                ? `<img src="${escapeHtml(card.image_small)}" alt="${escapeHtml(cardName)}" loading="lazy" />`
-                : `<div class="card-search-thumbnail-fallback">Brak miniatury</div>`
-              }
+           article.innerHTML = `
+            <div class="aspect-[2.5/3.5] bg-zinc-800 rounded mb-2 relative overflow-hidden">
+                ${hasThumbnail 
+                    ? `<img src="${escapeHtml(card.image_small)}" alt="${escapeHtml(cardName)}" class="w-full h-full object-cover" loading="lazy" />` 
+                    : `<div class="flex items-center justify-center h-full text-zinc-700"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>`
+                }
             </div>
-          </div>
-          <div class="card-search-info">
-            <h3><a class="card-search-title-link" href="/collection">${escapeHtml(cardName)}</a></h3>
-            <p class="card-search-info-meta">
-              <span>${escapeHtml(setName)}</span>
-              ${card.number ? ` • #${escapeHtml(card.number)}` : ''}
-            </p>
-            <div class="card-collection-price">
-              <span class="card-collection-price-label">Cena:</span>
-              <span class="card-collection-price-value">${currentPrice}</span>
+            <div class="space-y-2">
+                <h3 class="text-xs font-medium text-zinc-200 truncate">${escapeHtml(cardName)}</h3>
+                <div class="flex items-center justify-between gap-2">
+                    <button type="button" class="w-6 h-6 flex items-center justify-center rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700" data-action="decrease" aria-label="Decrease">−</button>
+                    <input type="number" class="w-full bg-zinc-950 border border-zinc-800 rounded px-1 py-0.5 text-center text-xs text-white" id="quantity-${entry.id}" value="${quantity}" min="0" data-field="quantity">
+                    <button type="button" class="w-6 h-6 flex items-center justify-center rounded bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700" data-action="increase" aria-label="Increase">+</button>
+                </div>
+                <div class="flex gap-2">
+                    <button type="button" class="flex-1 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-medium rounded" data-action="save" data-entry-id="${entry.id}">Zapisz</button>
+                    <button type="button" class="py-1 px-2 bg-zinc-800 hover:bg-red-900/30 text-zinc-400 hover:text-red-400 text-[10px] font-medium rounded" data-action="delete" data-entry-id="${entry.id}">Usuń</button>
+                </div>
             </div>
-            ${entry.is_reverse || entry.is_holo ? `
-              <p class="card-search-variants">
-                ${entry.is_reverse ? '<span class="badge">Reverse</span>' : ''}
-                ${entry.is_holo ? '<span class="badge">Holo</span>' : ''}
-              </p>
-            ` : ''}
-          </div>
-                      <div class="collection-edit-controls">
-                        <div class="collection-edit-field">
-                          <label for="quantity-${entry.id}">Ilość</label>
-                          <div class="quantity-control">
-                            <button type="button" class="quantity-btn quantity-btn--minus" data-action="decrease" aria-label="Zmniejsz ilość">−</button>
-                            <input 
-                              type="number" 
-                              class="quantity-input" 
-                              id="quantity-${entry.id}"
-                              value="${quantity}" 
-                              min="0" 
-                              data-field="quantity"
-                              aria-label="Ilość"
-                            />
-                            <button type="button" class="quantity-btn quantity-btn--plus" data-action="increase" aria-label="Zwiększ ilość">+</button>
-                          </div>
-                        </div>
-                        <div class="collection-edit-field">
-                          <label for="purchase_price-${entry.id}">Cena zakupu (PLN)</label>
-                          <input
-                            type="number"
-                            class="add-card-form-control"
-                            min="0"
-                            step="0.01"
-                            inputmode="decimal"
-                            id="purchase_price-${entry.id}"
-                            placeholder="0.00"
-                            value="${typeof entry.purchase_price === 'number' ? entry.purchase_price.toFixed(2) : ''}"
-                            data-field="purchase_price"
-                          />
-                        </div>
-                        <div class="collection-edit-actions">
-                          <button 
-                            type="button" 
-                            class="button primary inline" 
-                            data-action="save" 
-                            data-entry-id="${entry.id}"
-                            aria-label="Zapisz zmiany"
-                          >
-                            Zapisz
-                          </button>
-                          <button 
-                            type="button" 
-                            class="button inline danger" 
-                            data-action="delete" 
-                            data-entry-id="${entry.id}"
-                            aria-label="Usuń z kolekcji"
-                            title="Usuń z kolekcji"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="pointer-events: none;">
-                              <path d="M3.75 4.5H14.25M7.5 8.25V12.75M10.5 8.25V12.75M4.5 4.5L5.25 14.25C5.25 14.6478 5.40804 15.0294 5.68934 15.3107C5.97064 15.592 6.35218 15.75 6.75 15.75H11.25C11.6478 15.75 12.0294 15.592 12.3107 15.3107C12.592 15.0294 12.75 14.6478 12.75 14.25L13.5 4.5M6.75 4.5V3C6.75 2.80109 6.82902 2.61032 6.96967 2.46967C7.11032 2.32902 7.30109 2.25 7.5 2.25H10.5C10.6989 2.25 10.8897 2.32902 11.0303 2.46967C11.171 2.61032 11.25 2.80109 11.25 3V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                          </button>
-                        </div>
-                      </div>        `;
+          `;
       }
       container.appendChild(article);
-      
-      // Add event handlers for icon fallback (must be after appendChild!)
-      if (viewMode === "info") {
-        const setIconElement = article.querySelector("[data-card-set-icon]");
-        const setIconFallbackElement = article.querySelector("[data-card-set-icon-fallback]");
-        if (setIconElement && setIconFallbackElement) {
-          const handleSetIconError = () => {
-            const fallbackUrl = setIconElement.dataset.cardSetIconFallbackUrl;
-            if (fallbackUrl && setIconElement.dataset.cardSetIconFallbackTried !== "true") {
-              setIconElement.dataset.cardSetIconFallbackTried = "true";
-              setIconElement.src = fallbackUrl;
-              return;
-            }
-            setIconElement.remove();
-            setIconFallbackElement.hidden = false;
-          };
-          setIconElement.addEventListener("error", handleSetIconError, { once: true });
-        } else if (setIconFallbackElement) {
-          setIconFallbackElement.hidden = false;
-        }
-        
-        const thumbnail = article.querySelector("[data-card-thumbnail]");
-        const thumbnailFallback = article.querySelector("[data-card-thumbnail-fallback]");
-        if (thumbnail && thumbnailFallback) {
-          const handleThumbnailError = () => {
-            thumbnail.remove();
-            thumbnailFallback.hidden = false;
-          };
-          thumbnail.addEventListener("error", handleThumbnailError, { once: true });
-        }
-        
-        const rarityIcon = article.querySelector("[data-card-rarity-icon]");
-        const rarityIconFallback = article.querySelector("[data-card-rarity-icon-fallback]");
-        if (rarityIcon && rarityIconFallback) {
-          const handleRarityIconError = () => {
-            rarityIcon.remove();
-            rarityIconFallback.hidden = false;
-          };
-          rarityIcon.addEventListener("error", handleRarityIconError, { once: true });
-        }
-      }
+    }
+    
+    if (typeof lucide !== "undefined") {
+        lucide.createIcons();
     }
   };
 
@@ -1535,6 +1389,24 @@
     if (collectionValueChart) {
       collectionValueChart.destroy();
     }
+
+    // Create gradient for chart
+    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+    gradient.addColorStop(0, 'rgba(99, 102, 241, 0.2)'); // Indigo-500 with opacity
+    gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');   // Transparent
+
+    // Add crosshair logic to container
+    const container = canvas.parentElement;
+    if (container) {
+        container.addEventListener('mousemove', (e) => {
+            const rect = container.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            container.style.setProperty('--crosshair-x', `${x}px`);
+        });
+        container.addEventListener('mouseleave', () => {
+            container.style.setProperty('--crosshair-x', '-9999px');
+        });
+    }
     
     collectionValueChart = new Chart(ctx, {
       type: "line",
@@ -1543,17 +1415,24 @@
         datasets: [{
           label: "Wartość kart (PLN)",
           data: [],
-          borderColor: "rgb(37, 99, 235)",
-          backgroundColor: "rgba(37, 99, 235, 0.1)",
+          borderColor: "#6366f1", // Indigo-500
+          backgroundColor: gradient,
+          borderWidth: 3,
           tension: 0.4,
           fill: true,
           pointRadius: 0,
-          pointHitRadius: 10,
+          pointHitRadius: 20,
+          pointHoverRadius: 4,
+          pointHoverBackgroundColor: "#818cf8",
+          pointHoverBorderColor: "#ffffff",
+          pointHoverBorderWidth: 2
         }, {
           label: "Wartość produktów (PLN)",
           data: [],
-          borderColor: "rgb(234, 179, 8)",
-          backgroundColor: "rgba(234, 179, 8, 0.1)",
+          borderColor: "#eab308", // Yellow-500
+          backgroundColor: "rgba(234, 179, 8, 0.05)",
+          borderWidth: 2,
+          borderDash: [5, 5],
           tension: 0.4,
           fill: true,
           pointRadius: 0,
@@ -1563,19 +1442,27 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        interaction: {
+            mode: 'index',
+            intersect: false,
+        },
         plugins: {
           legend: {
-            display: true,
-            position: "top",
+            display: false // Cleaner look without top legend
           },
           tooltip: {
-            mode: "index",
-            intersect: false,
+            backgroundColor: '#18181b',
+            titleColor: '#fafafa',
+            bodyColor: '#a1a1aa',
+            borderColor: '#27272a',
+            borderWidth: 1,
+            padding: 10,
+            displayColors: false, // Hide color box in tooltip
             callbacks: {
               label: function(context) {
                 let label = context.dataset.label || '';
                 if (label) {
-                  label += ': ';
+                  label = label.replace(' (PLN)', '') + ': ';
                 }
                 if (context.parsed.y !== null) {
                   label += new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(context.parsed.y);
@@ -1595,16 +1482,26 @@
                     day: 'dd.MM'
                 }
             },
+            grid: {
+                color: '#27272a',
+                borderDash: [4, 4]
+            },
             ticks: {
+                color: '#71717a',
                 autoSkip: true,
                 maxRotation: 0,
             }
           },
           y: {
             beginAtZero: true,
+            grid: {
+                color: '#27272a',
+                borderDash: [4, 4]
+            },
             ticks: {
+              color: '#71717a',
               callback: function(value) {
-                return value.toFixed(0) + " PLN";
+                return value.toFixed(0) + " zł";
               }
             }
           }

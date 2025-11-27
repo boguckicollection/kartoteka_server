@@ -11,10 +11,47 @@
   <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', path='/icons/icon-192.png') }}" />
   <link rel="apple-touch-icon" href="{{ url_for('static', path='/icons/icon-192.png') }}" />
   <link rel="manifest" href="{{ url_for('static', path='/manifest.json') }}" />
+  
+  <!-- Google Fonts - Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS + DaisyUI -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.6.0/dist/full.min.css" rel="stylesheet" type="text/css" />
+  
+  <!-- Custom CSS (legacy support) -->
   <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', path='/css/pokemon-cards.css') }}" />
+  
+  <!-- Icons - Lucide -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  
+  <!-- Tailwind Config -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            'pokemon-yellow': '#FFCB05',
+            'pokemon-blue': '#3B4CCA',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          letterSpacing: {
+            tighter: '-0.04em',
+            tight: '-0.02em',
+          }
+        },
+      },
+    }
+  </script>
+  
   <script defer src="{{ url_for('static', path='/js/app.js') }}"></script>
   {% block head_extra %}{% endblock %}
 </head>
@@ -22,60 +59,204 @@
   data-theme="auto"
   data-username="{{ username | default('') }}"
   data-avatar="{{ avatar_url | default('') }}"
+  class="bg-zinc-950 text-zinc-200"
 >
   {% set current_path = request.url.path %}
-  <header class="app-header">
-    <div class="brand">
-      <img src="{{ url_for('static', path='/icons/icon-192.png') }}" alt="Kartoteka" />
-      <div class="brand-copy">
-        <span class="brand-title">Kartoteka</span>
-        <span class="brand-subtitle">Pokemon TCG Manager</span>
+  <!-- Zinc Dark Navbar -->
+  <header class="sticky top-0 z-50 bg-zinc-950 border-b border-zinc-800 backdrop-blur-sm">
+    <div class="container mx-auto px-4">
+      <div class="flex items-center justify-between h-14">
+        <!-- Logo & Brand -->
+        <div class="flex items-center gap-3">
+          <img src="{{ url_for('static', path='/icons/białe-male.png') }}" alt="Kartoteka" class="h-8 w-auto" />
+          <div class="hidden md:block">
+            <span class="text-sm font-semibold tracking-tight text-white">KARTOTEKA</span>
+          </div>
+        </div>
+
+        <!-- Desktop Navigation -->
+        <nav class="hidden md:flex items-center gap-1">
+          <a href="/" class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors {{ 'bg-zinc-800 text-white' if current_path == '/' else 'text-zinc-400 hover:text-white hover:bg-zinc-900' }}">
+            <span class="flex items-center gap-2">
+              <i data-lucide="home" class="w-3.5 h-3.5"></i>
+              Strona główna
+            </span>
+          </a>
+          <a href="/collection" class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors {{ 'bg-zinc-800 text-white' if current_path.startswith('/collection') or current_path.startswith('/dashboard') or current_path.startswith('/my-collections') else 'text-zinc-400 hover:text-white hover:bg-zinc-900' }}">
+            <span class="flex items-center gap-2">
+              <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+              Kolekcja
+            </span>
+          </a>
+          <a href="/cards/add" class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors {{ 'bg-zinc-800 text-white' if current_path.startswith('/cards/add') else 'text-zinc-400 hover:text-white hover:bg-zinc-900' }}">
+            <span class="flex items-center gap-2">
+              <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+              Dodaj kartę
+            </span>
+          </a>
+          {% if is_admin %}
+          <a href="/admin" class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors {{ 'bg-zinc-800 text-white' if current_path.startswith('/admin') else 'text-zinc-400 hover:text-white hover:bg-zinc-900' }}">
+            <span class="flex items-center gap-2">
+              <i data-lucide="shield" class="w-3.5 h-3.5 text-indigo-400"></i>
+              Panel Admina
+            </span>
+          </a>
+          {% endif %}
+        </nav>
+
+        <!-- Right Actions -->
+        <div class="flex items-center gap-2">
+          
+          <!-- User Dropdown (Hidden by default, toggled by JS) -->
+          <div class="relative hidden" id="user-menu-container">
+            <button type="button" class="flex items-center gap-2 px-2 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-zinc-700" id="user-menu-button" aria-expanded="false" aria-haspopup="true">
+              <div class="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs font-bold overflow-hidden" id="user-menu-avatar">
+                U
+              </div>
+              <span class="text-xs text-zinc-300 font-medium hidden sm:block max-w-[100px] truncate" id="user-menu-username"></span>
+              <i data-lucide="chevron-down" class="w-3 h-3 text-zinc-500"></i>
+            </button>
+
+            <!-- Dropdown Menu -->
+            <div class="absolute right-0 mt-2 w-56 bg-zinc-950 border border-zinc-800 rounded-lg shadow-xl py-1 hidden z-50" id="user-menu-dropdown" role="menu">
+              <div class="px-4 py-3 border-b border-zinc-800 mb-1">
+                <p class="text-[10px] text-zinc-500 uppercase tracking-wider mb-0.5">Zalogowany jako</p>
+                <p class="text-sm font-medium text-white truncate" id="user-menu-username-full" title=""></p>
+              </div>
+              
+              <a href="/settings" class="block px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-900 hover:text-white transition-colors" role="menuitem">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="user" class="w-3.5 h-3.5"></i>
+                  Ustawienia profilu
+                </div>
+              </a>
+
+              <a href="/admin" class="block px-4 py-2 text-xs text-indigo-400 hover:bg-zinc-900 hover:text-indigo-300 transition-colors hidden" role="menuitem" id="user-menu-admin-link">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="shield" class="w-3.5 h-3.5"></i>
+                  Panel Administratora
+                </div>
+              </a>
+              
+              <div class="border-t border-zinc-800 mt-1 pt-1">
+                <button type="button" class="w-full text-left block px-4 py-2 text-xs text-red-400 hover:bg-zinc-900 hover:text-red-300 transition-colors" id="dropdown-logout-btn" role="menuitem">
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+                    Wyloguj się
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Auth Buttons (Default visible) -->
+          <div class="flex items-center gap-2" id="auth-buttons">
+            <a href="/login" class="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white transition-colors">
+              Zaloguj
+            </a>
+            <a href="/register" class="px-3 py-1.5 bg-zinc-100 hover:bg-white text-zinc-900 text-xs font-medium rounded-md transition-colors">
+              Rejestracja
+            </a>
+          </div>
+
+          <!-- Mobile Menu Toggle -->
+          <button type="button" class="md:hidden p-2 text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-md transition-colors" data-nav-toggle aria-label="Toggle menu">
+            <i data-lucide="menu" class="w-4 h-4"></i>
+          </button>
+        </div>
       </div>
-    </div>
-    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation" data-nav-toggle>
-      <span></span>
-      <span></span>
-      <span></span>
-    </button>
-    <nav class="app-nav" id="primary-navigation" data-nav>
-      <a href="/" class="{{ 'active' if current_path == '/' else '' }}">Strona główna</a>
-      <a
-        href="/collection"
-        class="{{ 'active' if current_path.startswith('/collection') or current_path.startswith('/dashboard') or current_path.startswith('/my-collections') else '' }}"
-      >Kolekcja</a>
-      <a
-        href="/cards/add"
-        class="{{ 'active' if current_path.startswith('/cards/add') else '' }}"
-      >Dodaj kartę</a>
-    </nav>
-    <div class="header-actions">
-      <button
-        type="button"
-        class="ghost theme-toggle"
-        data-theme-toggle
-        aria-label="Przełącz motyw"
-        title="Przełącz motyw"
-      >
-        <span aria-hidden="true" data-theme-toggle-icon>🌓</span>
-      </button>
-      <span class="user-pill" data-user-pill>
-        <span class="user-pill-label" data-username-display>Gość</span>
-      </span>
-      <a href="/login" class="ghost" id="login-button">Zaloguj</a>
-      <button type="button" class="ghost" id="logout-button" data-logout hidden>Wyloguj</button>
+
+      <!-- Mobile Navigation -->
+      <nav class="md:hidden border-t border-zinc-800 py-2 hidden" id="primary-navigation" data-nav>
+        <div class="space-y-1">
+          <a href="/" class="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors {{ 'bg-zinc-800 text-white' if current_path == '/' else 'text-zinc-400 hover:text-white hover:bg-zinc-900' }}">
+            <i data-lucide="home" class="w-4 h-4"></i>
+            Strona główna
+          </a>
+          <a href="/collection" class="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors {{ 'bg-zinc-800 text-white' if current_path.startswith('/collection') or current_path.startswith('/dashboard') or current_path.startswith('/my-collections') else 'text-zinc-400 hover:text-white hover:bg-zinc-900' }}">
+            <i data-lucide="folder-open" class="w-4 h-4"></i>
+            Kolekcja
+          </a>
+          <a href="/cards/add" class="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors {{ 'bg-zinc-800 text-white' if current_path.startswith('/cards/add') else 'text-zinc-400 hover:text-white hover:bg-zinc-900' }}">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+            Dodaj kartę
+          </a>
+          {% if is_admin %}
+          <a href="/admin" class="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors {{ 'bg-zinc-800 text-white' if current_path.startswith('/admin') else 'text-zinc-400 hover:text-white hover:bg-zinc-900' }}">
+            <i data-lucide="shield" class="w-4 h-4 text-indigo-400"></i>
+            Panel Admina
+          </a>
+          {% endif %}
+        </div>
+      </nav>
     </div>
   </header>
   <main>
     {% block content %}{% endblock %}
   </main>
   {% block scripts_extra %}{% endblock %}
-  <footer class="app-footer">
-    <p>&copy; Kartoteka – zarządzaj swoją kolekcją Pokemon TCG gdziekolwiek jesteś.</p>
-    <nav class="footer-links" aria-label="Informacje prawne">
-      <a href="/terms">Regulamin</a>
-      <a href="/privacy">Polityka prywatności</a>
-      <a href="/cookies">Polityka cookies</a>
-    </nav>
+  <!-- Zinc Dark Footer -->
+  <footer class="bg-zinc-950 border-t border-zinc-800 py-8">
+    <div class="container mx-auto px-4">
+      <div class="max-w-6xl mx-auto">
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+          <p class="text-xs text-zinc-500">
+            &copy; 2024 Kartoteka – zarządzaj swoją kolekcją Pokemon TCG gdziekolwiek jesteś.
+          </p>
+          <nav class="flex items-center gap-4" aria-label="Informacje prawne">
+            <a href="/terms" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Regulamin</a>
+            <span class="text-zinc-800">•</span>
+            <a href="/privacy" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Polityka prywatności</a>
+            <span class="text-zinc-800">•</span>
+            <a href="/cookies" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Polityka cookies</a>
+          </nav>
+        </div>
+      </div>
+    </div>
   </footer>
+  
+  <!-- Initialize Lucide Icons & UI Logic -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+      }
+
+      // User Dropdown Logic
+      const menuBtn = document.getElementById('user-menu-button');
+      const dropdown = document.getElementById('user-menu-dropdown');
+      
+      if (menuBtn && dropdown) {
+        menuBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isHidden = dropdown.classList.contains('hidden');
+          if (isHidden) {
+            dropdown.classList.remove('hidden');
+            menuBtn.setAttribute('aria-expanded', 'true');
+          } else {
+            dropdown.classList.add('hidden');
+            menuBtn.setAttribute('aria-expanded', 'false');
+          }
+        });
+
+        // Close on click outside
+        document.addEventListener('click', (e) => {
+          if (!menuBtn.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.add('hidden');
+            menuBtn.setAttribute('aria-expanded', 'false');
+          }
+        });
+      }
+
+      // Logout Logic
+      const logoutBtn = document.getElementById('dropdown-logout-btn');
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+          localStorage.removeItem('kartoteka_token');
+          window.location.href = '/';
+        });
+      }
+    });
+  </script>
 </body>
 </html>

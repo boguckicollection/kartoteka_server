@@ -30,6 +30,7 @@ class UserLogin(SQLModel):
 
 class UserRead(UserBase):
     id: int
+    is_admin: bool = False
     created_at: dt.datetime
 
 

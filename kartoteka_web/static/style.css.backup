@@ -118,7 +118,7 @@ main {
   padding: 24px 16px 64px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 32px;
 }
 
 a {
@@ -249,7 +249,7 @@ img {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 8px 16px;
+  padding: 10px 18px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   font-weight: 600;
@@ -381,12 +381,12 @@ img {
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-soft);
-  padding: 20px;
+  padding: 32px;
 }
 
 .page-hero h1 {
   margin: 0 0 12px;
-  font-size: clamp(1.5rem, 2vw, 2rem);
+  font-size: clamp(1.8rem, 2.4vw, 2.4rem);
 }
 
 .page-hero p {
@@ -416,7 +416,7 @@ img {
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-soft);
-  padding: 16px;
+  padding: 24px;
 }
 
 .panel-header {
@@ -429,7 +429,7 @@ img {
 
 .panel-header h2 {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1.35rem;
 }
 
 .panel-header p {
@@ -572,11 +572,11 @@ main:has(#add-card-page) {
 .portfolio-list {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
 .portfolio-card {
-  padding: 14px;
+  padding: 18px;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   background: var(--color-surface-alt);
@@ -851,20 +851,8 @@ main:has(#add-card-page) {
 
 .card-search-results--grid {
   display: grid;
-  gap: 16px;
+  gap: 20px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-@media (min-width: 1600px) {
-  .card-search-results--grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1400px) and (max-width: 1599px) {
-  .card-search-results--grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 1200px) {
@@ -1120,8 +1108,8 @@ body[data-theme="dark"] .card-search-badge--rarity {
 }
 
 .card-search-set-icon {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   max-width: 36px;
   max-height: 36px;
   object-fit: contain;
@@ -1524,8 +1512,8 @@ body[data-theme="dark"] .card-search-set-badges {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
 }
 
@@ -1735,7 +1723,7 @@ body[data-theme="dark"] .card-search-set-badges {
 .card-detail-main {
   display: grid;
   gap: 24px;
-  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
 }
 
 .card-detail-image {
@@ -2729,7 +2717,7 @@ body[data-theme="dark"] .card-search-set-badges {
 
   .page-hero,
   .panel {
-    padding: 16px;
+    padding: 20px;
   }
 
   .card-detail-main {

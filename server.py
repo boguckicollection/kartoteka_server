@@ -21,14 +21,14 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from sqlalchemy.orm import selectinload
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 
 load_dotenv(Path(__file__).resolve().with_name(".env"))
 
 from kartoteka_web import models, scheduler
 from kartoteka_web.auth import get_current_user, oauth2_scheme
 from kartoteka_web.database import init_db, session_scope, get_session
-from kartoteka_web.routes import cards, users, products, collections
+from kartoteka_web.routes import cards, users, products, collections, admin
 from kartoteka_web.services import set_icons, tcg_api
 from kartoteka_web.services.tcg_api import get_latest_products
 from kartoteka_web.utils import images as image_utils, sets as set_utils, text
@@ -100,6 +100,7 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 app.include_router(users.router)
 app.include_router(cards.router)
 app.include_router(products.router)
+app.include_router(admin.router)
 app.include_router(collections.router)
 
 app.mount("/static", StaticFiles(directory="kartoteka_web/static"), name="static")
@@ -130,7 +131,7 @@ async def home_page(
         rapidapi_key=rapidapi_key, rapidapi_host=rapidapi_host
     )
 
-    username, invalid_credentials, avatar_url = await _resolve_request_user(request)
+    username, invalid_credentials, avatar_url, is_admin = await _resolve_request_user(request)
 
     # Get user data if logged in
     collection_stats = None
@@ -250,6 +251,7 @@ async def home_page(
             "latest_products": latest_products,
             "username": username if not invalid_credentials else "",
             "avatar_url": avatar_url if not invalid_credentials else "",
+            "is_admin": is_admin if not invalid_credentials else False,
             "collection_stats": collection_stats,
             "recently_added": recently_added,
             "price_changes": price_changes,
@@ -259,57 +261,77 @@ async def home_page(
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request) -> HTMLResponse:
-    username, invalid_credentials, avatar_url = await _resolve_request_user(request)
+    username, invalid_credentials, avatar_url, is_admin = await _resolve_request_user(request)
     context = {
         "request": request,
         "username": username if not invalid_credentials else "",
         "avatar_url": avatar_url if not invalid_credentials else "",
+        "is_admin": is_admin if not invalid_credentials else False,
     }
     return templates.TemplateResponse("login.html", context)
 
 
 @app.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request) -> HTMLResponse:
-    username, invalid_credentials, avatar_url = await _resolve_request_user(request)
+    username, invalid_credentials, avatar_url, is_admin = await _resolve_request_user(request)
     context = {
         "request": request,
         "username": username if not invalid_credentials else "",
         "avatar_url": avatar_url if not invalid_credentials else "",
+        "is_admin": is_admin if not invalid_credentials else False,
     }
     return templates.TemplateResponse("register.html", context)
 
 
-async def _resolve_request_user(request: Request) -> tuple[str, bool, str]:
-    """Return ``(username, invalid, avatar_url)`` for the current request."""
 
+async def _resolve_request_user(request: Request) -> tuple[str, bool, str, bool]:
+    """Return ``(username, invalid, avatar_url, is_admin)`` for the current request."""
+    
+    token = None
+    # 1. Try OAuth2 header (Bearer ...)
     try:
         token = await oauth2_scheme(request)
     except HTTPException:
-        return "", bool(request.headers.get("Authorization")), ""
+        pass
+    
+    # 2. Try Cookie
+    if not token:
+        token = request.cookies.get("access_token")
+        # Remove 'Bearer ' prefix if present in cookie (though usually we store just the token)
+        if token and token.startswith("Bearer "):
+            token = token[7:]
+
+    if not token:
+        # No token found
+        return "", bool(request.headers.get("Authorization")), "", False
 
     with session_scope() as session:
         try:
             user = await get_current_user(session=session, token=token)
         except HTTPException:
-            return "", True, ""
-        return user.username, False, user.avatar_url or ""
+            return "", True, "", False
+        return user.username, False, user.avatar_url or "", user.is_admin
 
 
 async def _render_authenticated_page(
     request: Request, template_name: str, extra_context: dict[str, Any] | None = None
 ) -> HTMLResponse:
-    username, invalid_credentials, avatar_url = await _resolve_request_user(request)
-    if invalid_credentials:
+    username, invalid_credentials, avatar_url, is_admin = await _resolve_request_user(request)
+    
+    # If strict auth required (for dashboard/collection), redirect to login if no user
+    if not username:
         return templates.TemplateResponse("login.html", {"request": request, "username": ""})
 
     context: dict[str, Any] = {
         "request": request,
         "username": username,
         "avatar_url": avatar_url,
+        "is_admin": is_admin,
     }
     if extra_context:
         context.update(extra_context)
     return templates.TemplateResponse(template_name, context)
+
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -359,23 +381,23 @@ async def collection_print_page(request: Request, collection_id: int) -> HTMLRes
 @app.get("/sets", response_class=HTMLResponse)
 async def sets_list_page(request: Request) -> HTMLResponse:
     """Page showing all available Pokemon TCG sets with print option."""
-    username, invalid_credentials, avatar_url = await _resolve_request_user(request)
-    context = _public_page_context(request, username, invalid_credentials, avatar_url)
+    username, invalid_credentials, avatar_url, is_admin = await _resolve_request_user(request)
+    context = _public_page_context(request, username, invalid_credentials, avatar_url, is_admin)
     return templates.TemplateResponse("sets.html", context)
 
 
 @app.get("/sets/{set_code}/print", response_class=HTMLResponse)
 async def set_print_page(request: Request, set_code: str) -> HTMLResponse:
     """Print template page for a specific set (without collection)."""
-    username, invalid_credentials, avatar_url = await _resolve_request_user(request)
-    context = _public_page_context(request, username, invalid_credentials, avatar_url)
+    username, invalid_credentials, avatar_url, is_admin = await _resolve_request_user(request)
+    context = _public_page_context(request, username, invalid_credentials, avatar_url, is_admin)
     context["set_code"] = set_code
     return templates.TemplateResponse("set_print.html", context)
 
 
 @app.get("/cards/{set_identifier}/{number}", response_class=HTMLResponse)
 async def card_detail_page(request: Request, set_identifier: str, number: str) -> HTMLResponse:
-    username, invalid_credentials, avatar_url = await _resolve_request_user(request)
+    username, invalid_credentials, avatar_url, is_admin = await _resolve_request_user(request)
     if invalid_credentials:
         return templates.TemplateResponse(
             "login.html", {"request": request, "username": ""}
@@ -468,6 +490,7 @@ async def card_detail_page(request: Request, set_identifier: str, number: str) -
         "request": request,
         "username": username,
         "avatar_url": avatar_url,
+        "is_admin": is_admin,
         "card_name": resolved_name,
         "card_number": resolved_number,
         "card_set_code": resolved_set_code or identifier,
@@ -478,34 +501,87 @@ async def card_detail_page(request: Request, set_identifier: str, number: str) -
 
 
 def _public_page_context(
-    request: Request, username: str, invalid: bool, avatar_url: str
+    request: Request, username: str, invalid: bool, avatar_url: str, is_admin: bool
 ) -> dict[str, Any]:
     return {
         "request": request,
         "username": "" if invalid else username,
         "avatar_url": "" if invalid else avatar_url,
+        "is_admin": False if invalid else is_admin,
     }
 
 
 @app.get("/terms", response_class=HTMLResponse)
 async def terms_page(request: Request) -> HTMLResponse:
-    username, invalid_credentials, avatar_url = await _resolve_request_user(request)
-    context = _public_page_context(request, username, invalid_credentials, avatar_url)
+    username, invalid_credentials, avatar_url, is_admin = await _resolve_request_user(request)
+    context = _public_page_context(request, username, invalid_credentials, avatar_url, is_admin)
     return templates.TemplateResponse("terms.html", context)
 
 
 @app.get("/privacy", response_class=HTMLResponse)
 async def privacy_page(request: Request) -> HTMLResponse:
-    username, invalid_credentials, avatar_url = await _resolve_request_user(request)
-    context = _public_page_context(request, username, invalid_credentials, avatar_url)
+    username, invalid_credentials, avatar_url, is_admin = await _resolve_request_user(request)
+    context = _public_page_context(request, username, invalid_credentials, avatar_url, is_admin)
     return templates.TemplateResponse("privacy.html", context)
 
 
 @app.get("/cookies", response_class=HTMLResponse)
 async def cookies_page(request: Request) -> HTMLResponse:
-    username, invalid_credentials, avatar_url = await _resolve_request_user(request)
-    context = _public_page_context(request, username, invalid_credentials, avatar_url)
+    username, invalid_credentials, avatar_url, is_admin = await _resolve_request_user(request)
+    context = _public_page_context(request, username, invalid_credentials, avatar_url, is_admin)
     return templates.TemplateResponse("cookies.html", context)
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_page(
+    request: Request,
+    session: Session = Depends(get_session),
+) -> HTMLResponse:
+    """Admin dashboard with system statistics."""
+    username, invalid_credentials, avatar_url, is_admin = await _resolve_request_user(request)
+    
+    if not username:
+        return templates.TemplateResponse("login.html", {"request": request, "username": ""})
+    
+    if not is_admin:
+        raise HTTPException(status_code=403, detail="Brak uprawnień administratora")
+
+    # Calculate statistics
+    total_users = session.exec(select(func.count(models.User.id))).one()
+    total_cards = session.exec(select(func.count(models.CardRecord.id))).one()
+    total_products = session.exec(select(func.count(models.ProductRecord.id))).one()
+    total_collections = session.exec(select(func.count(models.Collection.id))).one()
+    
+    # Calculate total value of all user collections (approximate)
+    # This is a simplified query - summing all prices from all entries
+    # For better performance in production, this should be cached or materialized
+    total_value = 0.0
+    # Note: This might be heavy if table is huge. For now it's fine.
+    # Alternative: session.exec(select(func.sum(models.CollectionEntry.purchase_price))).one() 
+    # but purchase_price is often null. We want market value.
+    # We'll skip complex join for now and just show collection count/size.
+    
+    stats = {
+        "total_users": total_users,
+        "total_cards": total_cards,
+        "total_products": total_products,
+        "total_collections": total_collections,
+        "total_value": 0.0, # Placeholder for now
+    }
+
+    # Get recent users
+    recent_users = session.exec(
+        select(models.User).order_by(models.User.created_at.desc()).limit(10)
+    ).all()
+
+    context = {
+        "request": request,
+        "username": username,
+        "avatar_url": avatar_url,
+        "stats": stats,
+        "users": recent_users,
+    }
+    return templates.TemplateResponse("admin_dashboard.html", context)
 
 
 def _uvicorn_config() -> tuple[str, int, bool]:

@@ -1,164 +1,441 @@
 {% extends "base.html" %}
 {% block title %}Kolekcja - Kartoteka{% endblock %}
+
+{% block head_extra %}
+<style>
+/* Zinc Dark Dashboard Styles */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.stat-card {
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  padding: 12px;
+  transition: border-color 0.2s;
+}
+
+.stat-card:hover {
+  border-color: #3f3f46;
+}
+
+.stat-card--highlight {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.stat-label {
+  font-size: 11px;
+  color: #71717a;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 36px;
+  font-weight: 600;
+  color: #fafafa;
+  line-height: 1.2;
+}
+
+.stat-breakdown {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #a1a1aa;
+}
+
+.stat-breakdown small {
+  color: #71717a;
+}
+
+.chart-container {
+  height: 300px;
+  margin-top: 16px;
+  position: relative;
+  background: #000000;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+/* Chart styling inspired by generated-page2.html */
+.chart-container canvas {
+  position: relative;
+  z-index: 1;
+}
+
+/* Vertical crosshair on hover */
+.chart-container::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: var(--crosshair-x, -9999px);
+  width: 1px;
+  height: 100%;
+  background: rgba(99, 102, 241, 0.3);
+  pointer-events: none;
+  z-index: 2;
+  transition: left 0.1s ease;
+}
+
+.collections-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.collection-card {
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  overflow: hidden;
+  text-decoration: none;
+  transition: border-color 0.2s, transform 0.2s;
+  display: block;
+}
+
+.collection-card:hover {
+  border-color: #3f3f46;
+  transform: translateY(-2px);
+}
+
+.collection-cover {
+  aspect-ratio: 16/9;
+  background: #27272a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-size: cover;
+  background-position: center;
+}
+
+.collection-icon {
+  font-size: 32px;
+}
+
+.collection-info {
+  padding: 12px;
+}
+
+.collection-type-badge {
+  display: inline-block;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a1a1aa;
+  background: #27272a;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.collection-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fafafa;
+  margin: 0 0 4px;
+  line-height: 1.3;
+}
+
+.collection-subtitle {
+  font-size: 11px;
+  color: #71717a;
+  margin: 0 0 8px;
+}
+
+.collection-progress {
+  margin-top: 8px;
+}
+
+.progress-bar {
+  height: 4px;
+  background: #27272a;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  transition: width 0.3s;
+}
+
+.progress-text {
+  font-size: 10px;
+  color: #71717a;
+}
+
+.stats-purchase-details {
+  margin-top: 12px;
+}
+
+.stats-purchase-details summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #a1a1aa;
+  padding: 8px 12px;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.stats-purchase-details summary:hover {
+  background: #27272a;
+}
+
+.stats-purchase-details[open] summary {
+  margin-bottom: 12px;
+}
+
+.stats-grid--secondary {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.stat-card--small {
+  padding: 10px;
+}
+
+.stat-card--small .stat-value {
+  font-size: 16px;
+}
+
+.chart-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.form-control--checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-control--checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.form-control--checkbox label {
+  font-size: 12px;
+  color: #a1a1aa;
+  cursor: pointer;
+}
+
+.button-group {
+  display: inline-flex;
+  gap: 4px;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 6px;
+  padding: 3px;
+}
+
+.button-group .button {
+  padding: 4px 10px;
+  font-size: 11px;
+  border: none;
+  background: transparent;
+  color: #71717a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.button-group .button:hover {
+  color: #fafafa;
+  background: #27272a;
+}
+
+.button-group .button.is-active {
+  background: #fafafa;
+  color: #09090b;
+  font-weight: 600;
+}
+</style>
+{% endblock %}
+
 {% block content %}
-<section class="page-hero collection-hero">
-  <div>
-    <p class="eyebrow">Twoja kolekcja</p>
-    <h1>Witaj, {{ username }}!</h1>
-    <p>
-      Zarządzaj swoją kolekcją kart - edytuj ilości, śledź wartość i dodawaj nowe karty.
-    </p>
-    <div class="hero-actions">
-      <a class="button primary" href="/cards/add">Dodaj nową kartę</a>
-      <button type="button" class="button secondary" id="new-collection-btn">+ Nowa kolekcja</button>
+
+<!-- Compact Hero -->
+<section class="bg-zinc-950 border-b border-zinc-800 py-6">
+  <div class="container mx-auto px-4 max-w-6xl">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div>
+        <div class="inline-flex items-center px-2 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded text-[10px] font-medium text-indigo-400 uppercase tracking-wider mb-2">
+          Twoja kolekcja
+        </div>
+        <h1 class="text-2xl font-semibold text-white tracking-tight">Witaj, {{ username }}!</h1>
+        <p class="text-sm text-zinc-400 mt-1">Zarządzaj swoją kolekcją kart - edytuj ilości, śledź wartość i dodawaj nowe karty</p>
+      </div>
+      <div class="flex gap-2">
+        <a href="/cards/add" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-md transition-colors">
+          <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+          Dodaj nową kartę
+        </a>
+        <button type="button" class="inline-flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-white text-xs font-medium rounded-md transition-colors" id="new-collection-btn">
+          <i data-lucide="folder-plus" class="w-3.5 h-3.5"></i>
+          Nowa kolekcja
+        </button>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- Statystyki kolekcji -->
-<section class="panel collection-stats">
-  <div class="panel-header">
-    <div>
-      <h2>Statystyki kolekcji</h2>
-      <p>Aktualna wartość i podsumowanie kolekcji</p>
-    </div>
-  </div>
-  <div class="stats-grid">
-    <div class="stat-card">
-      <div class="stat-label">Liczba kart</div>
-      <div class="stat-value" id="stat-total-cards">0</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Unikalne karty</div>
-      <div class="stat-value" id="stat-unique-cards">0</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Produkty</div>
-      <div class="stat-value" id="stat-total-products">0</div>
-    </div>
-    <div class="stat-card stat-card--highlight">
-      <div class="stat-label">Wartość kolekcji</div>
-      <div class="stat-value" id="stat-total-value">0 PLN</div>
-      <div class="stat-breakdown">
-        <span><small>Karty:</small> <span id="stat-cards-value">0 PLN</span></span>
-        <span><small>Produkty:</small> <span id="stat-products-value">0 PLN</span></span>
+<!-- Stats Section -->
+<section class="py-6 bg-black border-b border-zinc-800">
+  <div class="container mx-auto px-4 max-w-6xl">
+    <h2 class="text-sm font-semibold text-zinc-300 mb-3 flex items-center gap-2">
+      <i data-lucide="bar-chart-3" class="w-4 h-4 text-indigo-400"></i>
+      Statystyki kolekcji
+    </h2>
+    
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Liczba kart</div>
+        <div class="stat-value" id="stat-total-cards">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Unikalne karty</div>
+        <div class="stat-value" id="stat-unique-cards">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Produkty</div>
+        <div class="stat-value" id="stat-total-products">0</div>
+      </div>
+      <div class="stat-card stat-card--highlight">
+        <div class="stat-label">Wartość kolekcji</div>
+        <div class="stat-value text-indigo-400" id="stat-total-value">0 PLN</div>
+        <div class="stat-breakdown">
+          <span><small>Karty:</small> <span id="stat-cards-value">0 PLN</span></span>
+          <span><small>Produkty:</small> <span id="stat-products-value">0 PLN</span></span>
+        </div>
       </div>
     </div>
-  </div>
-  <details class="stats-purchase-details">
-    <summary>Pokaż koszty zakupu</summary>
-    <div class="stats-grid stats-grid--secondary">
-      <div class="stat-card stat-card--small">
-        <div class="stat-label">Koszt zakupu (razem)</div>
-        <div class="stat-value" id="stat-purchase-value">0 PLN</div>
+    
+    <details class="stats-purchase-details">
+      <summary>Pokaż koszty zakupu</summary>
+      <div class="stats-grid stats-grid--secondary">
+        <div class="stat-card stat-card--small">
+          <div class="stat-label">Koszt zakupu (razem)</div>
+          <div class="stat-value" id="stat-purchase-value">0 PLN</div>
+        </div>
+        <div class="stat-card stat-card--small">
+          <div class="stat-label">Zysk/Strata</div>
+          <div class="stat-value" id="stat-profit-loss">0 PLN</div>
+        </div>
       </div>
-      <div class="stat-card stat-card--small">
-        <div class="stat-label">Zysk/Strata</div>
-        <div class="stat-value" id="stat-profit-loss">0 PLN</div>
-      </div>
-    </div>
-  </details>
-</section>
-
-<!-- Wykres wartości -->
-<section class="panel">
-  <div class="panel-header">
-    <div>
-      <h2>Wartość kolekcji w czasie</h2>
-      <p>Historia wartości Twojej kolekcji na przestrzeni ostatniego roku.</p>
-    </div>
-    <div class="panel-header-actions chart-controls">
-      <div class="form-control form-control--checkbox">
-        <input type="checkbox" id="toggle-products-value" checked>
-        <label for="toggle-products-value">Pokaż wartość produktów</label>
-      </div>
-      <div class="button-group" id="chart-range-selector">
-        <button type="button" class="button secondary" data-range="90d">90D</button>
-        <button type="button" class="button secondary" data-range="60d">60D</button>
-        <button type="button" class="button secondary is-active" data-range="30d">30D</button>
-        <button type="button" class="button secondary" data-range="7d">7D</button>
-      </div>
-    </div>
-  </div>
-  <div class="alert" id="chart-alert" hidden></div>
-  <div class="chart-container">
-    <canvas id="collection-value-chart"></canvas>
+    </details>
   </div>
 </section>
 
-<!-- Collection display -->
-<section class="panel">
-  <div class="panel-header">
-    <div>
-      <h2>Twoje karty</h2>
-      <p id="collection-mode-desc">Przeglądaj informacje o kartach w kolekcji</p>
+<!-- Chart Section -->
+<section class="py-6 bg-zinc-950 border-b border-zinc-800">
+  <div class="container mx-auto px-4 max-w-6xl">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">
+      <div>
+        <h2 class="text-sm font-semibold text-zinc-300 flex items-center gap-2">
+          <i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i>
+          Wartość kolekcji w czasie
+        </h2>
+        <p class="text-xs text-zinc-500 mt-1">Historia wartości Twojej kolekcji</p>
+      </div>
+      <div class="chart-controls">
+        <div class="form-control form-control--checkbox">
+          <input type="checkbox" id="toggle-products-value" checked>
+          <label for="toggle-products-value">Produkty</label>
+        </div>
+        <div class="button-group" id="chart-range-selector">
+          <button type="button" class="button" data-range="90d">90D</button>
+          <button type="button" class="button" data-range="60d">60D</button>
+          <button type="button" class="button is-active" data-range="30d">30D</button>
+          <button type="button" class="button" data-range="7d">7D</button>
+        </div>
+      </div>
     </div>
-    <div class="panel-header-actions">
+    <div class="alert bg-zinc-900/50 border border-zinc-800 rounded-lg p-3 text-xs text-zinc-400" id="chart-alert" hidden></div>
+    <div class="chart-container">
+      <canvas id="collection-value-chart"></canvas>
+    </div>
+  </div>
+</section>
+
+<!-- Collection Cards Section -->
+<section class="py-6 bg-black border-b border-zinc-800">
+  <div class="container mx-auto px-4 max-w-6xl">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">
+      <div>
+        <h2 class="text-sm font-semibold text-zinc-300 flex items-center gap-2">
+          <i data-lucide="layers" class="w-4 h-4 text-purple-400"></i>
+          Twoje karty
+        </h2>
+        <p class="text-xs text-zinc-500 mt-1" id="collection-mode-desc">Przeglądaj informacje o kartach w kolekcji</p>
+      </div>
       <div class="button-group">
-        <button type="button" class="button secondary is-active" data-view-mode="info" aria-pressed="true">
+        <button type="button" class="button is-active" data-view-mode="info" aria-pressed="true">
           Widok kart
         </button>
-        <button type="button" class="button secondary" data-view-mode="edit" aria-pressed="false">
+        <button type="button" class="button" data-view-mode="edit" aria-pressed="false">
           Widok edycji
         </button>
       </div>
     </div>
+    <div class="alert bg-zinc-900/50 border border-zinc-800 rounded-lg p-3 text-xs text-zinc-400" id="collection-alert" hidden></div>
+    <div class="card-search-results card-search-results--grid" id="collection-cards" role="list" data-collection-mode="info"></div>
+    <p class="text-center text-sm text-zinc-500 py-8 bg-zinc-900/30 border border-zinc-800 rounded-lg" id="collection-empty" hidden>
+      Brak kart w kolekcji. Dodaj karty klikając "Dodaj nową kartę" powyżej.
+    </p>
   </div>
-  <div class="alert" id="collection-alert" hidden></div>
-  <div class="card-search-results card-search-results--grid" id="collection-cards" role="list" data-collection-mode="info"></div>
-  <p class="empty-state" id="collection-empty" hidden>Brak kart w kolekcji. Dodaj karty klikając "Dodaj nową kartę" powyżej.</p>
 </section>
 
-<!-- Moje Kolekcje -->
-<section class="panel">
-  <div class="panel-header">
-    <div>
-      <h2>Moje Kolekcje</h2>
-      <p>Śledź postęp kompletowania setów i kolekcji artystów</p>
+<!-- My Collections Section -->
+<section class="py-6 bg-zinc-950">
+  <div class="container mx-auto px-4 max-w-6xl">
+    <div class="flex justify-between items-center mb-4">
+      <div>
+        <h2 class="text-sm font-semibold text-zinc-300 flex items-center gap-2">
+          <i data-lucide="folder-open" class="w-4 h-4 text-yellow-400"></i>
+          Moje Kolekcje
+        </h2>
+        <p class="text-xs text-zinc-500 mt-1">Śledź postęp kompletowania setów i kolekcji artystów</p>
+      </div>
+      <a href="/my-collections" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+        Zobacz wszystkie →
+      </a>
     </div>
-    <div class="panel-header-actions">
-      <a href="/my-collections" class="button secondary inline">Zobacz wszystkie</a>
+    <div class="collections-grid" id="user-collections-grid">
+      <!-- Collections will be loaded here via JavaScript -->
     </div>
+    <div class="text-center py-4" id="collections-loading" hidden>
+      <div class="inline-block animate-spin rounded-full h-6 w-6 border-2 border-zinc-700 border-t-indigo-500"></div>
+    </div>
+    <p class="text-center text-sm text-zinc-500 py-8 bg-zinc-900/30 border border-zinc-800 rounded-lg" id="collections-empty" hidden>
+      Brak kolekcji. Kliknij "Nowa kolekcja" aby utworzyć pierwszą.
+    </p>
   </div>
-  <div class="collections-grid" id="user-collections-grid">
-    <!-- Collections will be loaded here via JavaScript -->
-  </div>
-  <div class="loading-state" id="collections-loading" hidden>
-    <div class="spinner"></div>
-  </div>
-  <p class="empty-state" id="collections-empty" hidden>
-    Brak kolekcji. Kliknij "Nowa kolekcja" aby utworzyć pierwszą.
-  </p>
 </section>
 
-<!-- Confirmation Modal -->
-<div id="confirm-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-  <div class="modal modal--danger">
-    <div class="modal-header">
-      <h2 id="modal-title">Potwierdź usunięcie</h2>
-    </div>
-    <div class="modal-body" id="modal-message">
-      Czy na pewno chcesz usunąć tę kartę z kolekcji?
-    </div>
-    <div class="modal-footer">
-      <button type="button" class="button secondary" id="modal-cancel">Anuluj</button>
-      <button type="button" class="button primary" id="modal-confirm" style="background: var(--color-danger); border-color: var(--color-danger);">Usuń</button>
-    </div>
-  </div>
-</div>
-
-<!-- New Collection Modal - Multi-step wizard -->
+<!-- New Collection Modal -->
 <div class="modal-overlay" id="new-collection-modal" hidden>
-  <div class="modal modal-wizard">
+  <div class="modal">
     <div class="modal-header">
-      <h2 id="wizard-title">Nowa Kolekcja</h2>
+      <h2>Nowa Kolekcja</h2>
       <button type="button" class="modal-close" data-close-modal>&times;</button>
     </div>
     <div class="modal-body">
-      <!-- Step 1: Choose collection type -->
-      <div class="wizard-step" id="wizard-step-1">
+      <form id="new-collection-form">
         <div class="form-group">
-          <label>Wybierz typ kolekcji</label>
+          <label>Typ kolekcji</label>
           <div class="radio-group">
             <label class="radio-option">
               <input type="radio" name="collection_type" value="custom" checked />
@@ -192,131 +469,58 @@
             </label>
           </div>
         </div>
-        <div class="form-actions">
-          <button type="button" class="button secondary" data-close-modal>Anuluj</button>
-          <button type="button" class="button primary" id="wizard-next-1">Dalej</button>
+        
+        <div class="form-group">
+          <label for="collection-name">Nazwa kolekcji</label>
+          <input type="text" id="collection-name" name="name" required placeholder="np. Moja kolekcja SV" />
         </div>
-      </div>
-      
-      <!-- Step 2a: Custom collection form -->
-      <div class="wizard-step" id="wizard-step-custom" hidden>
-        <form id="custom-collection-form">
-          <div class="form-group">
-            <label for="custom-collection-name">Nazwa kolekcji</label>
-            <input type="text" id="custom-collection-name" name="name" required placeholder="np. Moje ulubione karty" />
-          </div>
-          <div class="form-group">
-            <label for="custom-collection-description">Opis (opcjonalnie)</label>
-            <textarea id="custom-collection-description" name="description" rows="2" placeholder="Krótki opis kolekcji..."></textarea>
-          </div>
-          <div class="form-actions">
-            <button type="button" class="button secondary" data-wizard-back="1">Wstecz</button>
-            <button type="submit" class="button primary">Utwórz kolekcję</button>
-          </div>
-        </form>
-      </div>
-      
-      <!-- Step 2b: Set selection by era -->
-      <div class="wizard-step" id="wizard-step-sets" hidden>
-        <div class="set-search-bar">
-          <input type="text" id="set-search-input" placeholder="Szukaj setu..." />
+        
+        <div class="form-group">
+          <label for="collection-description">Opis (opcjonalnie)</label>
+          <textarea id="collection-description" name="description" rows="2" placeholder="Krótki opis kolekcji..."></textarea>
         </div>
-        <div class="sets-by-era" id="sets-by-era">
-          <div class="loading-state">
-            <div class="spinner"></div>
-            <p>Ładowanie setów...</p>
-          </div>
+        
+        <!-- Set-specific fields -->
+        <div class="form-group set-fields" hidden>
+          <label for="set-select">Wybierz set</label>
+          <select id="set-select" name="set_code">
+            <option value="">-- Wybierz set --</option>
+          </select>
         </div>
-        <div class="form-actions">
-          <button type="button" class="button secondary" data-wizard-back="1">Wstecz</button>
-        </div>
-      </div>
-      
-      <!-- Step 3: Set preview with cards -->
-      <div class="wizard-step" id="wizard-step-set-preview" hidden>
-        <div class="set-preview-header">
-          <div class="set-preview-info">
-            <img id="preview-set-logo" src="" alt="" class="set-preview-logo" />
-            <div>
-              <h3 id="preview-set-name"></h3>
-              <p id="preview-set-details"></p>
-            </div>
-          </div>
-          <div class="set-type-selector">
-            <label class="radio-option compact">
-              <input type="radio" name="preview_set_type" value="baseset" checked />
+        
+        <div class="form-group set-fields" hidden>
+          <label>Rodzaj setu</label>
+          <div class="radio-group horizontal">
+            <label class="radio-option">
+              <input type="radio" name="set_type" value="baseset" checked />
               <span class="radio-label">
                 <strong>Baseset</strong>
-                <small>Karty podstawowe</small>
+                <small>Tylko karty podstawowe</small>
               </span>
             </label>
-            <label class="radio-option compact">
-              <input type="radio" name="preview_set_type" value="masterset" />
+            <label class="radio-option">
+              <input type="radio" name="set_type" value="masterset" />
               <span class="radio-label">
                 <strong>Masterset</strong>
-                <small>+ secret rare</small>
+                <small>Wszystkie karty + secret rare</small>
               </span>
             </label>
           </div>
         </div>
-        <div class="set-preview-cards" id="set-preview-cards">
-          <div class="loading-state">
-            <div class="spinner"></div>
-            <p>Ładowanie kart...</p>
-          </div>
+        
+        <!-- Artist-specific fields -->
+        <div class="form-group artist-fields" hidden>
+          <label for="artist-select">Wybierz artystę</label>
+          <select id="artist-select" name="artist_name">
+            <option value="">-- Wybierz artystę --</option>
+          </select>
         </div>
-        <div class="form-group">
-          <label for="set-collection-name">Nazwa kolekcji</label>
-          <input type="text" id="set-collection-name" name="name" required placeholder="np. Mój Scarlet & Violet" />
-        </div>
+        
         <div class="form-actions">
-          <button type="button" class="button secondary" data-wizard-back="sets">Wstecz</button>
-          <button type="button" class="button primary" id="create-set-collection">Utwórz kolekcję</button>
+          <button type="button" class="button secondary" data-close-modal>Anuluj</button>
+          <button type="submit" class="button primary">Utwórz kolekcję</button>
         </div>
-      </div>
-      
-      <!-- Step 2c: Artist selection -->
-      <div class="wizard-step" id="wizard-step-artists" hidden>
-        <div class="set-search-bar">
-          <input type="text" id="artist-search-input" placeholder="Szukaj artysty..." />
-        </div>
-        <div class="artists-list" id="artists-list">
-          <div class="loading-state">
-            <div class="spinner"></div>
-            <p>Ładowanie artystów...</p>
-          </div>
-        </div>
-        <div class="form-actions">
-          <button type="button" class="button secondary" data-wizard-back="1">Wstecz</button>
-        </div>
-      </div>
-      
-      <!-- Step 3c: Artist preview -->
-      <div class="wizard-step" id="wizard-step-artist-preview" hidden>
-        <div class="set-preview-header">
-          <div class="set-preview-info">
-            <span class="artist-icon-large">&#127912;</span>
-            <div>
-              <h3 id="preview-artist-name"></h3>
-              <p id="preview-artist-details"></p>
-            </div>
-          </div>
-        </div>
-        <div class="set-preview-cards" id="artist-preview-cards">
-          <div class="loading-state">
-            <div class="spinner"></div>
-            <p>Ładowanie kart...</p>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="artist-collection-name">Nazwa kolekcji</label>
-          <input type="text" id="artist-collection-name" name="name" required placeholder="np. Kolekcja Mitsuhiro Arita" />
-        </div>
-        <div class="form-actions">
-          <button type="button" class="button secondary" data-wizard-back="artists">Wstecz</button>
-          <button type="button" class="button primary" id="create-artist-collection">Utwórz kolekcję</button>
-        </div>
-      </div>
+      </form>
     </div>
   </div>
 </div>
@@ -326,24 +530,23 @@
 {% block scripts_extra %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // Initialize icons
+  lucide.createIcons();
+
   const collectionsGrid = document.getElementById('user-collections-grid');
-  const collectionsEmpty = document.getElementById('collections-empty');
-  const collectionsLoading = document.getElementById('collections-loading');
+  const emptyState = document.getElementById('collections-empty');
+  const loadingState = document.getElementById('collections-loading');
   const modal = document.getElementById('new-collection-modal');
-  const wizardTitle = document.getElementById('wizard-title');
+  const form = document.getElementById('new-collection-form');
+  const setFields = document.querySelectorAll('.set-fields');
+  const artistFields = document.querySelectorAll('.artist-fields');
+  const collectionTypeInputs = document.querySelectorAll('input[name="collection_type"]');
   
-  // Wizard state
-  let setsData = [];
-  let artistsData = [];
-  let selectedSet = null;
-  let selectedArtist = null;
-  let userOwnedCardIds = new Set();
-  
-  // Load user collections (max 6 for dashboard)
+  // Load collections
   async function loadCollections() {
-    collectionsLoading.hidden = false;
-    collectionsEmpty.hidden = true;
-    collectionsGrid.innerHTML = '';
+    if(loadingState) loadingState.hidden = false;
+    if(emptyState) emptyState.hidden = true;
+    if(collectionsGrid) collectionsGrid.innerHTML = '';
     
     try {
       const response = await fetch('/collections/', {
@@ -355,23 +558,24 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!response.ok) throw new Error('Failed to load collections');
       
       const collections = await response.json();
-      collectionsLoading.hidden = true;
+      if(loadingState) loadingState.hidden = true;
       
       if (collections.length === 0) {
-        collectionsEmpty.hidden = false;
+        if(emptyState) emptyState.hidden = false;
         return;
       }
       
-      // Show max 6 collections on dashboard
+      // Show max 6 collections
       collections.slice(0, 6).forEach(renderCollectionCard);
     } catch (error) {
       console.error('Error loading collections:', error);
-      collectionsLoading.hidden = true;
-      collectionsEmpty.hidden = false;
+      if(loadingState) loadingState.hidden = true;
+      if(emptyState) emptyState.hidden = false;
     }
   }
   
   function renderCollectionCard(collection) {
+    if(!collectionsGrid) return;
     const card = document.createElement('a');
     card.href = `/my-collections/${collection.id}`;
     card.className = 'collection-card';
@@ -410,429 +614,155 @@ document.addEventListener('DOMContentLoaded', function() {
     collectionsGrid.appendChild(card);
   }
   
-  // ========== WIZARD NAVIGATION ==========
-  
-  function showStep(stepId) {
-    document.querySelectorAll('.wizard-step').forEach(step => step.hidden = true);
-    document.getElementById(stepId).hidden = false;
-    
-    // Update title based on step
-    const titles = {
-      'wizard-step-1': 'Nowa Kolekcja',
-      'wizard-step-custom': 'Własna kolekcja',
-      'wizard-step-sets': 'Wybierz set',
-      'wizard-step-set-preview': selectedSet ? selectedSet.name : 'Podgląd setu',
-      'wizard-step-artists': 'Wybierz artystę',
-      'wizard-step-artist-preview': selectedArtist ? selectedArtist.name : 'Podgląd artysty'
-    };
-    wizardTitle.textContent = titles[stepId] || 'Nowa Kolekcja';
-  }
-  
-  // Step 1 -> Next
-  document.getElementById('wizard-next-1').addEventListener('click', async function() {
-    const type = document.querySelector('input[name="collection_type"]:checked').value;
-    
-    if (type === 'custom') {
-      showStep('wizard-step-custom');
-    } else if (type === 'set') {
-      showStep('wizard-step-sets');
-      await loadSetsGrid();
-    } else if (type === 'artist') {
-      showStep('wizard-step-artists');
-      await loadArtistsList();
-    }
-  });
-  
-  // Back buttons
-  document.querySelectorAll('[data-wizard-back]').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const target = this.dataset.wizardBack;
-      if (target === '1') {
-        showStep('wizard-step-1');
-      } else if (target === 'sets') {
-        showStep('wizard-step-sets');
-      } else if (target === 'artists') {
-        showStep('wizard-step-artists');
-      }
-    });
-  });
-  
-  // ========== SETS BY ERA ==========
-  
-  async function loadSetsGrid() {
-    const container = document.getElementById('sets-by-era');
-    
-    if (setsData.length === 0) {
-      try {
-        const response = await fetch('/collections/sets/list');
-        if (!response.ok) throw new Error('Failed to load sets');
-        setsData = await response.json();
-      } catch (error) {
-        console.error('Error loading sets:', error);
-        container.innerHTML = '<p class="error-state">Nie udało się załadować setów</p>';
-        return;
-      }
-    }
-    
-    renderSetsByEra(setsData);
-  }
-  
-  function renderSetsByEra(sets) {
-    const container = document.getElementById('sets-by-era');
-    container.innerHTML = '';
-    
-    if (sets.length === 0) {
-      container.innerHTML = '<p class="empty-state">Brak setów do wyświetlenia</p>';
-      return;
-    }
-    
-    // Group sets by era (series)
-    const setsByEra = {};
-    const eraOrder = [];
-    
-    sets.forEach(set => {
-      const era = set.series || 'Inne';
-      if (!setsByEra[era]) {
-        setsByEra[era] = [];
-        eraOrder.push(era);
-      }
-      setsByEra[era].push(set);
-    });
-    
-    // Render each era section
-    eraOrder.forEach(era => {
-      const eraSets = setsByEra[era];
-      
-      const section = document.createElement('div');
-      section.className = 'era-section';
-      section.dataset.era = era;
-      
-      const header = document.createElement('div');
-      header.className = 'era-header';
-      header.innerHTML = `
-        <h3 class="era-title">${era}</h3>
-        <span class="era-count">${eraSets.length} setów</span>
-      `;
-      
-      const grid = document.createElement('div');
-      grid.className = 'sets-grid';
-      
-      eraSets.forEach(set => {
-        const card = document.createElement('button');
-        card.type = 'button';
-        card.className = 'set-selection-card';
-        card.dataset.setCode = set.code;
-        
-        card.innerHTML = `
-          <div class="set-card-logo">
-            <img src="${set.logo_url}" alt="${set.name}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-            <span class="set-card-fallback" style="display:none;">
-              <img src="${set.symbol_url}" alt="" class="set-symbol-small" onerror="this.parentElement.innerHTML='&#128230;'" />
-            </span>
-          </div>
-          <div class="set-card-info">
-            <span class="set-card-name">${set.name}</span>
-            <span class="set-card-meta">${set.total_cards || '?'} kart</span>
-          </div>
-        `;
-        
-        card.addEventListener('click', () => selectSet(set));
-        grid.appendChild(card);
+  // Toggle fields based on collection type
+  if(collectionTypeInputs.length > 0) {
+      collectionTypeInputs.forEach(input => {
+        input.addEventListener('change', function() {
+          const type = this.value;
+          
+          setFields.forEach(el => el.hidden = type !== 'set');
+          artistFields.forEach(el => el.hidden = type !== 'artist');
+          
+          // Load sets or artists if needed
+          if (type === 'set') {
+            loadSets();
+          } else if (type === 'artist') {
+            loadArtists();
+          }
+        });
       });
-      
-      section.appendChild(header);
-      section.appendChild(grid);
-      container.appendChild(section);
-    });
   }
   
-  // Set search - filters and shows matching sets
-  document.getElementById('set-search-input').addEventListener('input', function() {
-    const query = this.value.toLowerCase().trim();
-    
-    if (!query) {
-      renderSetsByEra(setsData);
-      return;
-    }
-    
-    const filtered = setsData.filter(set => 
-      set.name.toLowerCase().includes(query) ||
-      set.code.toLowerCase().includes(query) ||
-      (set.series && set.series.toLowerCase().includes(query))
-    );
-    renderSetsByEra(filtered);
-  });
-  
-  // ========== SET PREVIEW ==========
-  
-  async function selectSet(set) {
-    selectedSet = set;
-    showStep('wizard-step-set-preview');
-    
-    // Update header
-    document.getElementById('preview-set-logo').src = set.logo_url;
-    document.getElementById('preview-set-logo').alt = set.name;
-    document.getElementById('preview-set-name').textContent = set.name;
-    document.getElementById('preview-set-details').textContent = `${set.series || ''} • ${set.total_cards || '?'} kart • ${set.release_date || ''}`;
-    document.getElementById('set-collection-name').value = set.name;
-    
-    // Load cards preview
-    await loadSetPreviewCards(set.code, 'baseset');
-  }
-  
-  async function loadSetPreviewCards(setCode, setType) {
-    const container = document.getElementById('set-preview-cards');
-    container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Ładowanie kart...</p></div>';
+  async function loadSets() {
+    const select = document.getElementById('set-select');
+    if (!select || select.options.length > 1) return; // Already loaded
     
     try {
-      const response = await fetch(`/collections/sets/${setCode}/print-data?set_type=${setType}`);
-      if (!response.ok) throw new Error('Failed to load cards');
+      const response = await fetch('/collections/sets/list');
+      if (!response.ok) throw new Error('Failed to load sets');
       
-      const data = await response.json();
-      renderPreviewCards(container, data.cards);
-    } catch (error) {
-      console.error('Error loading set cards:', error);
-      container.innerHTML = '<p class="error-state">Nie udało się załadować kart</p>';
-    }
-  }
-  
-  function renderPreviewCards(container, cards) {
-    container.innerHTML = '';
-    
-    cards.forEach(card => {
-      const isOwned = userOwnedCardIds.has(card.id);
-      const cardEl = document.createElement('div');
-      cardEl.className = `preview-card ${isOwned ? '' : 'preview-card--missing'}`;
-      cardEl.innerHTML = `
-        <img src="${card.image_small}" alt="${card.name}" loading="lazy" />
-        <span class="preview-card-number">${card.number_display || card.number}</span>
-      `;
-      container.appendChild(cardEl);
-    });
-  }
-  
-  // Set type change
-  document.querySelectorAll('input[name="preview_set_type"]').forEach(input => {
-    input.addEventListener('change', function() {
-      if (selectedSet) {
-        loadSetPreviewCards(selectedSet.code, this.value);
-      }
-    });
-  });
-  
-  // Create set collection
-  document.getElementById('create-set-collection').addEventListener('click', async function() {
-    const name = document.getElementById('set-collection-name').value.trim();
-    const setType = document.querySelector('input[name="preview_set_type"]:checked').value;
-    
-    if (!name) {
-      alert('Podaj nazwę kolekcji');
-      return;
-    }
-    
-    await createCollection({
-      name: name,
-      collection_type: 'set',
-      set_code: selectedSet.code,
-      set_type: setType
-    });
-  });
-  
-  // ========== ARTISTS LIST ==========
-  
-  async function loadArtistsList() {
-    const list = document.getElementById('artists-list');
-    
-    if (artistsData.length === 0) {
-      try {
-        const response = await fetch('/collections/artists/list?limit=200');
-        if (!response.ok) throw new Error('Failed to load artists');
-        artistsData = await response.json();
-      } catch (error) {
-        console.error('Error loading artists:', error);
-        list.innerHTML = '<p class="error-state">Nie udało się załadować artystów</p>';
-        return;
-      }
-    }
-    
-    renderArtistsList(artistsData);
-  }
-  
-  function renderArtistsList(artists) {
-    const list = document.getElementById('artists-list');
-    list.innerHTML = '';
-    
-    if (artists.length === 0) {
-      list.innerHTML = '<p class="empty-state">Brak artystów do wyświetlenia</p>';
-      return;
-    }
-    
-    artists.forEach(artist => {
-      const item = document.createElement('button');
-      item.type = 'button';
-      item.className = 'artist-selection-item';
-      item.innerHTML = `
-        <span class="artist-icon">&#127912;</span>
-        <span class="artist-name">${artist.name}</span>
-        <span class="artist-count">${artist.card_count} kart</span>
-      `;
-      item.addEventListener('click', () => selectArtist(artist));
-      list.appendChild(item);
-    });
-  }
-  
-  // Artist search
-  document.getElementById('artist-search-input').addEventListener('input', function() {
-    const query = this.value.toLowerCase().trim();
-    if (!query) {
-      renderArtistsList(artistsData);
-      return;
-    }
-    
-    const filtered = artistsData.filter(artist => 
-      artist.name.toLowerCase().includes(query)
-    );
-    renderArtistsList(filtered);
-  });
-  
-  // ========== ARTIST PREVIEW ==========
-  
-  async function selectArtist(artist) {
-    selectedArtist = artist;
-    showStep('wizard-step-artist-preview');
-    
-    document.getElementById('preview-artist-name').textContent = artist.name;
-    document.getElementById('preview-artist-details').textContent = `${artist.card_count} kart`;
-    document.getElementById('artist-collection-name').value = `Kolekcja: ${artist.name}`;
-    
-    // Load artist cards preview
-    await loadArtistPreviewCards(artist.name);
-  }
-  
-  async function loadArtistPreviewCards(artistName) {
-    const container = document.getElementById('artist-preview-cards');
-    container.innerHTML = '<div class="loading-state"><div class="spinner"></div><p>Ładowanie kart...</p></div>';
-    
-    try {
-      const response = await fetch(`/collections/artists/${encodeURIComponent(artistName)}/cards?limit=50`);
-      if (!response.ok) throw new Error('Failed to load cards');
-      
-      const cards = await response.json();
-      renderPreviewCards(container, cards);
-    } catch (error) {
-      console.error('Error loading artist cards:', error);
-      container.innerHTML = '<p class="error-state">Nie udało się załadować kart</p>';
-    }
-  }
-  
-  // Create artist collection
-  document.getElementById('create-artist-collection').addEventListener('click', async function() {
-    const name = document.getElementById('artist-collection-name').value.trim();
-    
-    if (!name) {
-      alert('Podaj nazwę kolekcji');
-      return;
-    }
-    
-    await createCollection({
-      name: name,
-      collection_type: 'artist',
-      artist_name: selectedArtist.name
-    });
-  });
-  
-  // ========== CUSTOM COLLECTION ==========
-  
-  document.getElementById('custom-collection-form').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    const formData = new FormData(this);
-    await createCollection({
-      name: formData.get('name'),
-      description: formData.get('description') || null,
-      collection_type: 'custom'
-    });
-  });
-  
-  // ========== CREATE COLLECTION ==========
-  
-  async function createCollection(payload) {
-    try {
-      const response = await fetch('/collections/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
-        },
-        body: JSON.stringify(payload)
+      const sets = await response.json();
+      sets.forEach(set => {
+        const option = document.createElement('option');
+        option.value = set.code;
+        option.textContent = `${set.name} (${set.code}) - ${set.total_cards || '?'} kart`;
+        select.appendChild(option);
       });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to create collection');
-      }
-      
-      const newCollection = await response.json();
-      closeModal();
-      window.location.href = `/my-collections/${newCollection.id}`;
     } catch (error) {
-      console.error('Error creating collection:', error);
-      alert('Błąd: ' + error.message);
+      console.error('Error loading sets:', error);
     }
   }
   
-  // ========== MODAL HANDLERS ==========
+  async function loadArtists() {
+    const select = document.getElementById('artist-select');
+    if (!select || select.options.length > 1) return; // Already loaded
+    
+    try {
+      const response = await fetch('/collections/artists/list');
+      if (!response.ok) throw new Error('Failed to load artists');
+      
+      const artists = await response.json();
+      artists.forEach(artist => {
+        const option = document.createElement('option');
+        option.value = artist.name;
+        option.textContent = `${artist.name} (${artist.card_count} kart)`;
+        select.appendChild(option);
+      });
+    } catch (error) {
+      console.error('Error loading artists:', error);
+    }
+  }
   
+  // Modal handlers
   function openModal() {
-    modal.hidden = false;
-    document.body.style.overflow = 'hidden';
-    showStep('wizard-step-1');
-    
-    // Reset state
-    selectedSet = null;
-    selectedArtist = null;
-    document.getElementById('set-search-input').value = '';
-    document.getElementById('artist-search-input').value = '';
-    document.querySelectorAll('input[name="collection_type"]')[0].checked = true;
+    if(modal) {
+        modal.hidden = false;
+        document.body.style.overflow = 'hidden';
+    }
   }
   
   function closeModal() {
-    modal.hidden = true;
-    document.body.style.overflow = '';
+    if(modal) {
+        modal.hidden = true;
+        document.body.style.overflow = '';
+        if(form) {
+            form.reset();
+            setFields.forEach(el => el.hidden = true);
+            artistFields.forEach(el => el.hidden = true);
+        }
+    }
   }
   
-  document.getElementById('new-collection-btn').addEventListener('click', openModal);
+  const newCollectionBtn = document.getElementById('new-collection-btn');
+  if(newCollectionBtn) newCollectionBtn.addEventListener('click', openModal);
   
-  modal.querySelectorAll('[data-close-modal]').forEach(btn => {
-    btn.addEventListener('click', closeModal);
-  });
+  if(modal) {
+      modal.querySelectorAll('[data-close-modal]').forEach(btn => {
+        btn.addEventListener('click', closeModal);
+      });
+      
+      modal.addEventListener('click', function(e) {
+        if (e.target === modal) closeModal();
+      });
+  }
   
-  modal.addEventListener('click', function(e) {
-    if (e.target === modal) closeModal();
-  });
-  
-  // ========== LOAD USER OWNED CARDS ==========
-  
-  async function loadUserOwnedCards() {
-    try {
-      const response = await fetch('/user/collection?per_page=1000', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+  // Form submission
+  if(form) {
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        const type = formData.get('collection_type');
+        
+        const payload = {
+          name: formData.get('name'),
+          description: formData.get('description') || null,
+          collection_type: type
+        };
+        
+        if (type === 'set') {
+          payload.set_code = formData.get('set_code');
+          payload.set_type = formData.get('set_type');
+          
+          if (!payload.set_code) {
+            alert('Wybierz set');
+            return;
+          }
+        } else if (type === 'artist') {
+          payload.artist_name = formData.get('artist_name');
+          
+          if (!payload.artist_name) {
+            alert('Wybierz artystę');
+            return;
+          }
+        }
+        
+        try {
+          const response = await fetch('/collections/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+            },
+            body: JSON.stringify(payload)
+          });
+          
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to create collection');
+          }
+          
+          closeModal();
+          loadCollections();
+        } catch (error) {
+          console.error('Error creating collection:', error);
+          alert('Błąd: ' + error.message);
         }
       });
-      if (response.ok) {
-        const data = await response.json();
-        userOwnedCardIds = new Set(data.items?.map(item => item.card_record_id) || []);
-      }
-    } catch (error) {
-      console.error('Error loading user cards:', error);
-    }
   }
   
   // Initial load
   loadCollections();
-  loadUserOwnedCards();
 });
 </script>
 {% endblock %}
-

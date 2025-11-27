@@ -1,109 +1,265 @@
 {% extends "base.html" %}
 {% block title %}Dodaj kartę - Kartoteka{% endblock %}
+
+{% block head_extra %}
+<style>
+/* Zinc Search Styles */
+.search-hero {
+  background: #09090b;
+  border-bottom: 1px solid #27272a;
+  padding: 24px 0;
+}
+
+.search-panel {
+  background: #000000;
+  padding: 24px 0;
+  min-height: calc(100vh - 200px);
+}
+
+.zinc-input {
+  background: #18181b;
+  border: 1px solid #27272a;
+  color: #fafafa;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.zinc-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 1px #6366f1;
+}
+
+.zinc-select {
+  background-color: #18181b;
+  border: 1px solid #27272a;
+  color: #fafafa;
+  border-radius: 6px;
+  padding: 8px 32px 8px 12px;
+  font-size: 13px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2371717a' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+}
+
+.zinc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.zinc-btn-primary {
+  background: #4f46e5; /* Indigo 600 */
+  color: white;
+  border: 1px solid transparent;
+}
+
+.zinc-btn-primary:hover {
+  background: #4338ca; /* Indigo 700 */
+}
+
+.zinc-btn-icon {
+  padding: 8px;
+  width: 36px;
+  height: 36px;
+}
+
+.toolbar-label {
+  font-size: 11px;
+  color: #71717a;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.view-toggle {
+  display: inline-flex;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.view-toggle-btn {
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #71717a;
+  transition: all 0.2s;
+}
+
+.view-toggle-btn.is-active {
+  background: #27272a;
+  color: #fafafa;
+}
+
+.view-toggle-btn:hover:not(.is-active) {
+  color: #a1a1aa;
+}
+
+/* Card grid override for search results */
+.card-search-results--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* Search bar layout */
+.search-bar-container {
+  display: flex;
+  gap: 8px;
+  max-width: 600px;
+}
+
+.search-type-select {
+  width: 120px;
+  flex-shrink: 0;
+}
+
+.search-input-wrapper {
+  flex: 1;
+  position: relative;
+}
+
+.search-icon-absolute {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #71717a;
+  pointer-events: none;
+}
+
+.search-input-with-icon {
+  padding-left: 36px;
+  width: 100%;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div
-  class="alert alert--floating"
+  class="alert bg-zinc-900 border border-zinc-800 text-white p-4 rounded-lg shadow-lg fixed top-4 right-4 z-50 max-w-md"
   id="add-card-alert"
   hidden
   role="status"
   aria-live="polite"
 ></div>
-<section class="page-hero add-card-hero">
-  <div>
-    <p class="eyebrow">Rozszerz swoją kolekcję</p>
-    <h1>Dodaj kartę do kolekcji, {{ username or 'Trenerze' }}</h1>
-    <p>Wpisz nazwę lub numer karty. Wyniki możesz od razu zapisać w kolekcji, ustawiając ilość i podstawowe oznaczenia.</p>
-  </div>
-</section>
 
-<section class="panel" id="add-card-page">
-  <div class="panel-header">
-    <div>
-      <h2>Wyszukiwarka</h2>
-      <p>Wyszukaj karty lub produkty, aby dodać je do swojej kolekcji.</p>
+<!-- Hero & Search Input -->
+<section class="search-hero">
+  <div class="container mx-auto px-4 max-w-6xl">
+    <div class="mb-6">
+      <div class="inline-flex items-center px-2 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded text-[10px] font-medium text-indigo-400 uppercase tracking-wider mb-2">
+        Rozszerz kolekcję
+      </div>
+      <h1 class="text-2xl font-semibold text-white tracking-tight">Wyszukiwarka kart</h1>
+      <p class="text-sm text-zinc-400 mt-1">Wyszukaj karty lub produkty, aby dodać je do swojej kolekcji.</p>
     </div>
-  </div>
-  <form id="add-card-form" class="add-card-form" autocomplete="off" data-card-search-form>
-    <div class="add-card-form-field">
-      <label for="add-card-query">Nazwa</label>
-      <div class="add-card-form-row">
-        <select name="type" id="search-type" class="add-card-form-control">
+
+    <form id="add-card-form" class="add-card-form" autocomplete="off" data-card-search-form>
+      <div class="search-bar-container">
+        <select name="type" id="search-type" class="zinc-select search-type-select">
           <option value="card" selected>Karty</option>
           <option value="product">Produkty</option>
         </select>
-        <input
-          type="text"
-          name="query"
-          id="add-card-query"
-          autocomplete="off"
-          placeholder="np. Pikachu"
-          required
-          class="add-card-form-control"
-        />
-        <button type="submit" class="button primary icon-only" id="card-search-trigger">
-          <span class="sr-only">Szukaj</span>
-          <span aria-hidden="true" class="button-icon">🔍</span>
+        
+        <div class="search-input-wrapper">
+          <i data-lucide="search" class="search-icon-absolute w-4 h-4"></i>
+          <input
+            type="text"
+            name="query"
+            id="add-card-query"
+            autocomplete="off"
+            placeholder="Wpisz nazwę (np. Pikachu, Charizard)..."
+            required
+            class="zinc-input search-input-with-icon"
+          />
+        </div>
+        
+        <button type="submit" class="zinc-btn zinc-btn-primary" id="card-search-trigger">
+          Szukaj
         </button>
       </div>
-    </div>
-  </form>
-  <div class="card-search-toolbar" data-card-search-toolbar>
-    <div class="card-search-toolbar-group card-search-toolbar-group--sort">
-      <label for="card-sort-select">Sortowanie</label>
-      <select id="card-sort-select" data-card-sort>
-        <option value="relevance">Domyślne</option>
-        <option value="name-asc">Nazwa (A–Z)</option>
-        <option value="name-desc">Nazwa (Z–A)</option>
-        <option value="set-asc">Dodatek (A–Z)</option>
-        <option value="number-asc">Numer rosnąco</option>
-        <option value="number-desc">Numer malejąco</option>
-        <option value="price-asc">Cena rosnąco</option>
-        <option value="price-desc">Cena malejąco</option>
-      </select>
-    </div>
-    <div
-      class="card-search-toolbar-group card-search-toolbar-group--view"
-      role="group"
-      aria-label="Przełącz widok wyników wyszukiwania"
-    >
-      <span class="card-search-toolbar-label">Widok</span>
-      <div class="card-search-view-toggle">
-        <button type="button" data-card-view="grid" aria-pressed="true" class="is-active">
-          <span class="sr-only">Widok siatki</span>
-          <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-            <rect x="2" y="2" width="6" height="6" rx="1.2" />
-            <rect x="12" y="2" width="6" height="6" rx="1.2" />
-            <rect x="2" y="12" width="6" height="6" rx="1.2" />
-            <rect x="12" y="12" width="6" height="6" rx="1.2" />
-          </svg>
-        </button>
-        <button type="button" data-card-view="list" aria-pressed="false">
-          <span class="sr-only">Widok listy</span>
-          <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-            <rect x="2" y="3" width="4" height="4" rx="1.2" />
-            <rect x="2" y="9" width="4" height="4" rx="1.2" />
-            <rect x="2" y="15" width="4" height="4" rx="1.2" />
-            <rect x="8" y="3" width="10" height="2.4" rx="1.2" />
-            <rect x="8" y="9" width="10" height="2.4" rx="1.2" />
-            <rect x="8" y="15" width="10" height="2.4" rx="1.2" />
-          </svg>
-        </button>
-      </div>
-    </div>
+    </form>
   </div>
-  <p id="card-search-summary" class="search-summary" hidden aria-live="polite"></p>
-  <div
-    id="card-search-results"
-    class="card-search-results card-search-results--grid"
-    role="list"
-    data-view-mode="grid"
-  ></div>
-  <nav
-    id="card-search-pagination"
-    class="card-search-pagination"
-    hidden
-    aria-label="Stronicowanie wyników wyszukiwania"
-  ></nav>
-  <p id="card-search-empty" class="empty-state" hidden aria-live="polite"></p>
 </section>
+
+<!-- Results Panel -->
+<section class="search-panel" id="add-card-page">
+  <div class="container mx-auto px-4 max-w-6xl">
+    
+    <!-- Toolbar -->
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-4 border-b border-zinc-800 pb-4" data-card-search-toolbar>
+      <div class="flex items-center gap-3">
+        <span class="toolbar-label">Sortowanie</span>
+        <select id="card-sort-select" data-card-sort class="zinc-select py-1 text-xs">
+          <option value="relevance">Domyślne</option>
+          <option value="name-asc">Nazwa (A–Z)</option>
+          <option value="name-desc">Nazwa (Z–A)</option>
+          <option value="set-asc">Dodatek (A–Z)</option>
+          <option value="number-asc">Numer rosnąco</option>
+          <option value="number-desc">Numer malejąco</option>
+          <option value="price-asc">Cena rosnąco</option>
+          <option value="price-desc">Cena malejąco</option>
+        </select>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <span class="toolbar-label">Widok</span>
+        <div class="view-toggle">
+          <button type="button" data-card-view="grid" aria-pressed="true" class="view-toggle-btn is-active">
+            <i data-lucide="layout-grid" class="w-4 h-4"></i>
+            <span class="sr-only">Siatka</span>
+          </button>
+          <button type="button" data-card-view="list" aria-pressed="false" class="view-toggle-btn">
+            <i data-lucide="list" class="w-4 h-4"></i>
+            <span class="sr-only">Lista</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <p id="card-search-summary" class="text-xs text-zinc-500 mb-4" hidden aria-live="polite"></p>
+
+    <!-- Results Grid -->
+    <div
+      id="card-search-results"
+      class="card-search-results card-search-results--grid"
+      role="list"
+      data-view-mode="grid"
+    ></div>
+
+    <!-- Pagination -->
+    <nav
+      id="card-search-pagination"
+      class="flex justify-center gap-2 mt-8"
+      hidden
+      aria-label="Stronicowanie wyników wyszukiwania"
+    ></nav>
+
+    <!-- Empty State -->
+    <p id="card-search-empty" class="text-center py-12 text-zinc-500 text-sm" hidden aria-live="polite"></p>
+  </div>
+</section>
+
+<!-- Init Icons -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    lucide.createIcons();
+  });
+</script>
 {% endblock %}

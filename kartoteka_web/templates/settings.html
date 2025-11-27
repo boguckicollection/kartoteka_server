@@ -1,113 +1,437 @@
 {% extends "base.html" %}
 {% block title %}Ustawienia konta - Kartoteka{% endblock %}
+
+{% block head_extra %}
+<style>
+/* Zinc Settings Styles */
+.settings-hero {
+  background: #09090b;
+  border-bottom: 1px solid #27272a;
+  padding: 24px 0;
+}
+
+.settings-content {
+  background: #000000;
+  padding: 24px 0;
+  min-height: calc(100vh - 200px);
+}
+
+.zinc-card {
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.zinc-input {
+  background: #09090b;
+  border: 1px solid #27272a;
+  color: #fafafa;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  width: 100%;
+  margin-top: 6px;
+  transition: all 0.2s;
+}
+
+.zinc-input:focus {
+  border-color: #6366f1;
+  outline: none;
+  box-shadow: 0 0 0 1px #6366f1;
+}
+
+.zinc-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #a1a1aa;
+  margin-bottom: 16px;
+}
+
+.zinc-btn {
+  background: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.zinc-btn:hover {
+  background: #4338ca;
+}
+
+.zinc-btn-secondary {
+  background: #27272a;
+  color: #fafafa;
+}
+
+.zinc-btn-secondary:hover {
+  background: #3f3f46;
+}
+
+/* Avatar Selector */
+.avatar-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.avatar-option {
+  position: relative;
+  cursor: pointer;
+}
+
+.avatar-option input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.avatar-visual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  background: #09090b;
+  transition: all 0.2s;
+}
+
+.avatar-img {
+  width: 48px;
+  height: 48px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  margin-bottom: 8px;
+}
+
+.avatar-label {
+  font-size: 11px;
+  color: #a1a1aa;
+  text-align: center;
+}
+
+.avatar-option input:checked + .avatar-visual {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.avatar-option input:checked + .avatar-visual .avatar-label {
+  color: #6366f1;
+  font-weight: 600;
+}
+</style>
+{% endblock %}
+
 {% block content %}
-<section class="panel settings-panel" id="settings-page">
-  <div class="panel-header">
-    <div>
-      <h1>Ustawienia konta {{ username or '' }}</h1>
-      <p>Zarządzaj danymi logowania, adresem e-mail i wizerunkiem profilu.</p>
+<section class="settings-hero">
+  <div class="container mx-auto px-4 max-w-4xl">
+    <div class="flex items-center gap-3 mb-2">
+      <div class="p-2 bg-zinc-800 rounded-lg">
+        <i data-lucide="settings" class="w-5 h-5 text-zinc-400"></i>
+      </div>
+      <h1 class="text-2xl font-bold text-white">Ustawienia konta</h1>
     </div>
-  </div>
-  <div class="settings-grid">
-    <article class="settings-card">
-      <h2>Dane profilu</h2>
-      <p>Aktualizuj e-mail do powiadomień oraz adres URL awatara wyświetlanego w panelu.</p>
-      <form id="settings-profile-form" class="settings-form" novalidate>
-        <label>
-          <span>E-mail</span>
-          <input type="email" name="email" autocomplete="email" placeholder="np. trener@pokemon.tcg" />
-        </label>
-        <label>
-          <span>Adres awatara</span>
-          <input type="url" name="avatar_url" autocomplete="url" placeholder="https://…" />
-        </label>
-        <fieldset class="avatar-selector">
-          <legend>Awatar Pokemon</legend>
-          <p>Wybierz motyw Pokéball lub podaj własny adres graficzny powyżej.</p>
-          <div class="avatar-options">
-            <label class="avatar-option">
-              <input
-                type="radio"
-                name="avatar_choice"
-                value="{{ url_for('static', path='/icons/avatars/pokeball-classic.svg') }}"
-                data-url="{{ url_for('static', path='/icons/avatars/pokeball-classic.svg') }}"
-              />
-              <span
-                class="avatar-option-visual"
-                style="background-image: url('{{ url_for('static', path='/icons/avatars/pokeball-classic.svg') }}');"
-                aria-hidden="true"
-              ></span>
-              <span class="avatar-option-label">Poké Ball klasyczny</span>
-            </label>
-            <label class="avatar-option">
-              <input
-                type="radio"
-                name="avatar_choice"
-                value="{{ url_for('static', path='/icons/avatars/pokeball-great.svg') }}"
-                data-url="{{ url_for('static', path='/icons/avatars/pokeball-great.svg') }}"
-              />
-              <span
-                class="avatar-option-visual"
-                style="background-image: url('{{ url_for('static', path='/icons/avatars/pokeball-great.svg') }}');"
-                aria-hidden="true"
-              ></span>
-              <span class="avatar-option-label">Great Ball</span>
-            </label>
-            <label class="avatar-option">
-              <input
-                type="radio"
-                name="avatar_choice"
-                value="{{ url_for('static', path='/icons/avatars/pokeball-ultra.svg') }}"
-                data-url="{{ url_for('static', path='/icons/avatars/pokeball-ultra.svg') }}"
-              />
-              <span
-                class="avatar-option-visual"
-                style="background-image: url('{{ url_for('static', path='/icons/avatars/pokeball-ultra.svg') }}');"
-                aria-hidden="true"
-              ></span>
-              <span class="avatar-option-label">Ultra Ball</span>
-            </label>
-            <label class="avatar-option">
-              <input
-                type="radio"
-                name="avatar_choice"
-                value="{{ url_for('static', path='/icons/avatars/pokeball-premier.svg') }}"
-                data-url="{{ url_for('static', path='/icons/avatars/pokeball-premier.svg') }}"
-              />
-              <span
-                class="avatar-option-visual"
-                style="background-image: url('{{ url_for('static', path='/icons/avatars/pokeball-premier.svg') }}');"
-                aria-hidden="true"
-              ></span>
-              <span class="avatar-option-label">Premier Ball</span>
-            </label>
-            <label class="avatar-option" data-custom="true">
-              <input type="radio" name="avatar_choice" value="custom" data-custom="true" data-url="" />
-              <span class="avatar-option-visual" aria-hidden="true">URL</span>
-              <span class="avatar-option-label">Własny link</span>
-            </label>
-          </div>
-        </fieldset>
-        <div class="alert" role="status" aria-live="polite" hidden></div>
-        <button type="submit" class="button primary">Zapisz profil</button>
-      </form>
-    </article>
-    <article class="settings-card">
-      <h2>Zmień hasło</h2>
-      <p>Użyj silnego, unikalnego hasła. Minimalna długość to 8 znaków.</p>
-      <form id="settings-password-form" class="settings-form" novalidate>
-        <label>
-          <span>Obecne hasło</span>
-          <input type="password" name="current_password" autocomplete="current-password" required />
-        </label>
-        <label>
-          <span>Nowe hasło</span>
-          <input type="password" name="new_password" autocomplete="new-password" minlength="8" required />
-        </label>
-        <div class="alert" role="status" aria-live="polite" hidden></div>
-        <button type="submit" class="button secondary">Aktualizuj hasło</button>
-      </form>
-    </article>
+    <p class="text-sm text-zinc-400 ml-12">Zarządzaj danymi logowania i profilem {{ username or '' }}</p>
   </div>
 </section>
+
+<section class="settings-content" id="settings-page">
+  <div class="container mx-auto px-4 max-w-4xl grid gap-6">
+    
+    <!-- Profile Card -->
+    <article class="zinc-card">
+      <div class="flex items-start justify-between mb-6">
+        <div>
+          <h2 class="text-lg font-semibold text-white">Dane profilu</h2>
+          <p class="text-xs text-zinc-500 mt-1">Zmień e-mail i awatar widoczny w aplikacji.</p>
+        </div>
+        <div class="p-2 bg-indigo-500/10 rounded-lg">
+          <i data-lucide="user" class="w-5 h-5 text-indigo-400"></i>
+        </div>
+      </div>
+
+      <form id="settings-profile-form" class="settings-form" novalidate>
+        <div class="grid md:grid-cols-2 gap-6 mb-6">
+          <label class="zinc-label">
+            E-mail
+            <input type="email" name="email" autocomplete="email" placeholder="np. trener@pokemon.tcg" class="zinc-input" />
+          </label>
+          <label class="zinc-label">
+            Adres awatara (URL)
+            <input type="url" name="avatar_url" autocomplete="url" placeholder="https://..." class="zinc-input" />
+          </label>
+        </div>
+
+        <div class="mb-6">
+          <span class="text-xs font-medium text-zinc-500 block mb-3">Wybierz awatar</span>
+          <div class="avatar-options">
+            <label class="avatar-option">
+              <input type="radio" name="avatar_choice" value="{{ url_for('static', path='/icons/avatars/pokeball-classic.svg') }}" data-url="{{ url_for('static', path='/icons/avatars/pokeball-classic.svg') }}" />
+              <div class="avatar-visual">
+                <div class="avatar-img" style="background-image: url('{{ url_for('static', path='/icons/avatars/pokeball-classic.svg') }}');"></div>
+                <span class="avatar-label">Classic</span>
+              </div>
+            </label>
+            <label class="avatar-option">
+              <input type="radio" name="avatar_choice" value="{{ url_for('static', path='/icons/avatars/pokeball-great.svg') }}" data-url="{{ url_for('static', path='/icons/avatars/pokeball-great.svg') }}" />
+              <div class="avatar-visual">
+                <div class="avatar-img" style="background-image: url('{{ url_for('static', path='/icons/avatars/pokeball-great.svg') }}');"></div>
+                <span class="avatar-label">Great</span>
+              </div>
+            </label>
+            <label class="avatar-option">
+              <input type="radio" name="avatar_choice" value="{{ url_for('static', path='/icons/avatars/pokeball-ultra.svg') }}" data-url="{{ url_for('static', path='/icons/avatars/pokeball-ultra.svg') }}" />
+              <div class="avatar-visual">
+                <div class="avatar-img" style="background-image: url('{{ url_for('static', path='/icons/avatars/pokeball-ultra.svg') }}');"></div>
+                <span class="avatar-label">Ultra</span>
+              </div>
+            </label>
+            <label class="avatar-option">
+              <input type="radio" name="avatar_choice" value="{{ url_for('static', path='/icons/avatars/pokeball-premier.svg') }}" data-url="{{ url_for('static', path='/icons/avatars/pokeball-premier.svg') }}" />
+              <div class="avatar-visual">
+                <div class="avatar-img" style="background-image: url('{{ url_for('static', path='/icons/avatars/pokeball-premier.svg') }}');"></div>
+                <span class="avatar-label">Premier</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="alert bg-zinc-900 border border-zinc-800 text-zinc-300 px-4 py-3 rounded mb-4 text-xs" role="status" aria-live="polite" hidden></div>
+        <button type="submit" class="zinc-btn">Zapisz profil</button>
+      </form>
+    </article>
+
+    <!-- Password Card -->
+    <article class="zinc-card">
+      <div class="flex items-start justify-between mb-6">
+        <div>
+          <h2 class="text-lg font-semibold text-white">Zmień hasło</h2>
+          <p class="text-xs text-zinc-500 mt-1">Dbaj o bezpieczeństwo swojego konta.</p>
+        </div>
+        <div class="p-2 bg-zinc-800 rounded-lg">
+          <i data-lucide="lock" class="w-5 h-5 text-zinc-400"></i>
+        </div>
+      </div>
+
+      <form id="settings-password-form" class="settings-form" novalidate>
+        <div class="grid md:grid-cols-2 gap-6 mb-6">
+          <label class="zinc-label">
+            Obecne hasło
+            <input type="password" name="current_password" autocomplete="current-password" required class="zinc-input" />
+          </label>
+          <label class="zinc-label">
+            Nowe hasło (min. 8 znaków)
+            <input type="password" name="new_password" autocomplete="new-password" minlength="8" required class="zinc-input" />
+          </label>
+        </div>
+
+        <div class="alert bg-zinc-900 border border-zinc-800 text-zinc-300 px-4 py-3 rounded mb-4 text-xs" role="status" aria-live="polite" hidden></div>
+        <button type="submit" class="zinc-btn zinc-btn-secondary">Aktualizuj hasło</button>
+      </form>
+    </article>
+
+    <!-- Danger Zone -->
+    <article class="zinc-card" style="border-color: rgba(239, 68, 68, 0.2);">
+      <div class="flex items-start justify-between mb-6">
+        <div>
+          <h2 class="text-lg font-semibold text-red-500">Strefa niebezpieczna</h2>
+          <p class="text-xs text-zinc-500 mt-1">Operacje, których nie można cofnąć.</p>
+        </div>
+        <div class="p-2 bg-red-500/10 rounded-lg">
+          <i data-lucide="alert-triangle" class="w-5 h-5 text-red-500"></i>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between gap-4 p-4 border border-red-500/10 rounded-lg bg-red-500/5">
+        <div>
+          <h3 class="text-sm font-medium text-zinc-200">Usuń konto</h3>
+          <p class="text-xs text-zinc-500 mt-1">Trwale usuwa konto i wszystkie zgromadzone dane.</p>
+        </div>
+        <button type="button" id="delete-account-btn" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-md transition-colors">
+          Usuń konto
+        </button>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    lucide.createIcons();
+
+    // --- Avatar Selection Logic ---
+    const avatarUrlInput = document.querySelector('input[name="avatar_url"]');
+    const avatarRadios = document.querySelectorAll('input[name="avatar_choice"]');
+
+    avatarRadios.forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const url = e.target.dataset.url;
+        if (url) {
+          avatarUrlInput.value = url;
+        } else if (e.target.value === 'custom') {
+          // Keep current value or clear if needed, user types manually
+          avatarUrlInput.focus();
+        }
+      });
+    });
+
+    // Update radio selection if manual input matches one of the options
+    avatarUrlInput.addEventListener('input', (e) => {
+      const val = e.target.value;
+      let matched = false;
+      avatarRadios.forEach(radio => {
+        if (radio.dataset.url === val) {
+          radio.checked = true;
+          matched = true;
+        }
+      });
+      if (!matched) {
+        const customRadio = document.querySelector('input[value="custom"]');
+        if (customRadio) customRadio.checked = true;
+      }
+    });
+
+
+    // --- Profile Update ---
+    const profileForm = document.getElementById('settings-profile-form');
+    if (profileForm) {
+      profileForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = profileForm.querySelector('button[type="submit"]');
+        const alertBox = profileForm.querySelector('.alert');
+        const formData = new FormData(profileForm);
+        
+        btn.disabled = true;
+        btn.textContent = 'Zapisywanie...';
+        alertBox.hidden = true;
+
+        try {
+          const response = await fetch('/users/me', {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+            },
+            body: JSON.stringify({
+              email: formData.get('email'),
+              avatar_url: formData.get('avatar_url')
+            })
+          });
+
+          if (!response.ok) throw new Error('Nie udało się zapisać zmian.');
+          
+          // Show success
+          alertBox.textContent = 'Profil zaktualizowany pomyślnie.';
+          alertBox.className = 'alert bg-green-500/10 border border-green-500/20 text-green-400 px-4 py-3 rounded mb-4 text-xs';
+          alertBox.hidden = false;
+          
+          // Optional: reload to show new avatar in header
+          setTimeout(() => window.location.reload(), 1000);
+
+        } catch (err) {
+          alertBox.textContent = err.message;
+          alertBox.className = 'alert bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded mb-4 text-xs';
+          alertBox.hidden = false;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Zapisz profil';
+        }
+      });
+    }
+
+    // --- Password Update ---
+    const passwordForm = document.getElementById('settings-password-form');
+    if (passwordForm) {
+      passwordForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = passwordForm.querySelector('button[type="submit"]');
+        const alertBox = passwordForm.querySelector('.alert');
+        const formData = new FormData(passwordForm);
+        
+        // Client side validation matching backend regex
+        const newPass = formData.get('new_password');
+        const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+        
+        if (!passRegex.test(newPass)) {
+             alertBox.textContent = 'Nowe hasło musi mieć min. 8 znaków, wielką literę, cyfrę i znak specjalny.';
+             alertBox.className = 'alert bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded mb-4 text-xs';
+             alertBox.hidden = false;
+             return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Aktualizowanie...';
+        alertBox.hidden = true;
+
+        try {
+          const response = await fetch('/users/me', {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+            },
+            body: JSON.stringify({
+              current_password: formData.get('current_password'),
+              new_password: newPass
+            })
+          });
+
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.detail || 'Nie udało się zmienić hasła.');
+          
+          alertBox.textContent = 'Hasło zostało zmienione.';
+          alertBox.className = 'alert bg-green-500/10 border border-green-500/20 text-green-400 px-4 py-3 rounded mb-4 text-xs';
+          alertBox.hidden = false;
+          passwordForm.reset();
+
+        } catch (err) {
+          alertBox.textContent = err.message;
+          alertBox.className = 'alert bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded mb-4 text-xs';
+          alertBox.hidden = false;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Aktualizuj hasło';
+        }
+      });
+    }
+
+    // --- Delete Account ---
+    const deleteBtn = document.getElementById('delete-account-btn');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', async () => {
+        if (confirm('Czy na pewno chcesz usunąć swoje konto? Tej operacji NIE MOŻNA cofnąć. Wszystkie Twoje kolekcje i dane zostaną utracone.')) {
+          try {
+            const response = await fetch('/users/me', {
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('kartoteka_token')}`
+              }
+            });
+
+            if (response.ok) {
+              localStorage.removeItem('kartoteka_token');
+              window.location.href = '/';
+            } else {
+              alert('Wystąpił błąd podczas usuwania konta.');
+            }
+          } catch (err) {
+            console.error(err);
+            alert('Błąd połączenia.');
+          }
+        }
+      });
+    }
+  });
+</script>
 {% endblock %}
